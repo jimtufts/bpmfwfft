@@ -14,6 +14,9 @@ dependencies:
   - pytest-cov
   - codecov
 
+    # BPMFwFFT depends
+  - numpy
+
     # Pip-only installs
   #- pip:
   #  - codecov
