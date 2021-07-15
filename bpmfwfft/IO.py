@@ -18,6 +18,7 @@ class PrmtopLoad(object):
         """
         :param prmtop_file_name: str, file name of the AMBER promtop file.
         """
+        print(os.getcwd())
         assert os.path.exists(prmtop_file_name), "%s does not exist" %prmtop_file_name
         
         self._parameters = dict()
@@ -225,7 +226,7 @@ class InpcrdLoad(object):
         """
         assert os.path.isfile(inpcrd_file_name), "%s does not exist" %inpcrd_file_name
         
-        if inpcrd_file_name[-3:] == ".gz":
+        if str(inpcrd_file_name)[-3:] == ".gz":
             import gzip
             inpcrd_file = gzip.open(inpcrd_file_name, "r")
         else:

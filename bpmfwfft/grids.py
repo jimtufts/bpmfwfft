@@ -8,7 +8,7 @@ import concurrent.futures
 import numpy as np
 import netCDF4
 
-import IO
+from bpmfwfft import IO
 from util import c_is_in_grid, cdistance, c_containing_cube
 from util import c_cal_charge_grid
 from util import c_cal_potential_grid

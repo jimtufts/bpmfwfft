@@ -1,5 +1,5 @@
 import pytest
-import fft_sampling
+import bpmfwfft.fft_sampling
 import netCDF4
 
 rec_prmtop = "../examples/amber/t4_lysozyme/receptor_579.prmtop"
