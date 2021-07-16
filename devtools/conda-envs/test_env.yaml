@@ -16,7 +16,7 @@ dependencies:
 
     # BPMFwFFT depends
   - numpy
-
+  - netCDF4
     # Pip-only installs
   #- pip:
   #  - codecov
