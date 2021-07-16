@@ -9,9 +9,9 @@ import numpy as np
 import netCDF4
 
 from bpmfwfft import IO
-from bpmfwfft.bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
-from bpmfwfft.bpmfwfft.util import c_cal_charge_grid
-from bpmfwfft.bpmfwfft.util import c_cal_potential_grid
+from util import c_is_in_grid, cdistance, c_containing_cube
+from util import c_cal_charge_grid
+from util import c_cal_potential_grid
 
 def process_potential_grid_function(
         name,
