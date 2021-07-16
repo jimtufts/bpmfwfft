@@ -7,8 +7,8 @@ from __future__ import print_function
 import numpy as np
 import netCDF4
 
-from grids import RecGrid
-from grids import LigGrid
+from bpmfwfft.grids import RecGrid
+from bpmfwfft.grids import LigGrid
 
 
 KB = 0.001987204134799235
