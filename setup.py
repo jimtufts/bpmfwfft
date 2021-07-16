@@ -18,6 +18,16 @@ try:
 except:
     long_description = "\n".join(short_description[2:])
 
+try:
+    from setuptools import setup
+    from setuptools import Extension
+    from Cython.Build import cythonize
+except ImportError:
+    from distutils.core import setup
+    from distutils.extension import Extension
+
+from Cython.Distutils import build_ext
+import numpy as np
 
 setup(
     # Self-descriptive entries which should always be present
