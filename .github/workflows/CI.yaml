@@ -57,7 +57,7 @@ jobs:
       shell: bash -l {0}
       run: |
         python -m pip install . --no-deps
-        python -e pip install util
+        python -m pip install -e ./bpmfwfft/util
         conda list
 
 
