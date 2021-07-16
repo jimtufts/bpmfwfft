@@ -18,7 +18,6 @@ dependencies:
   - numpy
   - netcdf4
   - cython
-  - util
     # Pip-only installs
   #- pip:
   #  - codecov
