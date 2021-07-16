@@ -27,7 +27,7 @@ except ImportError:
     from distutils.extension import Extension
 
 from Cython.Distutils import build_ext
-import numpy as np
+import numpy
 
 setup(
     # Self-descriptive entries which should always be present
