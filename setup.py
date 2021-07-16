@@ -30,6 +30,7 @@ setup(
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     license='MIT',
+    ext_modules = cythonize("util.pyx"),
 
     # Which Python importable modules should be included when your package is installed
     # Handled automatically by setuptools. Use 'exclude' to prevent some specific
