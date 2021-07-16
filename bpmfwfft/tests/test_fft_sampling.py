@@ -32,7 +32,7 @@ def test_create_rec_grid():
                                                   grid_nc_file)
     print('hello', test_quick.get_crd())
 #    assert fft_sampling.Sampling._create_rec_grid(Sampling_test, rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file,
-                                                  grid_nc_file) == 5
+#                                                  grid_nc_file) == 5
 
 # def test_create_lig_grid():
 #     assert fft_sampling.Sampling._create_lig_grid(lig_prmtop, lj_sigma_scal_fact, lig_inpcrd, fft_sampling.Sampling._create_rec_grid(rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file, grid_nc_file))
