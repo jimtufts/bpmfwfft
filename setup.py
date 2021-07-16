@@ -41,6 +41,7 @@ setup(
     cmdclass=versioneer.get_cmdclass(),
     license='MIT',
     ext_modules = cythonize("bpmfwfft/util.pyx"),
+    include_dirs=[numpy.get_include()],
 
     # Which Python importable modules should be included when your package is installed
     # Handled automatically by setuptools. Use 'exclude' to prevent some specific
