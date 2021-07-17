@@ -114,7 +114,7 @@ def test_is_nc_grid_good():
 #     assert bpmfwfft.grids.LigGrid.
 #
 def test_get_box_volume():
-    assert lig_grid.get_box_volume() == 130472.484375
+    assert lig_grid.get_box_volume() == 1374.140625
 #
 # def test_get_meaningful_energies():
 #     assert lig_grid.get_meaningful_energies() == 5
