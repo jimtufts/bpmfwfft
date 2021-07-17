@@ -1,8 +1,8 @@
 BPMFwFFT
 ==============================
 [//]: # (Badges)
-[![GitHub Actions Build Status](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/bpmfwfft/workflows/CI/badge.svg)](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/bpmfwfft/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/BPMFwFFT/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/BPMFwFFT/branch/master)
+[![GitHub Actions Build Status](https://github.com/jimtufts/bpmfwfft/workflows/CI/badge.svg)](https://github.com/jimtufts/bpmfwfft/actions?query=workflow%3ACI)
+[![codecov](https://codecov.io/gh/jimtufts/BPMFwFFT/branch/master/graph/badge.svg)](https://codecov.io/gh/jimtufts/BPMFwFFT/branch/master)
 
 
 Calculate the binding potential of mean force (BPMF) using the FFT.
