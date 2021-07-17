@@ -2,20 +2,25 @@ import pytest
 import bpmfwfft.fft_sampling
 import netCDF4
 
-rec_prmtop = "../examples/amber/t4_lysozyme/receptor_579.prmtop"
+from pathlib import Path
+
+cwd = Path.cwd()
+mod_path = Path(__file__).parent
+
+rec_prmtop = (mod_path / "../../examples/amber/t4_lysozyme/receptor_579.prmtop").resolve()
 lj_sigma_scal_fact = 0.8
-rec_inpcrd = "../examples/amber/t4_lysozyme/receptor_579.inpcrd"
+rec_inpcrd = (mod_path / "../../examples/amber/t4_lysozyme/receptor_579.inpcrd").resolve()
 
-bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
-grid_nc_file = "../examples/grid/t4_lysozyme/grid.nc"
+bsite_file = (mod_path / "../../examples/amber/t4_lysozyme/measured_binding_site.py").resolve()
+grid_nc_file = (mod_path / "../../examples/grid/t4_lysozyme/grid.nc").resolve()
 
-lig_prmtop = "../examples/amber/benzene/ligand.prmtop"
-lig_inpcrd = "../examples/amber/benzene/ligand.inpcrd"
+lig_prmtop = (mod_path / "../../examples/amber/benzene/ligand.prmtop").resolve()
+lig_inpcrd = (mod_path / "../../examples/amber/benzene/ligand.inpcrd").resolve()
 
 energy_sample_size_per_ligand = 500
-output_nc = "../examples/fft_sampling/t4_benzene/fft_sampling.nc"
+output_nc = (mod_path / "../../examples/fft_sampling/t4_benzene/fft_sampling.nc").resolve()
 
-ligand_md_trj_file = "../examples/ligand_md/benzene/trajectory.nc"
+ligand_md_trj_file = (mod_path / "../../examples/ligand_md/benzene/trajectory.nc").resolve()
 lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][:]
 
 
