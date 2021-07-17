@@ -24,7 +24,7 @@ ligand_md_trj_file = (mod_path / "../../examples/ligand_md/benzene/trajectory.nc
 lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][:]
 
 
-Sampling_test = fft_sampling.Sampling(rec_prmtop, lj_sigma_scal_fact, rec_inpcrd,
+Sampling_test = bpmfwfft.fft_sampling.Sampling(rec_prmtop, lj_sigma_scal_fact, rec_inpcrd,
                         bsite_file, grid_nc_file,
                         lig_prmtop, lig_inpcrd,
                         lig_coord_ensemble,
@@ -33,7 +33,7 @@ Sampling_test = fft_sampling.Sampling(rec_prmtop, lj_sigma_scal_fact, rec_inpcrd
                         temperature=300.)
 
 def test_create_rec_grid():
-    test_quick = fft_sampling.Sampling._create_rec_grid(Sampling_test, rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file,
+    test_quick = bpmfwfft.fft_sampling.Sampling._create_rec_grid(Sampling_test, rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file,
                                                   grid_nc_file)
     print('hello', test_quick.get_crd())
 #    assert fft_sampling.Sampling._create_rec_grid(Sampling_test, rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file,
