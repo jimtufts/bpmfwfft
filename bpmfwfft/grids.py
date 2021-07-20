@@ -698,7 +698,6 @@ class RecGrid(Grid):
         """
         spacing = self._grid["spacing"]        
         lower_receptor_corner = np.array([self._crd[:,i].min() for i in range(3)], dtype=float)
-        print("LOWER RECEPTOR CORNER", lower_receptor_corner)
         upper_receptor_corner = np.array([self._crd[:,i].max() for i in range(3)], dtype=float)
         
         lower_receptor_corner_grid_aligned = lower_receptor_corner - (spacing + lower_receptor_corner % spacing)
@@ -719,11 +718,11 @@ class RecGrid(Grid):
 #            upper_receptor_corner_grid_aligned[1]+0.5,
 #            upper_receptor_corner_grid_aligned[2]+0.5] + lower_receptor_corner_grid_aligned) / 2.
         for index, coord in enumerate(upper_receptor_corner_grid_aligned):
-            test = (coord - lower_receptor_corner_grid_aligned[index])/spacing[index]
+            corner_to_corner_1D_distance = (coord - lower_receptor_corner_grid_aligned[index])/spacing[index]
             lower_corner_coord = lower_receptor_corner_grid_aligned[index]
             half_spacing = spacing[index]/2.
-            print(test)            
-            if test%2 != 0:
+            print(corner_to_corner_1D_distance)            
+            if corner_to_corner_1D_distance%2 == 0:
                 shifted_upper_coord = coord + half_spacing
                 shifted_lower_coord = lower_corner_coord - half_spacing
                 upper_receptor_corner_grid_aligned[index] = shifted_upper_coord

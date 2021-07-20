@@ -2,6 +2,7 @@ import pytest
 import bpmfwfft.grids
 import netCDF4
 import os
+import numpy as np
 from pathlib import Path
 
 cwd = Path.cwd()
@@ -29,17 +30,25 @@ lig_grid = bpmfwfft.grids.LigGrid(lig_prmtop_file, lj_sigma_scaling_factor, lig_
 print(lig_grid.get_initial_com())
 
 def test_is_nc_grid_good():
-    print("test", lig_grid.get_initial_com())
     assert bpmfwfft.grids.is_nc_grid_good(grid_nc_file) == True
+    assert bpmfwfft.grids.is_nc_grid_good("trash") == False
 #
 #
 # #Grid class tests
 #
-# def test_get_six_corner_shifts():
+def test_get_six_corner_shifts():
+    print(bpmfwfft.grids.Grid._get_six_corner_shifts(rec_grid))
 #     assert bpmfwfft.grids.Grid._get_six_corner_shifts()
 #
-# def test_set_grid_key_value():
-#     assert bpmfwfft.grids.Grid._set_grid_key_value()
+def test_set_grid_key_value():
+    good_key = 'occupancy'
+    bad_key = 'this_key_is_bad'
+    original_value = rec_grid._grid[good_key]
+    bpmfwfft.grids.Grid._set_grid_key_value(rec_grid, good_key, 1)
+    assert rec_grid._grid[good_key] == 1
+    assert bad_key not in rec_grid._grid_allowed_keys
+    rec_grid._grid[good_key] = original_value
+#    print("test", original_value)
 #
 # def test_load_prmtop():
 #     assert bpmfwfft.grids.Grid._load_prmtop()
@@ -50,11 +59,15 @@ def test_is_nc_grid_good():
 # def test_move_molecule_to():
 #     assert bpmfwfft.grids.Grid._move_molecule_to()
 #
-# def test_get_molecule_center_of_mass():
-#     assert bpmfwfft.grids.Grid._get_molecule_center_of_mass()
+def test_get_molecule_center_of_mass():
+#    np.set_printoptions(precision=15)
+#    print(bpmfwfft.grids.Grid._get_molecule_center_of_mass(rec_grid))
+    assert np.ndarray.tolist(bpmfwfft.grids.Grid._get_molecule_center_of_mass(rec_grid)) == [15.143843333007636, 12.397102311613432, 12.961784483800248]
 #
-# def test_get_corner_crd():
-#     assert bpmfwfft.grids.Grid._get_corner_crd()
+def test_get_corner_crd():
+    np.set_printoptions(precision=15)
+    print(bpmfwfft.grids.Grid._get_corner_crd(rec_grid, [1,1,1]))
+#    assert bpmfwfft.grids.Grid._get_corner_crd()
 #
 # def test_get_uper_most_corner():
 #     assert bpmfwfft.grids.Grid._get_uper_most_corner()

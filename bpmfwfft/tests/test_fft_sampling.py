@@ -1,6 +1,7 @@
 import pytest
 import bpmfwfft.fft_sampling
 import netCDF4
+import pickle
 
 from pathlib import Path
 
@@ -32,10 +33,11 @@ Sampling_test = bpmfwfft.fft_sampling.Sampling(rec_prmtop, lj_sigma_scal_fact, r
                         output_nc,
                         temperature=300.)
 
-def test_create_rec_grid():
-    test_quick = bpmfwfft.fft_sampling.Sampling._create_rec_grid(Sampling_test, rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file,
-                                                  grid_nc_file)
-    print('hello', test_quick.get_crd())
+#def test_create_rec_grid():
+#    test_rec_grid = bpmfwfft.fft_sampling.Sampling._create_rec_grid(Sampling_test, rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file, grid_nc_file)
+#    ref_rec_grid = pickle.load(open( "rec_grid.pickle", "rb" ))
+#    assert test_rec_grid is ref_rec_grid
+    
 #    assert fft_sampling.Sampling._create_rec_grid(Sampling_test, rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file,
 #                                                  grid_nc_file) == 5
 
