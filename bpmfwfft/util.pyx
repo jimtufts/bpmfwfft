@@ -350,6 +350,7 @@ def c_cal_potential_grid(   str name,
                 grid_tmp[i,j,k] = 0.
 
             grid += grid_tmp
+    # TODO: Add SASA grid as replacement for occupancy grid
     else:
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
