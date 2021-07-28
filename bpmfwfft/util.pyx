@@ -354,7 +354,7 @@ def c_cal_potential_grid(   str name,
     else:
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
-            lj_diameter = lj_sigma[atom_ind] #*(.5) #trying to fix the clash problem
+            lj_diameter = lj_sigma[atom_ind]
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, gird_counts)
             for i, j, k in corners:

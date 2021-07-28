@@ -7,6 +7,7 @@ import concurrent.futures
 
 import numpy as np
 import netCDF4
+import mdtraj
 
 from bpmfwfft import IO
 from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
@@ -157,6 +158,18 @@ class Grid(object):
         if total_mass == 0:
             raise RuntimeError("zero total mass")
         return center_of_mass / total_mass
+
+    def _get_molecule_sasa(self, probe_radius, n_sphere_points):
+        """
+        return the per atom SASA of the target molecule
+        """
+        xyz = self._crd
+        radii = self._prmtop["LJ_SIGMA"] + probe_radius
+        dim1 = xyz.shape[1]
+        atom_mapping = np.arange(dim1, dtype=np.int32)
+        out = np.zeros((xyz.shape[0], dim1), dtype=np.float32)
+        sasa = mdtraj.geometry._geometry._sasa(xyz, radii, n_sphere_points, atom_mapping, out)
+        return sasa
 
     def _get_corner_crd(self, corner):
         """
@@ -980,5 +993,6 @@ if __name__ == "__main__":
     print("get_meaningful_corners", lig_grid.get_meaningful_corners())
     print("set_meaningful_energies_to_none", lig_grid.set_meaningful_energies_to_none())
     print("get_initial_com", lig_grid.get_initial_com())
+    print("Receptor SASA", rec_grid._get_molecule_sasa(0.14, 960))
 
 
