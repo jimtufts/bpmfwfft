@@ -291,6 +291,7 @@ class LigGrid(Grid):
         self._load_prmtop(prmtop_file_name, lj_sigma_scaling_factor)
         self._load_inpcrd(inpcrd_file_name)
         self._move_ligand_to_lower_corner()
+        self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
         
     def _move_ligand_to_lower_corner(self):
         """
@@ -553,6 +554,7 @@ class RecGrid(Grid):
 
         if new_calculation:
             self._load_inpcrd(inpcrd_file_name)
+            self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
             nc_handle = netCDF4.Dataset(grid_nc_file, "w", format="NETCDF4")
             self._write_to_nc(nc_handle, "lj_sigma_scaling_factor", 
                                 np.array([lj_sigma_scaling_factor], dtype=float))

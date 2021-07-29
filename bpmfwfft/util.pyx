@@ -111,7 +111,7 @@ def c_corners_within_radius(np.ndarray[np.float64_t, ndim=1] atom_coordinate,
                             np.ndarray[np.float64_t, ndim=1] grid_x,
                             np.ndarray[np.float64_t, ndim=1] grid_y,
                             np.ndarray[np.float64_t, ndim=1] grid_z,
-                            np.ndarray[np.int64_t, ndim=1]   gird_counts ):
+                            np.ndarray[np.int64_t, ndim=1]   grid_counts ):
 
     cdef:
         list corners
@@ -166,7 +166,7 @@ def c_corners_within_radius(np.ndarray[np.float64_t, ndim=1] atom_coordinate,
             dz2 = (grid_z - atom_coordinate[2])**2
 
             corners = []
-            count_i, count_j, count_k = gird_counts
+            count_i, count_j, count_k = grid_counts
 
             for i in range(count_i):
                 for j in range(count_j):
@@ -292,9 +292,10 @@ def c_cal_potential_grid(   str name,
                             np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
                             np.ndarray[np.int64_t, ndim=1]   uper_most_corner,
                             np.ndarray[np.float64_t, ndim=1] spacing,
-                            np.ndarray[np.int64_t, ndim=1]   gird_counts,
+                            np.ndarray[np.int64_t, ndim=1]   grid_counts,
                             np.ndarray[np.float64_t, ndim=1] charges,
-                            np.ndarray[np.float64_t, ndim=1] lj_sigma):
+                            np.ndarray[np.float64_t, ndim=1] lj_sigma,
+                            np.ndarray[np.float32, ndim=2] molecule_sasa):
 
     cdef:
         list corners
@@ -344,7 +345,7 @@ def c_cal_potential_grid(   str name,
                         grid_tmp[i,j,k] = charge / d
 
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                                uper_most_corner, spacing, grid_x, grid_y, grid_z, gird_counts)
+                                                uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
 
             for i, j, k in corners:
                 grid_tmp[i,j,k] = 0.
@@ -352,13 +353,31 @@ def c_cal_potential_grid(   str name,
             grid += grid_tmp
     # TODO: Add SASA grid as replacement for occupancy grid
     else:
-        for atom_ind in range(natoms):
+        roh_i = -1.
+        for atom_ind in range(natoms): # for "surface layer"
             atom_coordinate = crd[atom_ind]
-            lj_diameter = lj_sigma[atom_ind]
-            corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, gird_counts)
-            for i, j, k in corners:
-                grid[i,j,k] = 1.
+            if molecule_sasa[atom_ind] > 0.1:  # surface atom
+                lj_diameter = lj_sigma[atom_ind] * np.sqrt(0.8)
+                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                for i, j, k in corners:
+                    grid[i,j,k] = roh_i
+            elif molecule_sasa[atom_ind] < 0.1: # core atom
+                lj_diameter = lj_sigma[atom_ind] * np.sqrt(1.5)
+                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                for i, j, k in corners:
+                    grid[i,j,k] = roh_i
+        for atom_ind in range(natoms): # for "water layer"
+            atom_coordinate = crd[atom_ind]
+            if molecule_sasa[atom_ind] > 0.1: # surface atom
+                lj_diameter = lj_sigma[atom_ind] + 3.4 # 3.4 corresponds to H2O diameter
+                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                for i, j, k in corners:
+                    if grid[i,j,k] != roh_i:
+                        grid[i,j,k] = 1.
+
     return grid
 
 
