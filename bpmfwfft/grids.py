@@ -7,7 +7,9 @@ import concurrent.futures
 
 import numpy as np
 import netCDF4
-import mdtraj
+from mdtraj.geometry import _geometry
+from mdtraj.geometry.sasa import _ATOMIC_RADII
+
 
 from bpmfwfft import IO
 from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
@@ -164,12 +166,20 @@ class Grid(object):
         return the per atom SASA of the target molecule
         """
         xyz = self._crd
-        radii = self._prmtop["LJ_SIGMA"] + probe_radius
+        xyz = np.expand_dims(xyz, 0)
+        # convert coordinates to nanometers for mdtraj
+        xyz = xyz.astype(np.float32)/10.
+
+        atom_radii = []
+        for atom_label in self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"]:
+            atom_radii.append(_ATOMIC_RADII[str(atom_label).split("-", 0)[0][0]])
+        radii = np.array(atom_radii, np.float32) + probe_radius
         dim1 = xyz.shape[1]
         atom_mapping = np.arange(dim1, dtype=np.int32)
         out = np.zeros((xyz.shape[0], dim1), dtype=np.float32)
-        sasa = mdtraj.geometry._geometry._sasa(xyz, radii, n_sphere_points, atom_mapping, out)
-        return sasa
+        _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
+
+        return out
 
     def _get_corner_crd(self, corner):
         """

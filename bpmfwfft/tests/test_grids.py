@@ -64,6 +64,12 @@ def test_get_molecule_center_of_mass():
 #    print(bpmfwfft.grids.Grid._get_molecule_center_of_mass(rec_grid))
     assert np.ndarray.tolist(bpmfwfft.grids.Grid._get_molecule_center_of_mass(rec_grid)) == [15.143843333007636, 12.397102311613432, 12.961784483800248]
 #
+def test_get_molecule_sasa():
+    test_sasa = bpmfwfft.grids.Grid._get_molecule_sasa(rec_grid, 0.14, 960)
+    print("test_sasa", test_sasa)
+    print("sum test_sasa", test_sasa.sum())
+
+
 def test_get_corner_crd():
     np.set_printoptions(precision=15)
     print(bpmfwfft.grids.Grid._get_corner_crd(rec_grid, [1,1,1]))
