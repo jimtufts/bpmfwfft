@@ -295,7 +295,7 @@ def c_cal_potential_grid(   str name,
                             np.ndarray[np.int64_t, ndim=1]   grid_counts,
                             np.ndarray[np.float64_t, ndim=1] charges,
                             np.ndarray[np.float64_t, ndim=1] lj_sigma,
-                            np.ndarray[np.float32, ndim=2] molecule_sasa):
+                            np.ndarray[float, ndim=2] molecule_sasa):
 
     cdef:
         list corners
@@ -356,13 +356,13 @@ def c_cal_potential_grid(   str name,
         roh_i = -1.
         for atom_ind in range(natoms): # for "surface layer"
             atom_coordinate = crd[atom_ind]
-            if molecule_sasa[atom_ind] > 0.1:  # surface atom
+            if molecule_sasa[0][atom_ind] > 0.1:  # surface atom
                 lj_diameter = lj_sigma[atom_ind] * np.sqrt(0.8)
                 corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                 for i, j, k in corners:
                     grid[i,j,k] = roh_i
-            elif molecule_sasa[atom_ind] < 0.1: # core atom
+            elif molecule_sasa[0][atom_ind] < 0.1: # core atom
                 lj_diameter = lj_sigma[atom_ind] * np.sqrt(1.5)
                 corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
@@ -370,7 +370,7 @@ def c_cal_potential_grid(   str name,
                     grid[i,j,k] = roh_i
         for atom_ind in range(natoms): # for "water layer"
             atom_coordinate = crd[atom_ind]
-            if molecule_sasa[atom_ind] > 0.1: # surface atom
+            if molecule_sasa[0][atom_ind] > 0.1: # surface atom
                 lj_diameter = lj_sigma[atom_ind] + 3.4 # 3.4 corresponds to H2O diameter
                 corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)

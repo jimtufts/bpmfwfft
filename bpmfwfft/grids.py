@@ -10,11 +10,17 @@ import netCDF4
 from mdtraj.geometry import _geometry
 from mdtraj.geometry.sasa import _ATOMIC_RADII
 
+try:
+    from bpmfwfft import IO
+    from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
+    from bpmfwfft.util import c_cal_charge_grid
+    from bpmfwfft.util import c_cal_potential_grid
 
-from bpmfwfft import IO
-from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
-from bpmfwfft.util import c_cal_charge_grid
-from bpmfwfft.util import c_cal_potential_grid
+except:
+    import IO
+    from util import c_is_in_grid, cdistance, c_containing_cube
+    from util import c_cal_charge_grid
+    from util import c_cal_potential_grid
 
 def process_potential_grid_function(
         name,
@@ -23,7 +29,8 @@ def process_potential_grid_function(
         grid_spacing,
         grid_counts,
         charges,
-        prmtop_ljsigma
+        prmtop_ljsigma,
+        molecule_sasa,
 ):
     """
     gets called by cal_potential_grid and assigned to a new python process
@@ -53,7 +60,7 @@ def process_potential_grid_function(
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, grid_counts,
-                                charges, prmtop_ljsigma)
+                                charges, prmtop_ljsigma, molecule_sasa)
     return grid
 
 def is_nc_grid_good(nc_grid_file):
@@ -847,7 +854,8 @@ class RecGrid(Grid):
                         self._grid["spacing"],
                         counts,
                         self._get_charges(name),
-                        self._prmtop["LJ_SIGMA"]
+                        self._prmtop["LJ_SIGMA"],
+                        self._molecule_sasa
                     ))
                 futures[name] = futures_array
             for name in futures:
@@ -974,8 +982,8 @@ if __name__ == "__main__":
     rec_inpcrd_file = "../examples/amber/t4_lysozyme/receptor_579.inpcrd"
     grid_nc_file = "../examples/grid/t4_lysozyme/grid.nc"
     lj_sigma_scaling_factor = 0.8
-    #bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
-    bsite_file = None
+    bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
+    # bsite_file = None
     spacing = 0.25
 
     rec_grid = RecGrid(rec_prmtop_file, lj_sigma_scaling_factor, rec_inpcrd_file, 

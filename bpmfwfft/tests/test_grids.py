@@ -66,6 +66,7 @@ def test_get_molecule_center_of_mass():
 #
 def test_get_molecule_sasa():
     test_sasa = bpmfwfft.grids.Grid._get_molecule_sasa(rec_grid, 0.14, 960)
+    print("test_sasa shape", test_sasa.shape)
     print("test_sasa", test_sasa)
     print("sum test_sasa", test_sasa.sum())
 
