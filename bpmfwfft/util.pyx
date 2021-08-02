@@ -432,6 +432,7 @@ def c_cal_charge_grid(  str name,
                 grid[l, m, n] = 1.0
     return grid
 
+@cython.boundscheck(False)
 def c_cal_charge_grid_new(  str name,
                         np.ndarray[np.float64_t, ndim=2] crd,
                         np.ndarray[np.float64_t, ndim=1] grid_x,
@@ -499,7 +500,4 @@ def c_cal_charge_grid_new(  str name,
                     grid[i,j,k] = 1
 
     return grid
-
-def test_compiled():
-    print("Success! 0.5 lj_diameter")
 
