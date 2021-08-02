@@ -13,13 +13,13 @@ from mdtraj.geometry.sasa import _ATOMIC_RADII
 try:
     from bpmfwfft import IO
     from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
-    from bpmfwfft.util import c_cal_charge_grid
+    from bpmfwfft.util import c_cal_charge_grid_new
     from bpmfwfft.util import c_cal_potential_grid
 
 except:
     import IO
     from util import c_is_in_grid, cdistance, c_containing_cube
-    from util import c_cal_charge_grid
+    from util import c_cal_charge_grid_new
     from util import c_cal_potential_grid
 
 def process_potential_grid_function(
@@ -348,10 +348,13 @@ class LigGrid(Grid):
 
     def _cal_charge_grid(self, name):
         charges = self._get_charges(name)
-        grid = c_cal_charge_grid(name, self._crd, charges, self._origin_crd, 
-                                self._uper_most_corner_crd, self._uper_most_corner,
+        grid_counts = np.copy(self._grid["counts"])
+        grid = c_cal_charge_grid_new(name, self._crd, self._grid["x"], self._grid["y"], self._grid["z"],
+                                self._origin_crd, self._uper_most_corner_crd, self._uper_most_corner,
                                 self._grid["spacing"], self._eight_corner_shifts, self._six_corner_shifts,
-                                self._grid["x"], self._grid["y"], self._grid["z"])
+                                grid_counts, charges, self._prmtop["LJ_SIGMA"],
+                                self._molecule_sasa
+                                )
         return grid
 
     def _cal_corr_func(self, grid_name):
