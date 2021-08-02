@@ -295,7 +295,7 @@ def c_cal_potential_grid(   str name,
                             np.ndarray[np.int64_t, ndim=1]   grid_counts,
                             np.ndarray[np.float64_t, ndim=1] charges,
                             np.ndarray[np.float64_t, ndim=1] lj_sigma,
-                            np.ndarray[float, ndim=2] molecule_sasa):
+                            np.ndarray[float, ndim=2] molecule_sasa ):
 
     cdef:
         list corners
@@ -430,6 +430,74 @@ def c_cal_charge_grid(  str name,
             for i in range(len(ten_corners)):
                 l, m, n = ten_corners[i]
                 grid[l, m, n] = 1.0
+    return grid
+
+def c_cal_charge_grid_new(  str name,
+                        np.ndarray[np.float64_t, ndim=2] crd,
+                        np.ndarray[np.float64_t, ndim=1] grid_x,
+                        np.ndarray[np.float64_t, ndim=1] grid_y,
+                        np.ndarray[np.float64_t, ndim=1] grid_z,
+                        np.ndarray[np.float64_t, ndim=1] origin_crd,
+                        np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
+                        np.ndarray[np.int64_t, ndim=1]   uper_most_corner,
+                        np.ndarray[np.float64_t, ndim=1] spacing,
+                        np.ndarray[np.int64_t, ndim=2]   eight_corner_shifts,
+                        np.ndarray[np.int64_t, ndim=2]   six_corner_shifts,
+                        np.ndarray[np.int64_t, ndim=1]   grid_counts,
+                        np.ndarray[np.float64_t, ndim=1] charges,
+                        np.ndarray[np.float64_t, ndim=1] lj_sigma,
+                        np.ndarray[float, ndim=2] molecule_sasa ):
+
+    cdef:
+        int atom_ind, i, l, m, n
+        int natoms = crd.shape[0]
+        int i_max = grid_x.shape[0]
+        int j_max = grid_y.shape[0]
+        int k_max = grid_z.shape[0]
+        double charge
+        list ten_corners, six_corners, roh_i_corners, roh_i_zeros
+        np.ndarray[np.float64_t, ndim=1] distributed_charges
+        np.ndarray[np.float64_t, ndim=1] atom_coordinate
+        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=np.float)
+        # np.ndarray[np.float64_t, ndim = 1] roh_i_corners # keep track of grid points set to roh*i
+
+    assert name in ["occupancy", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
+
+    if name != "occupancy":
+        for atom_ind in range(natoms):
+            atom_coordinate = crd[atom_ind]
+            charge = charges[atom_ind]
+            ten_corners, distributed_charges = c_distr_charge_one_atom( atom_coordinate, charge,
+                                                                    origin_crd, uper_most_corner_crd,
+                                                                    uper_most_corner, spacing,
+                                                                    eight_corner_shifts, six_corner_shifts,
+                                                                    grid_x, grid_y, grid_z)
+            for i in range(len(ten_corners)):
+                l, m, n = ten_corners[i]
+                grid[l, m, n] += distributed_charges[i]
+    else:
+        roh_i = -1.
+        for atom_ind in range(natoms):
+            atom_coordinate = crd[atom_ind]
+            if molecule_sasa[0][atom_ind] < 0.1:  # core atom
+                lj_diameter = lj_sigma[atom_ind] * np.sqrt(1.5)
+                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                for i, j, k in corners:
+                    grid[i, j, k] = roh_i
+                    roh_i_corners.append(np.array([i,j,k], dtype=int))
+            elif molecule_sasa[0][atom_ind] > 0.1:  # surface atom
+                lj_diameter = lj_sigma[atom_ind]
+                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                for i, j, k in corners:
+                    grid[i, j, k] = 1
+            for i, j, k in roh_i_corners: # if 2 or more grid points are 0 next to a roh*i point, set to 1
+                six_corners = [[i,j,k] + corner for corner in six_corner_shifts]
+                roh_i_zeros = [corner for corner in six_corners if grid[corner] == 0]
+                if len(roh_i_zeros) > 1:
+                    grid[i,j,k] = 1
+
     return grid
 
 def test_compiled():
