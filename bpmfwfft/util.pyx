@@ -308,7 +308,7 @@ def c_cal_potential_grid(   str name,
         double charge, lj_diameter
         double d, exponent
         double dx_tmp, dy_tmp
-        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=np.float)
+        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=float)
         np.ndarray[np.float64_t, ndim=3] grid_tmp
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
         np.ndarray[np.float64_t, ndim=1] dx2, dy2, dz2
@@ -324,7 +324,7 @@ def c_cal_potential_grid(   str name,
         else:
             raise RuntimeError("Wrong grid name %s"%name)
 
-        grid_tmp = np.empty([i_max, j_max, k_max], dtype=np.float)
+        grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
             charge = charges[atom_ind]
@@ -405,7 +405,7 @@ def c_cal_charge_grid(  str name,
         list ten_corners
         np.ndarray[np.float64_t, ndim=1] distributed_charges
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
-        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=np.float)
+        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=float)
 
     assert name in ["occupancy", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
 
@@ -459,7 +459,7 @@ def c_cal_charge_grid_new(  str name,
         list ten_corners, six_corners, roh_i_corners, roh_i_zeros
         np.ndarray[np.float64_t, ndim=1] distributed_charges
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
-        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=np.float)
+        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=float)
         # np.ndarray[np.float64_t, ndim = 1] roh_i_corners # keep track of grid points set to roh*i
 
     assert name in ["occupancy", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
@@ -480,11 +480,11 @@ def c_cal_charge_grid_new(  str name,
         roh_i = -1.
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
+            roh_i_corners = []
             if molecule_sasa[0][atom_ind] < 0.1:  # core atom
                 lj_diameter = lj_sigma[atom_ind] * np.sqrt(1.5)
                 corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-                roh_i_corners = []
                 for i, j, k in corners:
                     grid[i, j, k] = roh_i
                     roh_i_corners.append(np.array([i,j,k], dtype=int))
