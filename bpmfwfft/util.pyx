@@ -353,7 +353,7 @@ def c_cal_potential_grid(   str name,
             grid += grid_tmp
     # TODO: Add SASA grid as replacement for occupancy grid
     else:
-        roh_i = -1.
+        roh_i = -9.j
         for atom_ind in range(natoms): # for "surface layer"
             atom_coordinate = crd[atom_ind]
             if molecule_sasa[0][atom_ind] > 0.1:  # surface atom
@@ -477,7 +477,7 @@ def c_cal_charge_grid_new(  str name,
                 l, m, n = ten_corners[i]
                 grid[l, m, n] += distributed_charges[i]
     else:
-        roh_i = -1.
+        roh_i = -9.j
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
             roh_i_corners = []
