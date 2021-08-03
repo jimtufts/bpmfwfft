@@ -1017,5 +1017,6 @@ if __name__ == "__main__":
     print("set_meaningful_energies_to_none", lig_grid.set_meaningful_energies_to_none())
     print("get_initial_com", lig_grid.get_initial_com())
     print("Receptor SASA", rec_grid._get_molecule_sasa(0.14, 960))
+    print("Ligand SASA", lig_grid._get_molecule_sasa(0.14, 960))
 
 
