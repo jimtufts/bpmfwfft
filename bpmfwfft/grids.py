@@ -566,6 +566,8 @@ class RecGrid(Grid):
             self._load_inpcrd(inpcrd_file_name)
             self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
             nc_handle = netCDF4.Dataset(grid_nc_file, "w", format="NETCDF4")
+            complex128 = np.dtype([("real", np.float64), ("imag", np.float64)])
+            complex128_t = nc_handle.createCompoundType(complex128, "complex128")
             self._write_to_nc(nc_handle, "lj_sigma_scaling_factor", 
                                 np.array([lj_sigma_scaling_factor], dtype=float))
 
@@ -640,6 +642,9 @@ class RecGrid(Grid):
             store_format = "i8"
         elif value.dtype == float:
             store_format = "f8"
+        elif value.dtype == np.cdouble:
+            complex128_t = nc_handle.cmptypes["complex128"]
+            store_format = complex128_t
         else:
             raise RuntimeError("unsupported dtype %s"%value.dtype)
         dimensions = tuple(["%d"%dim for dim in value.shape])
