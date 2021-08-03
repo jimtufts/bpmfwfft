@@ -484,6 +484,7 @@ def c_cal_charge_grid_new(  str name,
                 lj_diameter = lj_sigma[atom_ind] * np.sqrt(1.5)
                 corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                roh_i_corners = []
                 for i, j, k in corners:
                     grid[i, j, k] = roh_i
                     roh_i_corners.append(np.array([i,j,k], dtype=int))
