@@ -237,7 +237,7 @@ def c_ten_corners(  np.ndarray[np.float64_t, ndim=1] atom_coordinate,
 
 @cython.boundscheck(False)
 def c_distr_charge_one_atom( np.ndarray[np.float64_t, ndim=1] atom_coordinate, 
-                             double charge,
+                             np.ndarray[np.cdouble_t, ndim=1] charge,
                              np.ndarray[np.float64_t, ndim=1] origin_crd,
                              np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
                              np.ndarray[np.int64_t, ndim=1]   uper_most_corner,
@@ -251,10 +251,10 @@ def c_distr_charge_one_atom( np.ndarray[np.float64_t, ndim=1] atom_coordinate,
         int i, j, k, row 
         list delta_vectors, ten_corners
         np.ndarray[np.int64_t, ndim=1] corner
-        np.ndarray[np.float64_t, ndim=1] b_vector = np.zeros([10], dtype=float)
-        np.ndarray[np.float64_t, ndim=2] a_matrix = np.zeros([10,10], dtype=float)
+        np.ndarray[np.cdouble_t, ndim=1] b_vector = np.zeros([10], dtype=np.cdouble)
+        np.ndarray[np.cdouble_t, ndim=2] a_matrix = np.zeros([10,10], dtype=np.cdouble)
         np.ndarray[np.float64_t, ndim=1] corner_crd
-        np.ndarray[np.float64_t, ndim=1] distributed_charges
+        np.ndarray[np.cdouble_t, ndim=1] distributed_charges
 
     ten_corners = c_ten_corners(atom_coordinate, origin_crd, uper_most_corner_crd, uper_most_corner,
                                 spacing, eight_corner_shifts, six_corner_shifts, grid_x, grid_y, grid_z)
@@ -308,7 +308,7 @@ def c_cal_potential_grid(   str name,
         double charge, lj_diameter
         double d, exponent
         double dx_tmp, dy_tmp
-        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=float)
+        np.ndarray[np.cdouble_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=np.cdouble)
         np.ndarray[np.float64_t, ndim=3] grid_tmp
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
         np.ndarray[np.float64_t, ndim=1] dx2, dy2, dz2
@@ -371,12 +371,12 @@ def c_cal_potential_grid(   str name,
         for atom_ind in range(natoms): # for "water layer"
             atom_coordinate = crd[atom_ind]
             if molecule_sasa[0][atom_ind] > 0.1: # surface atom
-                lj_diameter = lj_sigma[atom_ind] + 3.4 # 3.4 corresponds to H2O diameter
+                lj_diameter = lj_sigma[atom_ind] + .34 # 0.34nm corresponds to H2O diameter
                 corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                 for i, j, k in corners:
                     if grid[i,j,k] != roh_i:
-                        grid[i,j,k] = 1.
+                        grid[i,j,k] = np.cdouble(1.+0j)
 
     return grid
 
@@ -457,10 +457,9 @@ def c_cal_charge_grid_new(  str name,
         int k_max = grid_z.shape[0]
         double charge
         list ten_corners, six_corners, roh_i_corners, roh_i_zeros
-        np.ndarray[np.float64_t, ndim=1] distributed_charges
+        np.ndarray[np.cdouble_t, ndim=1] distributed_charges
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
-        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=float)
-        # np.ndarray[np.float64_t, ndim = 1] roh_i_corners # keep track of grid points set to roh*i
+        np.ndarray[np.cdouble_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=np.cdouble)
 
     assert name in ["occupancy", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
 
@@ -475,9 +474,9 @@ def c_cal_charge_grid_new(  str name,
                                                                     grid_x, grid_y, grid_z)
             for i in range(len(ten_corners)):
                 l, m, n = ten_corners[i]
-                grid[l, m, n] += distributed_charges[i]
+                # grid[l, m, n] += distributed_charges[i]
     else:
-        roh_i = -9.j
+        roh_i = np.cdouble(-9.j)
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
             roh_i_corners = []
