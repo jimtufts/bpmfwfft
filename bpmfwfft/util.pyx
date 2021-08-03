@@ -474,9 +474,13 @@ def c_cal_charge_grid_new(  str name,
                                                                     grid_x, grid_y, grid_z)
             for i in range(len(ten_corners)):
                 l, m, n = ten_corners[i]
-                # grid[l, m, n] += distributed_charges[i]
+                # below is effectively grid[l, m, n] += distributed_charges[i] for complex nums
+                grid[l, m, n] = np.cdouble(
+                    np.real(grid[l, m, n]) + np.real(distributed_charges[i]),
+                    np.imag(grid[l, m, n]) + np.imag(distributed_charges[i])
+                )
     else:
-        roh_i = np.cdouble(-9.j)
+        roh_i = np.cdouble(0,-9.j)
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
             roh_i_corners = []
