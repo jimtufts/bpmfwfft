@@ -852,7 +852,6 @@ class RecGrid(Grid):
                     futures_array.append(executor.submit(
                         process_potential_grid_function,
                         name,
-                        type(self).__name__,
                         self._crd,
                         origin,
                         self._grid["spacing"],
