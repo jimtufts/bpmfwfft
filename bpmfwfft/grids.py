@@ -644,6 +644,7 @@ class RecGrid(Grid):
             store_format = "f8"
         elif value.dtype == np.cdouble:
             complex128_t = nc_handle.cmptypes["complex128"]
+            print(complex128_t)
             store_format = complex128_t
         else:
             raise RuntimeError("unsupported dtype %s"%value.dtype)

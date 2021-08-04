@@ -348,12 +348,12 @@ def c_cal_potential_grid(   str name,
                                                 uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
 
             for i, j, k in corners:
-                grid_tmp[i,j,k] = 0.
+                grid_tmp[i,j,k] = np.cdouble(0.+0.j)
 
             grid += grid_tmp
     # TODO: Add SASA grid as replacement for occupancy grid
     else:
-        roh_i = -9.j
+        roh_i = np.cdouble(0.-9.j)
         for atom_ind in range(natoms): # for "surface layer"
             atom_coordinate = crd[atom_ind]
             if molecule_sasa[0][atom_ind] > 0.1:  # surface atom
@@ -361,13 +361,15 @@ def c_cal_potential_grid(   str name,
                 corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                 for i, j, k in corners:
-                    grid[i,j,k] = roh_i
+                    grid[i, j, k].real = np.real(roh_i)
+                    grid[i, j, k].imag = np.imag(roh_i)
             elif molecule_sasa[0][atom_ind] < 0.1: # core atom
                 lj_diameter = lj_sigma[atom_ind] * np.sqrt(1.5)
                 corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                 for i, j, k in corners:
-                    grid[i,j,k] = roh_i
+                    grid[i, j, k].real = np.real(roh_i)
+                    grid[i, j, k].imag = np.imag(roh_i)
         for atom_ind in range(natoms): # for "water layer"
             atom_coordinate = crd[atom_ind]
             if molecule_sasa[0][atom_ind] > 0.1: # surface atom
@@ -376,7 +378,7 @@ def c_cal_potential_grid(   str name,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                 for i, j, k in corners:
                     if grid[i,j,k] != roh_i:
-                        grid[i,j,k] = np.cdouble(1.+0j)
+                        grid[i,j,k].real = 1.
 
     return grid
 
