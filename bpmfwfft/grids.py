@@ -34,7 +34,7 @@ def process_potential_grid_function(
 ):
     """
     gets called by cal_potential_grid and assigned to a new python process
-    use cython to calculate electrostatic, LJa, LJr, and occupancy grids
+    use cython to calculate electrostatic, LJa, LJr, SASAr, and SASAi grids
     and save them to nc file
     """
     print("calculating %s grid" % name)
@@ -90,7 +90,7 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        self._grid_func_names   = ("electrostatic", "LJr", "LJa", "occupancy")
+        self._grid_func_names   = ("electrostatic", "LJr", "LJa", "SASAi", "SASAr")
         cartesian_axes  = ("x", "y", "z")
         box_dim_names   = ("d0", "d1", "d2")
         others          = ("spacing", "counts", "origin", "lj_sigma_scaling_factor")
@@ -341,7 +341,9 @@ class LigGrid(Grid):
             return np.array(self._prmtop["A_LJ_CHARGE"], dtype=float)
         elif name == "LJr":
             return np.array(self._prmtop["R_LJ_CHARGE"], dtype=float)
-        elif name == "occupancy":
+        elif name == "SASAi":
+            return np.array([0], dtype=float)
+        elif name == "SASAr":
             return np.array([0], dtype=float)
         else:
             raise RuntimeError("%s is unknown"%name)
@@ -409,15 +411,15 @@ class LigGrid(Grid):
         TODO
         """
         max_i, max_j, max_k = self._max_grid_indices
-
-        corr_func = self._cal_corr_func("occupancy")
+        # TODO figure out how to calculate new corr function using SASA grids
+        corr_func = self._cal_corr_func("SASAr")
         self._free_of_clash = (corr_func < 0.001)
         print(self._free_of_clash.shape)
         self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
         
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
         if np.any(self._free_of_clash):
-            grid_names = [name for name in self._grid_func_names if name != "occupancy"]
+            grid_names = [name for name in self._grid_func_names if name[:4] != "SASA"]
             for name in grid_names:
                 self._meaningful_energies += self._cal_corr_func(name) 
         # get crystal pose here, use i,j,k of crystal pose
@@ -827,7 +829,9 @@ class RecGrid(Grid):
             return -2.0 * np.array(self._prmtop["A_LJ_CHARGE"], dtype=float)
         elif name == "LJr":
             return np.array(self._prmtop["R_LJ_CHARGE"], dtype=float)
-        elif name == "occupancy":
+        elif name == "SASAi":
+            return np.array([0], dtype=float)
+        elif name == "SASAr":
             return np.array([0], dtype=float)
         else:
             raise RuntimeError("%s is unknown"%name)
@@ -835,7 +839,7 @@ class RecGrid(Grid):
     def _cal_potential_grids(self, nc_handle):
         """
         Divides each grid calculation into a separate process (electrostatic, LJr, LJa,
-        occupancy) and then divides the grid into slices along the x-axis determined by
+        SASAr, SASAi) and then divides the grid into slices along the x-axis determined by
         the "task divisor". Remainders are calculated in the last slice.  This adds
         multiprocessing functionality to the grid generation.
         """
@@ -890,7 +894,7 @@ class RecGrid(Grid):
         
         values = {}
         for name in self._grid_func_names:
-            if name != "occupancy":
+            if name[:4] != "SASA":
                 values[name] = 0.
         
         NATOM = self._prmtop["POINTERS"]["NATOM"]
@@ -960,7 +964,7 @@ class RecGrid(Grid):
         """
         raise RuntimeError("Do not use, not tested yet")
         assert len(ligand_coordinate) == len(ligand_charges["CHARGE_E_UNIT"]), "coord and charges must have the same len"  
-        grid_names = [name for name in self._grid_func_names if name != "occupancy"]
+        grid_names = [name for name in self._grid_func_names if name[:4] != "SASA"]
         energy = 0.
         potentials = {}
         for atom_ind in range(len(ligand_coordinate)):
