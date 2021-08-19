@@ -31,6 +31,7 @@ def process_potential_grid_function(
         charges,
         prmtop_ljsigma,
         molecule_sasa,
+        sasa_grid
 ):
     """
     gets called by cal_potential_grid and assigned to a new python process
@@ -60,7 +61,7 @@ def process_potential_grid_function(
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, grid_counts,
-                                charges, prmtop_ljsigma, molecule_sasa)
+                                charges, prmtop_ljsigma, molecule_sasa, sasa_grid)
     return grid
 
 def is_nc_grid_good(nc_grid_file):
@@ -90,7 +91,7 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        self._grid_func_names   = ("electrostatic", "LJr", "LJa", "SASAi", "SASAr")
+        self._grid_func_names   = ("SASAi", "electrostatic", "LJr", "LJa", "SASAr")
         cartesian_axes  = ("x", "y", "z")
         box_dim_names   = ("d0", "d1", "d2")
         others          = ("spacing", "counts", "origin", "lj_sigma_scaling_factor")
@@ -846,6 +847,7 @@ class RecGrid(Grid):
         task_divisor = 8
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures = {}
+            sasa_grid = np.empty((0,0,0))
             for name in self._grid_func_names:
                 futures_array = []
                 for i in range(task_divisor):
@@ -859,24 +861,49 @@ class RecGrid(Grid):
                     origin = np.copy(self._origin_crd)
                     origin[0] = grid_start_x * self._grid["spacing"][0]
 
-                    futures_array.append(executor.submit(
-                        process_potential_grid_function,
-                        name,
-                        self._crd,
-                        origin,
-                        self._grid["spacing"],
-                        counts,
-                        self._get_charges(name),
-                        self._prmtop["LJ_SIGMA"],
-                        self._molecule_sasa
-                    ))
+                    if name != "SASAr":
+                        dummy_grid = np.empty((1,1,1), dtype=np.float64)
+                        futures_array.append(executor.submit(
+                            process_potential_grid_function,
+                            name,
+                            self._crd,
+                            origin,
+                            self._grid["spacing"],
+                            counts,
+                            self._get_charges(name),
+                            self._prmtop["LJ_SIGMA"],
+                            self._molecule_sasa,
+                            dummy_grid
+                        ))
+                    else:
+                        print(self._grid.keys())
+                        futures_array.append(executor.submit(
+                            process_potential_grid_function,
+                            name,
+                            self._crd,
+                            origin,
+                            self._grid["spacing"],
+                            counts,
+                            self._get_charges(name),
+                            self._prmtop["LJ_SIGMA"],
+                            self._molecule_sasa,
+                            sasa_grid
+                        ))
                 futures[name] = futures_array
+                if name == "SASAi":
+                    sasa_array = []
+                    for i in range(task_divisor):
+                        partial_sasa_grid = futures[name][i].result()
+                        sasa_array.append(partial_sasa_grid)
+                    sasa_grid = np.concatenate(tuple(sasa_array))
             for name in futures:
                 grid_array = []
                 for i in range(task_divisor):
                     partial_grid = futures[name][i].result()
                     grid_array.append(partial_grid)
                 grid = np.concatenate(tuple(grid_array), axis=0)
+                if name == "SASAi":
+                    sasa_grid = np.copy(grid)
                 self._write_to_nc(nc_handle, name, grid)
                 self._set_grid_key_value(name, grid)
                 # self._set_grid_key_value(name, None)     # to save memory

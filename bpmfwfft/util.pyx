@@ -295,7 +295,8 @@ def c_cal_potential_grid(   str name,
                             np.ndarray[np.int64_t, ndim=1]   grid_counts,
                             np.ndarray[np.float64_t, ndim=1] charges,
                             np.ndarray[np.float64_t, ndim=1] lj_sigma,
-                            np.ndarray[float, ndim=2] molecule_sasa ):
+                            np.ndarray[float, ndim=2] molecule_sasa,
+                            np.ndarray[np.float64_t, ndim=3] sasai_grid):
 
     cdef:
         list corners, roh_i_corners
@@ -381,7 +382,7 @@ def c_cal_potential_grid(   str name,
                     corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                       uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                     for i, j, k in corners:
-                        if grid[i,j,k] not in roh_i_corners:
+                        if sasai_grid[i,j,k] != roh_i:
                             grid[i,j,k] = 1.
 
     return grid
