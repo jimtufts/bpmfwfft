@@ -454,7 +454,8 @@ def c_cal_charge_grid_new(  str name,
                         np.ndarray[np.int64_t, ndim=1]   grid_counts,
                         np.ndarray[np.float64_t, ndim=1] charges,
                         np.ndarray[np.float64_t, ndim=1] lj_sigma,
-                        np.ndarray[float, ndim=2] molecule_sasa ):
+                        np.ndarray[float, ndim=2] molecule_sasa,
+                        np.ndarray[np.float64_t, ndim=3] sasai_grid ):
 
     cdef:
         int atom_ind, i, l, m, n
@@ -488,24 +489,28 @@ def c_cal_charge_grid_new(  str name,
         roh_i_corners = []
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
-            if molecule_sasa[0][atom_ind] < 0.1:  # core atom
-                lj_diameter = lj_sigma[atom_ind] * np.sqrt(1.5)
-                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-                for i, j, k in corners:
-                    grid[i, j, k] = roh_i
-                    roh_i_corners.append(np.array([i,j,k], dtype=int))
-            elif molecule_sasa[0][atom_ind] > 0.1:  # surface atom
-                lj_diameter = lj_sigma[atom_ind]
-                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-                for i, j, k in corners:
-                    grid[i, j, k] = 1
-            for i, j, k in roh_i_corners: # if 2 or more grid points are 0 next to a roh*i point, set to 1
-                six_corners = [[i,j,k] + corner for corner in six_corner_shifts]
-                roh_i_zeros = [corner for corner in six_corners if grid[corner] == 0]
-                if len(roh_i_zeros) > 1:
-                    grid[i,j,k] = 1
+            if name == "SASAi":
+                print(molecule_sasa[0][atom_ind])
+                if molecule_sasa[0][atom_ind] < 0.1:  # core atom
+                    lj_diameter = lj_sigma[atom_ind] * np.sqrt(1.5)
+                    corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                      uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                    print("corners", corners)
+                    for i, j, k in corners:
+                        grid[i, j, k] = roh_i
+            elif name == "SASAr":
+                if molecule_sasa[0][atom_ind] > 0.1:  # surface atom
+                    lj_diameter = lj_sigma[atom_ind]
+                    corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                      uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                    for i, j, k in corners:
+                        grid[i, j, k] = 1
+                if len(np.where(sasai_grid == roh_i)[0]) > 0:
+                    for i, j, k in np.where(sasai_grid == roh_i): # if 2 or more grid points are 0 next to a roh*i point, set to 1
+                        six_corners = [[i,j,k] + corner for corner in six_corner_shifts]
+                        roh_i_zeros = [corner for corner in six_corners if sasai_grid[corner] == 0]
+                        if len(roh_i_zeros) > 1:
+                            grid[i,j,k] = 1
 
     return grid
 

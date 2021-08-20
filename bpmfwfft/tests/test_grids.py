@@ -41,7 +41,7 @@ def test_get_six_corner_shifts():
 #     assert bpmfwfft.grids.Grid._get_six_corner_shifts()
 #
 def test_set_grid_key_value():
-    good_key = 'occupancy'
+    good_key = 'SASAr'
     bad_key = 'this_key_is_bad'
     original_value = rec_grid._grid[good_key]
     bpmfwfft.grids.Grid._set_grid_key_value(rec_grid, good_key, 1)

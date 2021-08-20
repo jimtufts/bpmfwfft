@@ -349,14 +349,14 @@ class LigGrid(Grid):
         else:
             raise RuntimeError("%s is unknown"%name)
 
-    def _cal_charge_grid(self, name):
+    def _cal_charge_grid(self, name, sasai_grid):
         charges = self._get_charges(name)
         grid_counts = np.copy(self._grid["counts"])
         grid = c_cal_charge_grid_new(name, self._crd, self._grid["x"], self._grid["y"], self._grid["z"],
                                 self._origin_crd, self._uper_most_corner_crd, self._uper_most_corner,
                                 self._grid["spacing"], self._eight_corner_shifts, self._six_corner_shifts,
                                 grid_counts, charges, self._prmtop["LJ_SIGMA"],
-                                self._molecule_sasa
+                                self._molecule_sasa, sasai_grid
                                 )
         return grid
 
@@ -366,6 +366,7 @@ class LigGrid(Grid):
         :return: fft correlation function
         """
         assert grid_name in self._grid_func_names, "%s is not an allowed grid name"%grid_name
+
         grid = self._cal_charge_grid(grid_name)
 
         self._set_grid_key_value(grid_name, grid)
@@ -374,6 +375,38 @@ class LigGrid(Grid):
 
         corr_func = corr_func.conjugate()
         corr_func = np.fft.ifftn(self._rec_FFTs[grid_name] * corr_func)
+        corr_func = np.real(corr_func)
+        return corr_func
+
+    def _cal_shape_complementarity(self, grid_names):
+        """
+        :param grid_name: str
+        :return: fft correlation function
+        """
+        for grid_name in grid_names:
+            assert grid_name in self._grid_func_names, "%s is not an allowed grid name"%grid_name
+        dummy_grid = np.empty((1, 1, 1), dtype=np.float64)
+        lig_sasai_grid = self._cal_charge_grid("SASAi", dummy_grid)
+        print(lig_sasai_grid)
+        lig_sasar_grid = self._cal_charge_grid(grid_names[1], lig_sasai_grid)
+
+        lig_sasa_grid = np.add(lig_sasar_grid, lig_sasai_grid*1.j)
+
+
+        # self._set_grid_key_value(grid_name, lig_sasa_grid)
+        # corr_func = np.fft.fftn(self._grid[grid_name])
+        corr_func = np.fft.fftn(lig_sasa_grid)
+        # self._set_grid_key_value(grid_name, None)           # to save memory
+
+        rec_sasai_grid = self._grid["SASAi"]
+        rec_sasar_grid = self._grid["SASAr"]
+
+        rec_sasa_grid = np.add(rec_sasar_grid, rec_sasai_grid*1.j)
+
+        rec_sasa_fft = np.fft.fftn(rec_sasa_grid)
+        corr_func = corr_func.conjugate()
+
+        corr_func = np.fft.ifftn(rec_sasa_fft * corr_func)
         corr_func = np.real(corr_func)
         return corr_func
 
@@ -413,7 +446,8 @@ class LigGrid(Grid):
         """
         max_i, max_j, max_k = self._max_grid_indices
         # TODO figure out how to calculate new corr function using SASA grids
-        corr_func = self._cal_corr_func("SASAr")
+        # corr_func = self._cal_corr_func("SASAr")
+        corr_func = self._cal_shape_complementarity(["SASAi", "SASAr"])
         self._free_of_clash = (corr_func < 0.001)
         print(self._free_of_clash.shape)
         self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
