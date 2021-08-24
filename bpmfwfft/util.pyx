@@ -505,8 +505,9 @@ def c_cal_charge_grid_new(  str name,
                                                       uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                     for i, j, k in corners:
                         grid[i, j, k] = 1
+                roh_i_hits = np.array(np.where(sasai_grid == roh_i)).transpose()
                 if len(np.where(sasai_grid == roh_i)[0]) > 0:
-                    for i, j, k in np.where(sasai_grid == roh_i): # if 2 or more grid points are 0 next to a roh*i point, set to 1
+                    for i, j, k in roh_i_hits: # if 2 or more grid points are 0 next to a roh*i point, set to 1
                         six_corners = [[i,j,k] + corner for corner in six_corner_shifts]
                         roh_i_zeros = [corner for corner in six_corners if sasai_grid[corner] == 0]
                         if len(roh_i_zeros) > 1:

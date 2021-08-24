@@ -367,7 +367,8 @@ class LigGrid(Grid):
         """
         assert grid_name in self._grid_func_names, "%s is not an allowed grid name"%grid_name
 
-        grid = self._cal_charge_grid(grid_name)
+        dummy_grid = np.empty((1, 1, 1), dtype=np.float64)
+        grid = self._cal_charge_grid(grid_name, dummy_grid)
 
         self._set_grid_key_value(grid_name, grid)
         corr_func = np.fft.fftn(self._grid[grid_name])
@@ -398,10 +399,7 @@ class LigGrid(Grid):
         corr_func = np.fft.fftn(lig_sasa_grid)
         # self._set_grid_key_value(grid_name, None)           # to save memory
 
-        rec_sasai_grid = self._grid["SASAi"]
-        rec_sasar_grid = self._grid["SASAr"]
-
-        rec_sasa_grid = np.add(rec_sasar_grid, rec_sasai_grid*1.j)
+        rec_sasa_grid = self._rec_FFTs["SASA"]
 
         rec_sasa_fft = np.fft.fftn(rec_sasa_grid)
         corr_func = corr_func.conjugate()
@@ -652,10 +650,15 @@ class RecGrid(Grid):
         self._crd = nc_handle.variables["trans_crd"][:]
 
         for key in self._grid_func_names:
-            self._set_grid_key_value(key, nc_handle.variables[key][:])
-            self._FFTs[key] = self._cal_FFT(key)
-            self._set_grid_key_value(key, None)     # to save memory
-
+            if key[:4] != "SASA":
+                self._set_grid_key_value(key, nc_handle.variables[key][:])
+                self._FFTs[key] = self._cal_FFT(key)
+                self._set_grid_key_value(key, None)     # to save memory
+        self._set_grid_key_value("SASAi", nc_handle.variables["SASAi"][:])
+        self._set_grid_key_value("SASAr", nc_handle.variables["SASAr"][:])
+        self._FFTs["SASA"] = self._cal_SASA_FFT()
+        self._set_grid_key_value("SASAi", None)
+        self._set_grid_key_value("SASAr", None)
         nc_handle.close()
         return None
 
@@ -664,6 +667,14 @@ class RecGrid(Grid):
             raise RuntimeError("%s is not allowed.")
         print("Doing FFT for %s"%name)
         FFT = np.fft.fftn(self._grid[name])
+        return FFT
+
+    def _cal_SASA_FFT(self):
+        print("Doing FFT for SASA")
+        sasai_grid = self._grid["SASAi"]
+        sasar_grid = self._grid["SASAr"]
+        sasa_grid = np.add(sasar_grid, sasai_grid*1.j)
+        FFT = np.fft.fftn(sasa_grid)
         return FFT
 
     def _write_to_nc(self, nc_handle, key, value):
