@@ -116,7 +116,7 @@ class Grid(object):
         value:  any object
         """
         assert key in self._grid_allowed_keys, key + " is not an allowed key"
-        #print("setting " + key)
+
         if key not in self._grid_func_names:
             print(value)
         self._grid[key] = value
@@ -386,11 +386,12 @@ class LigGrid(Grid):
         """
         for grid_name in grid_names:
             assert grid_name in self._grid_func_names, "%s is not an allowed grid name"%grid_name
-        dummy_grid = np.empty((1, 1, 1), dtype=np.float64)
-        lig_sasai_grid = self._cal_charge_grid("SASAi", dummy_grid)
-        print(lig_sasai_grid)
-        lig_sasar_grid = self._cal_charge_grid(grid_names[1], lig_sasai_grid)
 
+        dummy_grid = np.empty((1, 1, 1), dtype=np.float64)
+        counts = self._grid["counts"]
+
+        lig_sasai_grid = self._cal_charge_grid("SASAi", dummy_grid)
+        lig_sasar_grid = self._cal_charge_grid(grid_names[1], lig_sasai_grid)
         lig_sasa_grid = np.add(lig_sasar_grid, lig_sasai_grid*1.j)
 
 
@@ -402,10 +403,11 @@ class LigGrid(Grid):
         rec_sasa_grid = self._rec_FFTs["SASA"]
 
         rec_sasa_fft = np.fft.fftn(rec_sasa_grid)
-        corr_func = corr_func.conjugate()
+        # corr_func = corr_func.conjugate()
 
-        corr_func = np.fft.ifftn(rec_sasa_fft * corr_func)
-        corr_func = np.real(corr_func)
+        corr_func = np.fft.ifftn(rec_sasa_fft * corr_func) * (1/(np.prod(counts)))
+        corr_func = np.real(corr_func) - np.imag(corr_func)
+
         return corr_func
 
     def _do_forward_fft(self, grid_name):
@@ -446,7 +448,7 @@ class LigGrid(Grid):
         # TODO figure out how to calculate new corr function using SASA grids
         # corr_func = self._cal_corr_func("SASAr")
         corr_func = self._cal_shape_complementarity(["SASAi", "SASAr"])
-        self._free_of_clash = (corr_func < 0.001)
+        self._free_of_clash = (corr_func > 8)
         print(self._free_of_clash.shape)
         self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
         
@@ -921,7 +923,6 @@ class RecGrid(Grid):
                             dummy_grid
                         ))
                     else:
-                        print(self._grid.keys())
                         futures_array.append(executor.submit(
                             process_potential_grid_function,
                             name,
@@ -1063,13 +1064,13 @@ class RecGrid(Grid):
 
 if __name__ == "__main__":
     # do some test
-    rec_prmtop_file = "../examples/amber/t4_lysozyme/receptor_579.prmtop"
-    rec_inpcrd_file = "../examples/amber/t4_lysozyme/receptor_579.inpcrd"
-    grid_nc_file = "../examples/grid/t4_lysozyme/grid.nc"
+    rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
+    rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
+    grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
     lj_sigma_scaling_factor = 0.8
-    bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
-    # bsite_file = None
-    spacing = 0.25
+    # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
+    bsite_file = None
+    spacing = 0.5
 
     rec_grid = RecGrid(rec_prmtop_file, lj_sigma_scaling_factor, rec_inpcrd_file, 
                         bsite_file,
@@ -1084,11 +1085,11 @@ if __name__ == "__main__":
     print("get_natoms", rec_grid.get_natoms())
     print("get_natoms", rec_grid.get_allowed_keys())
 
-    rec_grid.write_box("../examples/grid/t4_lysozyme/box.pdb")
-    rec_grid.write_pdb("../examples/grid/t4_lysozyme/test.pdb", "w")
+    rec_grid.write_box("../examples/grid/ubiquitin_ligase/box.pdb")
+    rec_grid.write_pdb("../examples/grid/ubiquitin_ligase/test.pdb", "w")
 
-    lig_prmtop_file = "../examples/amber/benzene/ligand.prmtop"
-    lig_inpcrd_file = "../examples/amber/benzene/ligand.inpcrd"
+    lig_prmtop_file = "../examples/amber/ubiquitin/ligand.prmtop"
+    lig_inpcrd_file = "../examples/amber/ubiquitin/ligand.inpcrd"
     lig_grid = LigGrid(lig_prmtop_file, lj_sigma_scaling_factor, lig_inpcrd_file, rec_grid)
     lig_grid.cal_grids()
     print("get_bpmf", lig_grid.get_bpmf())

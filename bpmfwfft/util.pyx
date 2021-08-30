@@ -490,12 +490,10 @@ def c_cal_charge_grid_new(  str name,
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
             if name == "SASAi":
-                print(molecule_sasa[0][atom_ind])
                 if molecule_sasa[0][atom_ind] < 0.1:  # core atom
                     lj_diameter = lj_sigma[atom_ind] * np.sqrt(1.5)
                     corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                       uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-                    print("corners", corners)
                     for i, j, k in corners:
                         grid[i, j, k] = roh_i
             elif name == "SASAr":
@@ -509,7 +507,7 @@ def c_cal_charge_grid_new(  str name,
                 if len(np.where(sasai_grid == roh_i)[0]) > 0:
                     for i, j, k in roh_i_hits: # if 2 or more grid points are 0 next to a roh*i point, set to 1
                         six_corners = [[i,j,k] + corner for corner in six_corner_shifts]
-                        roh_i_zeros = [corner for corner in six_corners if sasai_grid[corner] == 0]
+                        roh_i_zeros = [[i,j,k] for corner in six_corners if sasai_grid[i,j,k] == 0]
                         if len(roh_i_zeros) > 1:
                             grid[i,j,k] = 1
 
