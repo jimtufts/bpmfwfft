@@ -38,7 +38,7 @@ def process_potential_grid_function(
     use cython to calculate electrostatic, LJa, LJr, SASAr, and SASAi grids
     and save them to nc file
     """
-    print("calculating %s grid" % name)
+    print("calculating Receptor %s grid" % name)
     grid_x = np.linspace(
         origin_crd[0],
         origin_crd[0] + ((grid_counts[0]-1) * grid_spacing[0]),
@@ -61,6 +61,50 @@ def process_potential_grid_function(
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, grid_counts,
+                                charges, prmtop_ljsigma, molecule_sasa, sasa_grid)
+    return grid
+
+def process_charge_grid_function(
+        name,
+        crd,
+        origin_crd,
+        grid_spacing,
+        eight_corner_shifts,
+        six_corner_shifts,
+        grid_counts,
+        charges,
+        prmtop_ljsigma,
+        molecule_sasa,
+        sasa_grid
+):
+    """
+    gets called by cal_potential_grid and assigned to a new python process
+    use cython to calculate electrostatic, LJa, LJr, SASAr, and SASAi grids
+    and save them to nc file
+    """
+    print("calculating Ligand %s grid" % name)
+    grid_x = np.linspace(
+        origin_crd[0],
+        origin_crd[0] + ((grid_counts[0]-1) * grid_spacing[0]),
+        num=grid_counts[0]
+    )
+    grid_y = np.linspace(
+        origin_crd[1],
+        origin_crd[1] + ((grid_counts[1] - 1) * grid_spacing[1]),
+        num=grid_counts[1]
+    )
+    grid_z = np.linspace(
+        origin_crd[2],
+        origin_crd[2] + ((grid_counts[2] - 1) * grid_spacing[2]),
+        num=grid_counts[2]
+    )
+    uper_most_corner_crd = origin_crd + (grid_counts - 1.) * grid_spacing
+    uper_most_corner = (grid_counts - 1)
+
+    grid = c_cal_charge_grid_new(name, crd,
+                                grid_x, grid_y, grid_z,
+                                origin_crd, uper_most_corner_crd, uper_most_corner,
+                                grid_spacing, grid_counts, eight_corner_shifts, six_corner_shifts,
                                 charges, prmtop_ljsigma, molecule_sasa, sasa_grid)
     return grid
 
@@ -300,7 +344,8 @@ class LigGrid(Grid):
         self._load_inpcrd(inpcrd_file_name)
         self._move_ligand_to_lower_corner()
         self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
-        
+
+
     def _move_ligand_to_lower_corner(self):
         """
         move ligand to near the grid lower corner 
@@ -350,15 +395,84 @@ class LigGrid(Grid):
             raise RuntimeError("%s is unknown"%name)
 
     def _cal_charge_grid(self, name, sasai_grid):
-        charges = self._get_charges(name)
+        # charges = self._get_charges(name)
         grid_counts = np.copy(self._grid["counts"])
-        grid = c_cal_charge_grid_new(name, self._crd, self._grid["x"], self._grid["y"], self._grid["z"],
-                                self._origin_crd, self._uper_most_corner_crd, self._uper_most_corner,
-                                self._grid["spacing"], self._eight_corner_shifts, self._six_corner_shifts,
-                                grid_counts, charges, self._prmtop["LJ_SIGMA"],
-                                self._molecule_sasa, sasai_grid
-                                )
-        return grid
+        # grid = c_cal_charge_grid_new(name, self._crd, self._grid["x"], self._grid["y"], self._grid["z"],
+        #                         self._origin_crd, self._uper_most_corner_crd, self._uper_most_corner,
+        #                         self._grid["spacing"], self._eight_corner_shifts, self._six_corner_shifts,
+        #                         grid_counts, charges, self._prmtop["LJ_SIGMA"],
+        #                         self._molecule_sasa, sasai_grid
+        #                         )
+        task_divisor = 4
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            futures = {}
+            sasa_grid = np.empty((0, 0, 0))
+            for name in self._grid_func_names:
+                futures_array = []
+                for i in range(task_divisor):
+                    counts = np.copy(self._grid["counts"])
+                    print(counts)
+                    counts_x = counts[0] // task_divisor
+                    if i == task_divisor - 1:
+                        counts_x += counts[0] % task_divisor
+                    counts[0] = counts_x
+
+                    grid_start_x = i * (self._grid["counts"][0] // task_divisor)
+                    origin = np.copy(self._origin_crd)
+                    origin[0] = grid_start_x * self._grid["spacing"][0]
+
+                    if name != "SASAr":
+                        dummy_grid = np.empty((1, 1, 1), dtype=np.float64)
+                        futures_array.append(executor.submit(
+                            process_charge_grid_function,
+                            name,
+                            self._crd,
+                            origin,
+                            self._grid["spacing"],
+                            self._eight_corner_shifts,
+                            self._six_corner_shifts,
+                            counts,
+                            self._get_charges(name),
+                            self._prmtop["LJ_SIGMA"],
+                            self._molecule_sasa,
+                            dummy_grid
+                        ))
+                    else:
+                        futures_array.append(executor.submit(
+                            process_charge_grid_function,
+                            name,
+                            self._crd,
+                            origin,
+                            self._grid["spacing"],
+                            self._eight_corner_shifts,
+                            self._six_corner_shifts,
+                            counts,
+                            self._get_charges(name),
+                            self._prmtop["LJ_SIGMA"],
+                            self._molecule_sasa,
+                            sasa_grid
+                        ))
+                futures[name] = futures_array
+                # if name == "SASAi":
+                #     sasa_array = []
+                #     for i in range(task_divisor):
+                #         print(futures[name][i].result().shape)
+                #         partial_sasa_grid = futures[name][i].result()
+                #         sasa_array.append(partial_sasa_grid)
+                #     sasa_grid = np.concatenate(tuple(sasa_array))
+            for name in futures:
+                grid_array = []
+                for i in range(task_divisor):
+                    partial_grid = futures[name][i].result()
+                    grid_array.append(partial_grid)
+                grid = np.concatenate(tuple(grid_array), axis=0)
+                if name == "SASAi":
+                    sasa_grid = np.copy(grid)
+                # self._write_to_nc(nc_handle, name, grid)
+                # self._set_grid_key_value(name, grid)
+                # self._set_grid_key_value(name, None)     # to save memory
+
+        return None
 
     def _cal_corr_func(self, grid_name):
         """
@@ -379,19 +493,17 @@ class LigGrid(Grid):
         corr_func = np.real(corr_func)
         return corr_func
 
-    def _cal_shape_complementarity(self, grid_names):
+    def _cal_shape_complementarity(self):
         """
         :param grid_name: str
         :return: fft correlation function
         """
-        for grid_name in grid_names:
-            assert grid_name in self._grid_func_names, "%s is not an allowed grid name"%grid_name
 
         dummy_grid = np.empty((1, 1, 1), dtype=np.float64)
         counts = self._grid["counts"]
 
         lig_sasai_grid = self._cal_charge_grid("SASAi", dummy_grid)
-        lig_sasar_grid = self._cal_charge_grid(grid_names[1], lig_sasai_grid)
+        lig_sasar_grid = self._cal_charge_grid("SASAr", lig_sasai_grid)
         lig_sasa_grid = np.add(lig_sasar_grid, lig_sasai_grid*1.j)
 
 
@@ -447,7 +559,7 @@ class LigGrid(Grid):
         max_i, max_j, max_k = self._max_grid_indices
         # TODO figure out how to calculate new corr function using SASA grids
         # corr_func = self._cal_corr_func("SASAr")
-        corr_func = self._cal_shape_complementarity(["SASAi", "SASAr"])
+        corr_func = self._cal_shape_complementarity()
         self._free_of_clash = (corr_func > 8)
         print(self._free_of_clash.shape)
         self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
@@ -603,8 +715,6 @@ class RecGrid(Grid):
             self._load_inpcrd(inpcrd_file_name)
             self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
             nc_handle = netCDF4.Dataset(grid_nc_file, "w", format="NETCDF4")
-            complex128 = np.dtype([("real", np.float64), ("imag", np.float64)])
-            complex128_t = nc_handle.createCompoundType(complex128, "complex128")
             self._write_to_nc(nc_handle, "lj_sigma_scaling_factor", 
                                 np.array([lj_sigma_scaling_factor], dtype=float))
 
@@ -692,10 +802,6 @@ class RecGrid(Grid):
             store_format = "i8"
         elif value.dtype == float:
             store_format = "f8"
-        elif value.dtype == np.cdouble:
-            complex128_t = nc_handle.cmptypes["complex128"]
-            print(complex128_t)
-            store_format = complex128_t
         else:
             raise RuntimeError("unsupported dtype %s"%value.dtype)
         dimensions = tuple(["%d"%dim for dim in value.shape])
