@@ -104,8 +104,9 @@ def process_charge_grid_function(
     grid = c_cal_charge_grid_new(name, crd,
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
-                                grid_spacing, grid_counts, eight_corner_shifts, six_corner_shifts,
-                                charges, prmtop_ljsigma, molecule_sasa, sasa_grid)
+                                grid_spacing, eight_corner_shifts, six_corner_shifts,
+                                grid_counts, charges, prmtop_ljsigma, molecule_sasa, sasa_grid)
+
     return grid
 
 def is_nc_grid_good(nc_grid_file):
@@ -403,7 +404,7 @@ class LigGrid(Grid):
         #                         grid_counts, charges, self._prmtop["LJ_SIGMA"],
         #                         self._molecule_sasa, sasai_grid
         #                         )
-        task_divisor = 4
+        task_divisor = 1
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures = {}
             sasa_grid = np.empty((0, 0, 0))
@@ -411,7 +412,6 @@ class LigGrid(Grid):
                 futures_array = []
                 for i in range(task_divisor):
                     counts = np.copy(self._grid["counts"])
-                    print(counts)
                     counts_x = counts[0] // task_divisor
                     if i == task_divisor - 1:
                         counts_x += counts[0] % task_divisor
@@ -472,7 +472,7 @@ class LigGrid(Grid):
                 # self._set_grid_key_value(name, grid)
                 # self._set_grid_key_value(name, None)     # to save memory
 
-        return None
+        return grid
 
     def _cal_corr_func(self, grid_name):
         """
@@ -561,7 +561,6 @@ class LigGrid(Grid):
         # corr_func = self._cal_corr_func("SASAr")
         corr_func = self._cal_shape_complementarity()
         self._free_of_clash = (corr_func > 8)
-        print(self._free_of_clash.shape)
         self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
         
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
