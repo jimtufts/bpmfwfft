@@ -12,9 +12,14 @@ from mdtraj.geometry.sasa import _ATOMIC_RADII
 
 try:
     from bpmfwfft import IO
-    from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
-    from bpmfwfft.util import c_cal_charge_grid_new
-    from bpmfwfft.util import c_cal_potential_grid
+    try:        
+        from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
+        from bpmfwfft.util import c_cal_charge_grid_new
+        from bpmfwfft.util import c_cal_potential_grid
+    except:
+        from util import c_is_in_grid, cdistance, c_containing_cube
+        from util import c_cal_charge_grid_new
+        from util import c_cal_potential_grid
 
 except:
     import IO

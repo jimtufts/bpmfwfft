@@ -10,8 +10,8 @@ import numpy as np
 import netCDF4
 
 sys.path.append("../bpmfwfft")
-from IO import InpcrdLoad
-from grids import Grid, RecGrid
+from bpmfwfft.IO import InpcrdLoad
+from bpmfwfft.grids import Grid, RecGrid
 
 
 def _distance(coord1, coord2):
