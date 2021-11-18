@@ -16,16 +16,22 @@ try:
         from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
         from bpmfwfft.util import c_cal_charge_grid_new
         from bpmfwfft.util import c_cal_potential_grid
+        from bpmfwfft.util import c_cal_lig_sasa_grid
+        from bpmfwfft.util import c_cal_lig_sasa_grids
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
         from util import c_cal_charge_grid_new
         from util import c_cal_potential_grid
+        from util import c_cal_lig_sasa_grid
+        from util import c_cal_lig_sasa_grids
 
 except:
     import IO
     from util import c_is_in_grid, cdistance, c_containing_cube
     from util import c_cal_charge_grid_new
     from util import c_cal_potential_grid
+    from util import c_cal_lig_sasa_grid
+    from util import c_cal_lig_sasa_grids
 
 def process_potential_grid_function(
         name,
@@ -380,7 +386,10 @@ class LigGrid(Grid):
         displacement = self._origin_crd - lower_ligand_corner_grid_aligned #formerly lower_ligand_corner
         for atom_ind in range(len(self._crd)):
             self._crd[atom_ind] += displacement
-        
+        print(f"Ligand translated by {displacement}")
+        self._displacement = displacement
+        lower_corner_origin = np.array([self._crd[:,i].min() for i in range(3)], dtype=float) - 1.5*spacing
+        print(lower_corner_origin)
         self._initial_com = self._get_molecule_center_of_mass()
         return None
     
@@ -468,8 +477,9 @@ class LigGrid(Grid):
             for name in futures:
                 grid_array = []
                 for i in range(task_divisor):
-                    partial_grid = futures[name][i].result()
+                    returned_sasai_grid, partial_grid = futures[name][i].result()
                     grid_array.append(partial_grid)
+                    sasa_grid = returned_sasai_grid
                 grid = np.concatenate(tuple(grid_array), axis=0)
                 if name == "SASAi":
                     sasa_grid = np.copy(grid)
@@ -503,7 +513,7 @@ class LigGrid(Grid):
         :param grid_name: str
         :return: fft correlation function
         """
-
+        print("Calculating shape complementarity.")
         dummy_grid = np.empty((1, 1, 1), dtype=np.float64)
         counts = self._grid["counts"]
 
@@ -511,16 +521,13 @@ class LigGrid(Grid):
         lig_sasar_grid = self._cal_charge_grid("SASAr", lig_sasai_grid)
         lig_sasa_grid = np.add(lig_sasar_grid, lig_sasai_grid*1.j)
 
-
         # self._set_grid_key_value(grid_name, lig_sasa_grid)
-        # corr_func = np.fft.fftn(self._grid[grid_name])
         corr_func = np.fft.fftn(lig_sasa_grid)
         # self._set_grid_key_value(grid_name, None)           # to save memory
 
         rec_sasa_grid = self._rec_FFTs["SASA"]
 
         rec_sasa_fft = np.fft.fftn(rec_sasa_grid)
-        # corr_func = corr_func.conjugate()
 
         corr_func = np.fft.ifftn(rec_sasa_fft * corr_func) * (1/(np.prod(counts)))
         corr_func = np.real(corr_func) - np.imag(corr_func)
@@ -558,16 +565,17 @@ class LigGrid(Grid):
         """
         calculate interaction energies
         store self._meaningful_energies (1-array) and self._meaningful_corners (2-array)
-        meaningful means no boder-crossing and no clashing
+        meaningful means no border-crossing and no clashing
         TODO
         """
         max_i, max_j, max_k = self._max_grid_indices
         # TODO figure out how to calculate new corr function using SASA grids
         # corr_func = self._cal_corr_func("SASAr")
         corr_func = self._cal_shape_complementarity()
-        self._free_of_clash = (corr_func > 8)
+        self._free_of_clash = (corr_func > 0)
+        print("number of poses free of clash:", self._free_of_clash.shape)
         self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
-        
+        print("Ligand positions excluding border crossers", self._free_of_clash.shape)
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
         if np.any(self._free_of_clash):
             grid_names = [name for name in self._grid_func_names if name[:4] != "SASA"]
@@ -688,6 +696,46 @@ class LigGrid(Grid):
     def get_initial_com(self):
         return self._initial_com
 
+    def get_SASAi_grid(self, name, crd,
+                       grid_x, grid_y, grid_z,
+                       origin_crd, uper_most_corner_crd, uper_most_corner,
+                       grid_spacing, eight_corner_shifts, six_corner_shifts,
+                       grid_counts, charges, prmtop_ljsigma, molecule_sasa, sasa_grid,
+                       roh_i_corners):
+        sasai_grid, grid, roh_i_corners = c_cal_lig_sasa_grid(name, crd,
+                                     grid_x, grid_y, grid_z,
+                                     origin_crd, uper_most_corner_crd, uper_most_corner,
+                                     grid_spacing, eight_corner_shifts, six_corner_shifts,
+                                     grid_counts, charges, prmtop_ljsigma, molecule_sasa, sasa_grid,
+                                               roh_i_corners)
+        return sasai_grid, grid, roh_i_corners
+
+    def get_SASAr_grid(self, name, crd,
+                       grid_x, grid_y, grid_z,
+                       origin_crd, uper_most_corner_crd, uper_most_corner,
+                       grid_spacing, eight_corner_shifts, six_corner_shifts,
+                       grid_counts, charges, prmtop_ljsigma, molecule_sasa, sasa_grid,
+                       roh_i_corners):
+        sasai_grid, grid, roh_i_corners = c_cal_lig_sasa_grid(name, crd,
+                                     grid_x, grid_y, grid_z,
+                                     origin_crd, uper_most_corner_crd, uper_most_corner,
+                                     grid_spacing, eight_corner_shifts, six_corner_shifts,
+                                     grid_counts, charges, prmtop_ljsigma, molecule_sasa, sasa_grid,
+                                                              roh_i_corners)
+        return sasai_grid, grid, roh_i_corners
+
+    def get_SASA_grids(self, name, crd,
+                       grid_x, grid_y, grid_z,
+                       origin_crd, uper_most_corner_crd, uper_most_corner,
+                       grid_spacing, eight_corner_shifts, six_corner_shifts,
+                       grid_counts, charges, prmtop_ljsigma, molecule_sasa):
+        sasai_grid, sasar_grid = c_cal_lig_sasa_grids(name, crd,
+                                     grid_x, grid_y, grid_z,
+                                     origin_crd, uper_most_corner_crd, uper_most_corner,
+                                     grid_spacing, eight_corner_shifts, six_corner_shifts,
+                                     grid_counts, charges, prmtop_ljsigma, molecule_sasa)
+        return sasai_grid, sasar_grid
+
 
  
 class RecGrid(Grid):
@@ -733,6 +781,7 @@ class RecGrid(Grid):
                 self._cal_grid_coordinates(nc_handle)
                 self._initialize_convenient_para()
                 self._move_receptor_to_grid_center()
+                self._write_to_nc(nc_handle, "displacement", self._displacement)
 
             self._cal_potential_grids(nc_handle)
             self._write_to_nc(nc_handle, "trans_crd", self._crd)
@@ -903,9 +952,9 @@ class RecGrid(Grid):
         
         lower_receptor_corner_grid_aligned = lower_receptor_corner - (spacing + lower_receptor_corner % spacing)
         upper_receptor_corner_grid_aligned = upper_receptor_corner + (spacing - upper_receptor_corner % spacing)
-        
-        
+
         receptor_box_center_grid_aligned = (upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.
+
         receptor_box_center = (upper_receptor_corner + lower_receptor_corner) / 2.
         
         total_grid_count = (self._uper_most_corner_crd+spacing)/spacing
@@ -928,8 +977,12 @@ class RecGrid(Grid):
                 shifted_lower_coord = lower_corner_coord - half_spacing
                 upper_receptor_corner_grid_aligned[index] = shifted_upper_coord
                 lower_receptor_corner_grid_aligned[index] = shifted_lower_coord
-    
+
         receptor_box_center = (upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.
+        grid_snap = np.mod(receptor_box_center, spacing)
+        if np.any(np.where(grid_snap != 0)):
+            receptor_box_center = np.add(receptor_box_center, np.subtract(spacing, grid_snap))
+
         print('receptor_box_center', receptor_box_center)        
         displacement = grid_center - receptor_box_center
         
@@ -945,6 +998,7 @@ class RecGrid(Grid):
             '\nspacing num', receptor_box_length_grid_aligned/spacing
             )
         print("Receptor is translated by ", displacement)
+        self._displacement = displacement
 
         for atom_ind in range(len(self._crd)):
             self._crd[atom_ind] += displacement

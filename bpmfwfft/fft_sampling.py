@@ -159,24 +159,31 @@ class Sampling(object):
         return None
 
     def _do_fft(self, step):
-        print("Doing FFT for step %d"%step)
+        print("Doing FFT for step %d"%step, "test")
         lig_conf = self._lig_coord_ensemble[step]
         self._lig_grid.cal_grids(molecular_coord = lig_conf)
 
         energies = self._lig_grid.get_meaningful_energies()
+        print("Energies shape:", energies.shape)
         self._mean_energy = energies.mean()
         self._min_energy  = energies.min()
         self._energy_std  = energies.std()
         print("Number of finite energy samples", energies.shape[0])
 
         exp_energies = -self._beta * energies
+        print(f"Max exp energy {exp_energies.max()}, Min exp energy {exp_energies.min()}")
         self._log_of_divisor = exp_energies.max()
+        exp_energies[exp_energies < 0] = 0
         exp_energies = np.exp(exp_energies - self._log_of_divisor)
         self._exponential_sum = exp_energies.sum()
         exp_energies /= self._exponential_sum
         print("Number of exponential energy samples", exp_energies.sum())
         # sel_ind = np.random.choice(exp_energies.shape[0], size=self._energy_sample_size_per_ligand, p=exp_energies, replace=True)
-        sel_ind = np.random.choice(exp_energies.shape[0], size=self._energy_sample_size_per_ligand, p=exp_energies, replace=False)
+        try:
+            sel_ind = np.random.choice(exp_energies.shape[0], size=self._energy_sample_size_per_ligand, p=exp_energies, replace=False)
+        except:
+            print(f"Only {np.count_nonzero(exp_energies)} non-zero entries in p, falling back to replacement")
+            sel_ind = np.random.choice(exp_energies.shape[0], size=self._energy_sample_size_per_ligand, p=exp_energies, replace=True)
 
         del exp_energies
 
@@ -312,6 +319,7 @@ class Sampling_PL(Sampling):
     def _do_fft(self, step):
         print("Doing FFT for step %d"%step)
         lig_conf = self._lig_coord_ensemble[step]
+        print(self._lig_grid["SASAr"])
         self._lig_grid.cal_grids(molecular_coord = lig_conf)
 
         energies = self._lig_grid.get_meaningful_energies()

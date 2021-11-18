@@ -384,6 +384,33 @@ def write_box( grid, pdb_file_name ):
     return None
 
 
+def write_dx(FN, data, key):
+    """
+    Writes a grid in dx format
+    """
+    n_points = data['counts'][0] * data['counts'][1] * data['counts'][2]
+    if FN.endswith('.dx'):
+        F = open(FN, 'w')
+
+    F.write("""object 1 class gridpositions counts {0[0]} {0[1]} {0[2]}
+origin {1[0]} {1[1]} {1[2]}
+delta {2[0]} 0.0 0.0
+delta 0.0 {2[1]} 0.0
+delta 0.0 0.0 {2[2]}
+object 2 class gridconnections counts {0[0]} {0[1]} {0[2]}
+object 3 class array type double rank 0 items {3} data follows
+""".format(data['counts'], data['origin'], data['spacing'], n_points))
+
+    for start_n in range(0, len(data[key]), 3):
+        F.write(' '.join(['%6e' % c
+                        for c in data[key].ravel()[start_n:start_n + 3]]) + '\n')
+
+    F.write('object 4 class field\n')
+    F.write('component "positions" value 1\n')
+    F.write('component "connections" value 2\n')
+    F.write('component "data" value 3\n')
+    F.close()
+
 if __name__ == "__main__":
     # do some test
     prmtop_file = "../examples/amber/t4_lysozyme/receptor_579.prmtop"

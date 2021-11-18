@@ -10,7 +10,7 @@ import netCDF4
 import numpy as np
 
 sys.path.append("../bpmfwfft")
-from fft_sampling import Sampling
+from bpmfwfft.fft_sampling import Sampling
 
 BSITE_FILE = None
 
