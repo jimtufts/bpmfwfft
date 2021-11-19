@@ -158,6 +158,8 @@ class Grid(object):
 
         self._six_corner_shifts = self._get_six_corner_shifts()
 
+        self._nearest_neighbor_shifts = self._get_nearest_neighbor_shifts()
+
     def _get_six_corner_shifts(self):
         six_corner_shifts = []
         for i in [-1, 1]:
@@ -165,6 +167,17 @@ class Grid(object):
             six_corner_shifts.append(np.array([0,i,0], dtype=int))
             six_corner_shifts.append(np.array([0,0,i], dtype=int))
         return np.array(six_corner_shifts, dtype=int)
+
+    def _get_nearest_neighbor_shifts(self):
+        nearest_neighbor_shifts = []
+        for i in [-1, 1]:
+            nearest_neighbor_shifts.append(np.array([i, 0, 0], dtype=int))
+            nearest_neighbor_shifts.append(np.array([0, i, 0], dtype=int))
+            nearest_neighbor_shifts.append(np.array([0, 0, i], dtype=int))
+            nearest_neighbor_shifts.append(np.array([0, i, i], dtype=int))
+            nearest_neighbor_shifts.append(np.array([i, 0, i], dtype=int))
+            nearest_neighbor_shifts.append(np.array([i, i, 0], dtype=int))
+        return np.array(nearest_neighbor_shifts, dtype=int)
     
     def _set_grid_key_value(self, key, value):
         """
@@ -728,12 +741,14 @@ class LigGrid(Grid):
                        grid_x, grid_y, grid_z,
                        origin_crd, uper_most_corner_crd, uper_most_corner,
                        grid_spacing, eight_corner_shifts, six_corner_shifts,
-                       grid_counts, charges, prmtop_ljsigma, molecule_sasa):
+                       nearest_neighbor_shifts, grid_counts, charges,
+                       prmtop_ljsigma, molecule_sasa):
         sasai_grid, sasar_grid = c_cal_lig_sasa_grids(name, crd,
                                      grid_x, grid_y, grid_z,
                                      origin_crd, uper_most_corner_crd, uper_most_corner,
                                      grid_spacing, eight_corner_shifts, six_corner_shifts,
-                                     grid_counts, charges, prmtop_ljsigma, molecule_sasa)
+                                     nearest_neighbor_shifts, grid_counts, charges,
+                                     prmtop_ljsigma, molecule_sasa)
         return sasai_grid, sasar_grid
 
 

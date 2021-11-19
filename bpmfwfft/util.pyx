@@ -596,6 +596,7 @@ def c_cal_lig_sasa_grids(  str name,
                         np.ndarray[np.float64_t, ndim=1] spacing,
                         np.ndarray[np.int64_t, ndim=2]   eight_corner_shifts,
                         np.ndarray[np.int64_t, ndim=2]   six_corner_shifts,
+                        np.ndarray[np.int64_t, ndim=2]   nearest_neighbor_shifts,
                         np.ndarray[np.int64_t, ndim=1]   grid_counts,
                         np.ndarray[np.float64_t, ndim=1] charges,
                         np.ndarray[np.float64_t, ndim=1] lj_sigma,
@@ -608,7 +609,7 @@ def c_cal_lig_sasa_grids(  str name,
         int j_max = grid_y.shape[0]
         int k_max = grid_z.shape[0]
         double charge
-        list ten_corners, six_corners, roh_i_zeros, changes_list
+        list ten_corners, six_corners, nearest_neighbors, roh_i_zeros, changes_list
         np.ndarray[np.float64_t, ndim=1] distributed_charges
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
         np.ndarray[np.float64_t, ndim=3] sasai_grid = np.zeros([i_max, j_max, k_max], dtype=float)
@@ -626,30 +627,35 @@ def c_cal_lig_sasa_grids(  str name,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
                 sasai_grid[i, j, k] = roh_i
+    count = 0
     for atom_ind in range(natoms):
+        count += 1
         if molecule_sasa[0][atom_ind] > 0.01:  # surface atom
             lj_diameter = lj_sigma[atom_ind]
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
                 if sasai_grid[i][j][k] == 0:
-                    sasar_grid[i][j][k] = 1
+                    sasar_grid[i][j][k] = 9
+                # sasai_grid[i][j][k] = 0
+    print(count)
     roh_i_hits = np.array(np.where(sasai_grid == roh_i)).transpose()
     print(roh_i_hits[0])
     changes_list = []
     if len(roh_i_hits) > 0:
         for i, j, k in roh_i_hits: # if 2 or more grid points are 0 next to a roh*i point, set to 1
-            six_corners = [[i,j,k] + corner for corner in six_corner_shifts]
+            nearest_neighbors = [[i,j,k] + corner for corner in nearest_neighbor_shifts]
             # print(six_corners)
             # for l,m,n in six_corners:
             #     print(sasai_grid[l][m][n])
-            roh_i_zeros = [[l,m,n] for [l,m,n] in six_corners if sasai_grid[l][m][n] == 0]
+            roh_i_zeros = [[l,m,n] for [l,m,n] in nearest_neighbors if sasai_grid[l][m][n] == 0]
             # for x,y,z in roh_i_zeros:
             #     print(f'roh i zeros{i}{j}{k}:', sasai_grid[x][y][z])
             if len(roh_i_zeros) > 1:
                 changes_list.append([i,j,k])
                 # sasai_grid[i,j,k] = 0
                 # sasar_grid[i,j,k] = 1
+    print(len(changes_list))
     if len(changes_list) > 0:
         for [i, j, k] in changes_list:
             sasai_grid[i][j][k] = 0
