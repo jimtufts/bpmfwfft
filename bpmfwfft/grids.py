@@ -751,6 +751,11 @@ class LigGrid(Grid):
                                      prmtop_ljsigma, molecule_sasa)
         return sasai_grid, sasar_grid
 
+    def translate_ligand(self, displacement):
+        for atom_ind in range(len(self._crd)):
+            self._crd[atom_ind] += displacement
+        return None
+
 
  
 class RecGrid(Grid):

@@ -627,18 +627,16 @@ def c_cal_lig_sasa_grids(  str name,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
                 sasai_grid[i, j, k] = roh_i
-    count = 0
     for atom_ind in range(natoms):
-        count += 1
+        atom_coordinate = crd[atom_ind]
         if molecule_sasa[0][atom_ind] > 0.01:  # surface atom
             lj_diameter = lj_sigma[atom_ind]
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
                 if sasai_grid[i][j][k] == 0:
-                    sasar_grid[i][j][k] = 9
-                # sasai_grid[i][j][k] = 0
-    print(count)
+                    sasar_grid[i][j][k] = 1.
+                # sasai_grid[i][j][k] = 0.
     roh_i_hits = np.array(np.where(sasai_grid == roh_i)).transpose()
     print(roh_i_hits[0])
     changes_list = []
@@ -658,7 +656,7 @@ def c_cal_lig_sasa_grids(  str name,
     print(len(changes_list))
     if len(changes_list) > 0:
         for [i, j, k] in changes_list:
-            sasai_grid[i][j][k] = 0
-            sasar_grid[i][j][k] = 1
+            sasai_grid[i][j][k] = 0.
+            sasar_grid[i][j][k] = 1.
 
     return sasai_grid, sasar_grid
