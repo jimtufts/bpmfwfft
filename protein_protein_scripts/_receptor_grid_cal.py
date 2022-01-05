@@ -45,15 +45,18 @@ def _max_box_edge(inpcrd):
     return max([dx, dy, dz])
 
 
-def rec_grid_cal(prmtop, lj_scale, rec_inpcrd, lig_inpcrd, 
-                spacing, buffer, grid_out, pdb_out, box_out):
+def rec_grid_cal(prmtop, lj_scale, sc_scale, ss_scale, rho,
+                 rec_inpcrd, lig_inpcrd, spacing, buffer,
+                 grid_out, pdb_out, box_out):
     """
     prmtop: str, prmtop file for receptor
     lj_scale:   float, 0 < lj_scale <=1
+    sc_scale:   float, 0 < sc_scale
+    ss_scale:   float, 0 < ss_scale
     rec_inpcrd: str, inpcrd file for receptor
     lig_inpcrd: str, inpcrd file for ligand, used to determine grid size
-    spacing:    float
-    spacing:    float
+    spacing:    float, distance between grid points in Angstroms
+    buffer:     float, extra box padding
     grid_out:   str, name of output nc file
     pdb_out:    str, name of output pdb file
     box_out:    str, name of output box
@@ -64,15 +67,21 @@ def rec_grid_cal(prmtop, lj_scale, rec_inpcrd, lig_inpcrd,
     ligand_max_box_edge = _max_box_edge(lig_inpcrd)
     print("Ligand maximum box edge: %f" % ligand_max_box_edge)
     total_buffer = np.ceil(ligand_max_box_edge + buffer)
-    print("Total buffer for receptor gird: %f" % total_buffer)
+    print("Total buffer for receptor grid: %f" % total_buffer)
 
     bsite_file = None
-    potential_grid = RecGrid(prmtop, lj_scale,
-                                rec_inpcrd, 
-                                bsite_file,
-                                grid_out,
-                                new_calculation=True, 
-                                spacing=spacing, extra_buffer=total_buffer)
+    potential_grid = RecGrid(prmtop,
+                             lj_scale,
+                             sc_scale,
+                             ss_scale,
+                             rho,
+                             rec_inpcrd,
+                             bsite_file,
+                             grid_out,
+                             new_calculation=True,
+                             spacing=spacing,
+                             extra_buffer=total_buffer)
+    # potential_grid = RecGrid(prmtop, lj_scale, sc_scale, ss_scale, rho, rec_inpcrd, bsite_file, grid_out, new_calculation=True, spacing=spacing, )
 
     potential_grid.write_pdb(pdb_out, "w")
     potential_grid.write_box(box_out)

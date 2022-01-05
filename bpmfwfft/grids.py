@@ -42,6 +42,9 @@ def process_potential_grid_function(
         charges,
         prmtop_ljsigma,
         molecule_sasa,
+        rho,
+        sasa_core_scaling,
+        sasa_surface_scaling,
         sasa_grid
 ):
     """
@@ -72,7 +75,8 @@ def process_potential_grid_function(
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, grid_counts,
-                                charges, prmtop_ljsigma, molecule_sasa, sasa_grid)
+                                charges, prmtop_ljsigma, molecule_sasa, rho,
+                                sasa_core_scaling, sasa_surface_scaling, sasa_grid)
     return grid
 
 def process_charge_grid_function(
@@ -147,10 +151,12 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        self._grid_func_names   = ("SASAi", "electrostatic", "LJr", "LJa", "SASAr")
+        # self._grid_func_names   = ("SASAi", "electrostatic", "LJr", "LJa", "SASAr")  # calculate all grids
+        self._grid_func_names = ("SASAi", "SASAr")  # uncomment to only calculate SASA grids
         cartesian_axes  = ("x", "y", "z")
         box_dim_names   = ("d0", "d1", "d2")
-        others          = ("spacing", "counts", "origin", "lj_sigma_scaling_factor")
+        others          = ("spacing", "counts", "origin", "lj_sigma_scaling_factor", "sasa_core_scaling",
+                           "sasa_surface_scaling")
         self._grid_allowed_keys = self._grid_func_names + cartesian_axes + box_dim_names + others
 
         self._eight_corner_shifts = [np.array([i,j,k], dtype=int) for i in range(2) for j in range(2) for k in range(2)]
@@ -377,9 +383,9 @@ class LigGrid(Grid):
         store self._max_grid_indices and self._initial_com
         """
         spacing = self._grid["spacing"]
-        lower_ligand_corner = np.array([self._crd[:,i].min() for i in range(3)], dtype=float) - 1.5*spacing
+        lower_ligand_corner = np.array([self._crd[:,i].min() for i in range(3)], dtype=float) - 2.5*spacing
         lower_ligand_corner_grid_aligned = lower_ligand_corner - (spacing + lower_ligand_corner % spacing) #new grid aligned variable
-        upper_ligand_corner = np.array([self._crd[:,i].max() for i in range(3)], dtype=float) + 1.5*spacing
+        upper_ligand_corner = np.array([self._crd[:,i].max() for i in range(3)], dtype=float) + 2.5*spacing
         upper_ligand_corner_grid_aligned = upper_ligand_corner + (spacing - upper_ligand_corner % spacing) #new grid aligned variable
         #print("lower ligand corner grid aligned=", lower_ligand_corner_grid_aligned)
         #print("upper ligand corner grid aligned=", upper_ligand_corner_grid_aligned)
@@ -742,16 +748,24 @@ class LigGrid(Grid):
                        origin_crd, uper_most_corner_crd, uper_most_corner,
                        grid_spacing, eight_corner_shifts, six_corner_shifts,
                        nearest_neighbor_shifts, grid_counts, charges,
-                       prmtop_ljsigma, molecule_sasa):
+                       prmtop_ljsigma, molecule_sasa, rho,
+                       sasa_core_scaling, sasa_surface_scaling):
+        """
+        Return the SASAi and SASAr grids for the Ligand
+        """
         sasai_grid, sasar_grid = c_cal_lig_sasa_grids(name, crd,
                                      grid_x, grid_y, grid_z,
                                      origin_crd, uper_most_corner_crd, uper_most_corner,
                                      grid_spacing, eight_corner_shifts, six_corner_shifts,
                                      nearest_neighbor_shifts, grid_counts, charges,
-                                     prmtop_ljsigma, molecule_sasa)
+                                     prmtop_ljsigma, molecule_sasa, rho,
+                                     sasa_core_scaling, sasa_surface_scaling)
         return sasai_grid, sasar_grid
 
     def translate_ligand(self, displacement):
+        """
+        translate the ligand by displacement in Angstroms
+        """
         for atom_ind in range(len(self._crd)):
             self._crd[atom_ind] += displacement
         return None
@@ -762,7 +776,9 @@ class RecGrid(Grid):
     """
     calculate the potential part of the interaction energy.
     """
-    def __init__(self,  prmtop_file_name, lj_sigma_scaling_factor, 
+    def __init__(self,  prmtop_file_name, lj_sigma_scaling_factor,
+                        sasa_core_scaling, sasa_surface_scaling,
+                        rho,
                         inpcrd_file_name,
                         bsite_file,
                         grid_nc_file,
@@ -786,9 +802,18 @@ class RecGrid(Grid):
         if new_calculation:
             self._load_inpcrd(inpcrd_file_name)
             self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
+            self._rho = rho
+            self._sasa_core_scaling = sasa_core_scaling
+            self._sasa_surface_scaling = sasa_surface_scaling
             nc_handle = netCDF4.Dataset(grid_nc_file, "w", format="NETCDF4")
             self._write_to_nc(nc_handle, "lj_sigma_scaling_factor", 
                                 np.array([lj_sigma_scaling_factor], dtype=float))
+            self._write_to_nc(nc_handle, "sasa_core_scaling",
+                              np.array([sasa_core_scaling], dtype=float))
+            self._write_to_nc(nc_handle, "sasa_surface_scaling",
+                              np.array([sasa_surface_scaling], dtype=float))
+            self._write_to_nc(nc_handle, "rho",
+                              np.array([rho], dtype=float))
 
             if bsite_file is not None:
                 print("Receptor is assumed to be correctly translated such that box encloses binding pocket.")
@@ -1104,6 +1129,9 @@ class RecGrid(Grid):
                             self._get_charges(name),
                             self._prmtop["LJ_SIGMA"],
                             self._molecule_sasa,
+                            self._rho,
+                            self._sasa_core_scaling,
+                            self._sasa_surface_scaling,
                             dummy_grid
                         ))
                     else:
@@ -1117,6 +1145,9 @@ class RecGrid(Grid):
                             self._get_charges(name),
                             self._prmtop["LJ_SIGMA"],
                             self._molecule_sasa,
+                            self._rho,
+                            self._sasa_core_scaling,
+                            self._sasa_surface_scaling,
                             sasa_grid
                         ))
                 futures[name] = futures_array

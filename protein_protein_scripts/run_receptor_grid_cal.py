@@ -9,6 +9,8 @@ import sys
 import glob
 import argparse
 
+from math import sqrt
+
 from _receptor_grid_cal import rec_grid_cal, is_nc_grid_good, get_grid_size_from_lig_rec_crd
 
 parser = argparse.ArgumentParser()
@@ -16,8 +18,12 @@ parser.add_argument("--max_jobs",      type=int, default=100)
 parser.add_argument("--amber_dir",     type=str, default="amber")
 parser.add_argument("--coord_dir",     type=str, default="min")
 parser.add_argument("--out_dir",     type=str, default="out")
+parser.add_argument("--grid_file_name",     type=str, default="grid.nc")
 
 parser.add_argument("--lj_scale",    type=float, default=0.8)
+parser.add_argument("--sc_scale",    type=float, default=sqrt(1.5))
+parser.add_argument("--ss_scale",    type=float, default=sqrt(0.8))
+parser.add_argument("--rho",         type=float, default=9.0)
 parser.add_argument("--spacing",     type=float, default=0.5)
 parser.add_argument("--buffer",      type=float, default=1.0)
 
@@ -29,7 +35,7 @@ LIGAND_INPCRD = "ligand.inpcrd"
 RECEPTOR_INPCRD = "receptor.inpcrd"
 RECEPTOR_PRMTOP = "receptor.prmtop"
 
-GRID_NC = "grid.nc"
+GRID_NC = args.grid_file_name
 PDB_OUT = "receptor_trans.pdb"
 BOX_OUT = "box.pdb"
 
@@ -112,8 +118,11 @@ python ''' + this_script + \
 else:
     prmtop = os.path.join(args.amber_dir, RECEPTOR_PRMTOP)
     lj_scale = args.lj_scale
+    sc_scale = args.sc_scale
+    ss_scale = args.ss_scale
     rec_inpcrd = os.path.join(args.coord_dir, RECEPTOR_INPCRD)
     lig_inpcrd = os.path.join(args.coord_dir, LIGAND_INPCRD)
+    rho = args.rho
 
     spacing = args.spacing
     buffer = args.buffer
@@ -121,7 +130,7 @@ else:
     grid_out = os.path.join(args.out_dir, GRID_NC)
     pdb_out = os.path.join(args.out_dir, PDB_OUT)
     box_out = os.path.join(args.out_dir, BOX_OUT)
-
-    rec_grid_cal(prmtop, lj_scale, rec_inpcrd, lig_inpcrd, spacing, buffer, grid_out, pdb_out, box_out)
+    print()
+    rec_grid_cal(prmtop, lj_scale, sc_scale, ss_scale, rho, rec_inpcrd, lig_inpcrd, spacing, buffer, grid_out, pdb_out, box_out)
 
 
