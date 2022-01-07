@@ -152,7 +152,8 @@ class Grid(object):
     def __init__(self):
         self._grid = {}
         # self._grid_func_names   = ("SASAi", "electrostatic", "LJr", "LJa", "SASAr")  # calculate all grids
-        self._grid_func_names = ("SASAi", "SASAr")  # uncomment to only calculate SASA grids
+        # self._grid_func_names = ("SASAi", "SASAr")  # uncomment to only calculate SASA grids
+        self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes  = ("x", "y", "z")
         box_dim_names   = ("d0", "d1", "d2")
         others          = ("spacing", "counts", "origin", "lj_sigma_scaling_factor", "sasa_core_scaling",
@@ -255,7 +256,10 @@ class Grid(object):
 
         atom_radii = []
         for atom_label in self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"]:
-            atom_radii.append(_ATOMIC_RADII[str(atom_label).split("-", 0)[0][0]])
+            try:
+                atom_radii.append(_ATOMIC_RADII[str(atom_label).split("-", 0)[0][0]])
+            except:
+                atom_radii.append(_ATOMIC_RADII[str(atom_label).split("-", 0)[0:1][0].title()])
         radii = np.array(atom_radii, np.float32) + probe_radius
         dim1 = xyz.shape[1]
         atom_mapping = np.arange(dim1, dtype=np.int32)
@@ -814,6 +818,8 @@ class RecGrid(Grid):
                               np.array([sasa_surface_scaling], dtype=float))
             self._write_to_nc(nc_handle, "rho",
                               np.array([rho], dtype=float))
+            self._write_to_nc(nc_handle, "molecule_sasa",
+                              np.array(self._molecule_sasa, dtype=float))
 
             if bsite_file is not None:
                 print("Receptor is assumed to be correctly translated such that box encloses binding pocket.")
@@ -864,11 +870,11 @@ class RecGrid(Grid):
                 self._set_grid_key_value(key, nc_handle.variables[key][:])
                 self._FFTs[key] = self._cal_FFT(key)
                 self._set_grid_key_value(key, None)     # to save memory
-        self._set_grid_key_value("SASAi", nc_handle.variables["SASAi"][:])
-        self._set_grid_key_value("SASAr", nc_handle.variables["SASAr"][:])
-        self._FFTs["SASA"] = self._cal_SASA_FFT()
-        self._set_grid_key_value("SASAi", None)
-        self._set_grid_key_value("SASAr", None)
+        # self._set_grid_key_value("SASAi", nc_handle.variables["SASAi"][:])  #UNCOMMENT ME
+        # self._set_grid_key_value("SASAr", nc_handle.variables["SASAr"][:])  #UNCOMMENT ME
+        # self._FFTs["SASA"] = self._cal_SASA_FFT()  #UNCOMMENT ME
+        # self._set_grid_key_value("SASAi", None)  #UNCOMMENT ME
+        # self._set_grid_key_value("SASAr", None)  #UNCOMMENT ME
         nc_handle.close()
         return None
 

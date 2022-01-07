@@ -14,10 +14,10 @@ from math import sqrt
 from _receptor_grid_cal import rec_grid_cal, is_nc_grid_good, get_grid_size_from_lig_rec_crd
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--max_jobs",      type=int, default=100)
-parser.add_argument("--amber_dir",     type=str, default="amber")
-parser.add_argument("--coord_dir",     type=str, default="min")
-parser.add_argument("--out_dir",     type=str, default="out")
+parser.add_argument("--max_jobs",           type=int, default=100)
+parser.add_argument("--amber_dir",          type=str, default="amber")
+parser.add_argument("--coord_dir",          type=str, default="min")
+parser.add_argument("--out_dir",            type=str, default="out")
 parser.add_argument("--grid_file_name",     type=str, default="grid.nc")
 
 parser.add_argument("--lj_scale",    type=float, default=0.8)

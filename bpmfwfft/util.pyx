@@ -380,7 +380,7 @@ def c_cal_potential_grid(   str name,
             for atom_ind in range(natoms): # for "water layer"
                 atom_coordinate = crd[atom_ind]
                 if molecule_sasa[0][atom_ind] > 0.01: # surface atom
-                    lj_diameter = lj_sigma[atom_ind] + 3.4 # 3.4A corresponds to H2O diameter
+                    lj_diameter = lj_sigma[atom_ind] + 6.8 # 6.8A/2 = 3.4A corresponds to H2O diameter
                     corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                       uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                     for i, j, k in corners:
@@ -602,9 +602,9 @@ def c_cal_lig_sasa_grids(  str name,
                         np.ndarray[np.float64_t, ndim=1] charges,
                         np.ndarray[np.float64_t, ndim=1] lj_sigma,
                         np.ndarray[float, ndim=2] molecule_sasa,
-                        np.ndarray[np.float64_t, ndim=1] rho,
-                        np.ndarray[np.float64_t, ndim=1] sasa_core_scaling,
-                        np.ndarray[np.float64_t, ndim=1] sasa_surface_scaling
+                        float rho,
+                        float sasa_core_scaling,
+                        float sasa_surface_scaling
                            ):
 
     cdef:
@@ -655,3 +655,75 @@ def c_cal_lig_sasa_grids(  str name,
             sasar_grid[i][j][k] = 1.
 
     return sasai_grid, sasar_grid
+
+@cython.boundscheck(False)
+def get_min_dists(
+                        np.ndarray[np.float64_t, ndim=2] rec_crd,
+                        np.ndarray[np.float64_t, ndim=2] lig_crd,
+                        np.ndarray[np.float64_t, ndim=1] grid_x,
+                        np.ndarray[np.float64_t, ndim=1] grid_y,
+                        np.ndarray[np.float64_t, ndim=1] grid_z,
+                        np.ndarray[np.float64_t, ndim=1] origin_crd,
+                        np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
+                        np.ndarray[np.int64_t, ndim=1]   uper_most_corner,
+                        np.ndarray[np.float64_t, ndim=1] spacing,
+                        np.ndarray[np.int64_t, ndim=2]   eight_corner_shifts,
+                        np.ndarray[np.int64_t, ndim=2]   six_corner_shifts,
+                        np.ndarray[np.int64_t, ndim=2]   nearest_neighbor_shifts,
+                        np.ndarray[np.int64_t, ndim=1]   grid_counts,
+                        np.ndarray[np.float64_t, ndim=1] rec_lj_sigma,
+                        np.ndarray[np.float64_t, ndim=1] lig_lj_sigma,
+                        np.ndarray[float, ndim=2] rec_sasa,
+                        np.ndarray[float, ndim=2] lig_sasa,
+                           ):
+
+    cdef:
+        int rec_ind, lig_ind, i, j, k, l, m, n
+        int rec_natoms = rec_crd.shape[0]
+        int lig_natoms = lig_crd.shape[0]
+        int i_max = grid_x.shape[0]
+        int j_max = grid_y.shape[0]
+        int k_max = grid_z.shape[0]
+        list ten_corners, six_corners, nearest_neighbors
+        np.ndarray[np.float64_t, ndim=1] atom_coordinate
+        double dmin_ss = 10
+        double dmin_sc = 10
+        double dmin_cs = 10
+        double dmin_cc = 10
+        double sigmaR_ss
+        double sigmaL_ss
+        double sigmaR_sc
+        double sigmaL_sc
+        double sigmaR_cs
+        double sigmaL_cs
+        double sigmaR_cc
+        double sigmaL_cc
+
+    for rec_ind in range(rec_natoms):
+        atom_coordinate = rec_crd[rec_ind]
+        if rec_sasa[0][rec_ind] < 0.01:
+            for lig_ind in range(lig_natoms):
+                if lig_sasa[0][lig_ind] < 0.01:
+                    if dmin_cc > cdistance(rec_crd[rec_ind], lig_crd[lig_ind]):
+                        dmin_cc = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
+                        sigmaR_cc = rec_lj_sigma[rec_ind]
+                        sigmaL_cc = lig_lj_sigma[lig_ind]
+                else:
+                    if dmin_cs > cdistance(rec_crd[rec_ind], lig_crd[lig_ind]):
+                        dmin_cs = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
+                        sigmaR_cs = rec_lj_sigma[rec_ind]
+                        sigmaL_cs = lig_lj_sigma[lig_ind]
+        else:
+            for lig_ind in range(lig_natoms):
+                if lig_sasa[0][lig_ind] < 0.01:
+                    if dmin_sc > cdistance(rec_crd[rec_ind], lig_crd[lig_ind]):
+                        dmin_sc = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
+                        sigmaR_sc = rec_lj_sigma[rec_ind]
+                        sigmaL_sc = lig_lj_sigma[lig_ind]
+                else:
+                    if dmin_ss > cdistance(rec_crd[rec_ind], lig_crd[lig_ind]):
+                        dmin_ss = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
+                        sigmaR_ss = rec_lj_sigma[rec_ind]
+                        sigmaL_ss = lig_lj_sigma[lig_ind]
+    result = (sigmaR_ss, sigmaL_ss, sigmaR_sc, sigmaL_sc, sigmaR_cs, sigmaL_cs, sigmaR_cc, sigmaL_cc, dmin_ss, dmin_sc, dmin_cs, dmin_cc)
+    return result
