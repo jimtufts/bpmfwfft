@@ -807,5 +807,5 @@ def get_min_dists(
     #           sigmaR_ms, sigmaL_ms, sigmaR_sm, sigmaL,sm,
     #           sigmaR_mc, sigmaL_mc, sigmaR_cm, sigmaL_cm,
     #           dmin_ss, dmin_sc, dmin_cs, dmin_cc, ind_list)
-    result = (sigmaR, sigmaL, dist, indR, indL)
+    result = {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": dist, "indR": indR, "indL": indL}
     return result

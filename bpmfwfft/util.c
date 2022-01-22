@@ -20500,32 +20500,22 @@ static PyObject *__pyx_pf_4util_28get_min_dists(CYTHON_UNUSED PyObject *__pyx_se
   /* "util.pyx":810
  *     #           sigmaR_mc, sigmaL_mc, sigmaR_cm, sigmaL_cm,
  *     #           dmin_ss, dmin_sc, dmin_cs, dmin_cc, ind_list)
- *     result = (sigmaR, sigmaL, dist, indR, indL)             # <<<<<<<<<<<<<<
+ *     result = {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": dist, "indR": indR, "indL": indL}             # <<<<<<<<<<<<<<
  *     return result
  */
-  __pyx_t_1 = PyTuple_New(5); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 810, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyDict_NewPresized(5); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 810, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __Pyx_INCREF(__pyx_v_sigmaR);
-  __Pyx_GIVEREF(__pyx_v_sigmaR);
-  PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_v_sigmaR);
-  __Pyx_INCREF(__pyx_v_sigmaL);
-  __Pyx_GIVEREF(__pyx_v_sigmaL);
-  PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_v_sigmaL);
-  __Pyx_INCREF(__pyx_v_dist);
-  __Pyx_GIVEREF(__pyx_v_dist);
-  PyTuple_SET_ITEM(__pyx_t_1, 2, __pyx_v_dist);
-  __Pyx_INCREF(__pyx_v_indR);
-  __Pyx_GIVEREF(__pyx_v_indR);
-  PyTuple_SET_ITEM(__pyx_t_1, 3, __pyx_v_indR);
-  __Pyx_INCREF(__pyx_v_indL);
-  __Pyx_GIVEREF(__pyx_v_indL);
-  PyTuple_SET_ITEM(__pyx_t_1, 4, __pyx_v_indL);
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_sigmaR, __pyx_v_sigmaR) < 0) __PYX_ERR(0, 810, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_sigmaL, __pyx_v_sigmaL) < 0) __PYX_ERR(0, 810, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_dist, __pyx_v_dist) < 0) __PYX_ERR(0, 810, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_indR, __pyx_v_indR) < 0) __PYX_ERR(0, 810, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_indL, __pyx_v_indL) < 0) __PYX_ERR(0, 810, __pyx_L1_error)
   __pyx_v_result = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
   /* "util.pyx":811
  *     #           dmin_ss, dmin_sc, dmin_cs, dmin_cc, ind_list)
- *     result = (sigmaR, sigmaL, dist, indR, indL)
+ *     result = {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": dist, "indR": indR, "indL": indL}
  *     return result             # <<<<<<<<<<<<<<
  */
   __Pyx_XDECREF(__pyx_r);
