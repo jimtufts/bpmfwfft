@@ -7,6 +7,7 @@ import os
 import numpy as np
 import netCDF4
 
+from mdtraj.geometry.sasa import _ATOMIC_RADII
 
 class PrmtopLoad(object):
     """
@@ -166,18 +167,28 @@ class PrmtopLoad(object):
         r_LJ = np.zeros(NATOM, dtype=float)
         a_LJ = np.zeros(NATOM, dtype=float)
         LJ_sigma = np.zeros(NATOM, dtype=float)
+        LJ_epsilon = np.zeros(NATOM, dtype=float)
+        VDW_radii = np.zeros(NATOM, dtype=float)
         six_root_two = pow(2.0, 1./6)  #originally 1./6
-
         for atom_ind in range(NATOM):
             type_ind = self._parameters["ATOM_TYPE_INDEX"][atom_ind]-1
             r_LJ[atom_ind] = r_LJ_charge[type_ind]
             a_LJ[atom_ind] = a_LJ_charge[type_ind]
             LJ_sigma[atom_ind] = LJ_diameter[type_ind] / six_root_two
+            LJ_epsilon[atom_ind] = LJ_depth[type_ind]
+            atom_name = str(self._parameters["ATOM_NAME"][atom_ind])
+            # change units of VDW radii to Angstroms from nanometers
+            try:
+                VDW_radii[atom_ind] = _ATOMIC_RADII[atom_name.split("-", 0)[0][0]]*10.
+            except:
+                VDW_radii[atom_ind] = _ATOMIC_RADII[atom_name.split("-", 0)[0:1][0].title()]*10.
 
         # save to dict
         self._parameters["R_LJ_CHARGE"] = r_LJ
         self._parameters["A_LJ_CHARGE"] = a_LJ
-        self._parameters["LJ_SIGMA"]    = LJ_sigma 
+        self._parameters["LJ_SIGMA"]    = LJ_sigma
+        self._parameters["LJ_EPSILON"]  = LJ_epsilon
+        self._parameters["VDW_RADII"]   = VDW_radii
         return None
     
     def _check_10_12_LJ(self):
@@ -189,7 +200,7 @@ class PrmtopLoad(object):
         return None
     
     def _check_len(self):
-        keys = ["CHARGE_E_UNIT", "R_LJ_CHARGE", "A_LJ_CHARGE", "LJ_SIGMA", "MASS"]
+        keys = ["CHARGE_E_UNIT", "R_LJ_CHARGE", "A_LJ_CHARGE", "LJ_SIGMA", "LJ_EPSILON", "VDW_RADII", "MASS"]
         NATOM = self._parameters["POINTERS"]["NATOM"]
         for key in keys:
             if len(self._parameters[key]) != NATOM:
@@ -204,7 +215,7 @@ class PrmtopLoad(object):
     
     def get_parm_for_grid_calculation(self):
         parm = dict()
-        keys = ["CHARGE_E_UNIT", "R_LJ_CHARGE", "A_LJ_CHARGE", "LJ_SIGMA", "POINTERS", "MASS", "PDB_TEMPLATE"]
+        keys = ["CHARGE_E_UNIT", "R_LJ_CHARGE", "A_LJ_CHARGE", "LJ_SIGMA", "LJ_EPSILON", "VDW_RADII", "POINTERS", "MASS", "PDB_TEMPLATE"]
         for key in keys:
             parm[key] = self._parameters[key]
         return parm

@@ -143,6 +143,8 @@ def is_nc_grid_good(nc_grid_file):
             return False
     return True
 
+# def get_min_dists_pool():
+
 
 class Grid(object):
     """
@@ -245,27 +247,42 @@ class Grid(object):
             raise RuntimeError("zero total mass")
         return center_of_mass / total_mass
 
-    def _get_molecule_sasa(self, probe_radius, n_sphere_points):
+    def _get_molecule_sasa_nanometer(self, probe_radius, n_sphere_points):
         """
-        return the per atom SASA of the target molecule
+        return the per atom SASA of the target molecule in nanometers
         """
         xyz = self._crd
         xyz = np.expand_dims(xyz, 0)
         # convert coordinates to nanometers for mdtraj
         xyz = xyz.astype(np.float32)/10.
+        atom_radii = self._prmtop["VDW_RADII"]/10.
 
-        atom_radii = []
-        for atom_label in self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"]:
-            try:
-                atom_radii.append(_ATOMIC_RADII[str(atom_label).split("-", 0)[0][0]])
-            except:
-                atom_radii.append(_ATOMIC_RADII[str(atom_label).split("-", 0)[0:1][0].title()])
         radii = np.array(atom_radii, np.float32) + probe_radius
         dim1 = xyz.shape[1]
         atom_mapping = np.arange(dim1, dtype=np.int32)
         out = np.zeros((xyz.shape[0], dim1), dtype=np.float32)
         _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
+        # convert values from nm^2 to A^2
+        out = out
+        return out
 
+    def _get_molecule_sasa(self, probe_radius, n_sphere_points):
+        """
+        return the per atom SASA of the target molecule in Angstroms
+        """
+        xyz = self._crd
+        xyz = np.expand_dims(xyz, 0)
+        # convert coordinates to nanometers for mdtraj
+        xyz = xyz.astype(np.float32)/10.
+        atom_radii = self._prmtop["VDW_RADII"]/10.
+
+        radii = np.array(atom_radii, np.float32) + probe_radius
+        dim1 = xyz.shape[1]
+        atom_mapping = np.arange(dim1, dtype=np.int32)
+        out = np.zeros((xyz.shape[0], dim1), dtype=np.float32)
+        _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
+        # convert values from nm^2 to A^2
+        out = out*100.
         return out
 
     def _get_corner_crd(self, corner):
@@ -772,6 +789,10 @@ class LigGrid(Grid):
         """
         for atom_ind in range(len(self._crd)):
             self._crd[atom_ind] += displacement
+        return None
+
+    def write_pdb(self, file_name, mode):
+        IO.write_pdb(self._prmtop, self._crd, file_name, mode)
         return None
 
 

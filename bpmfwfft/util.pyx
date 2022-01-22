@@ -660,70 +660,152 @@ def c_cal_lig_sasa_grids(  str name,
 def get_min_dists(
                         np.ndarray[np.float64_t, ndim=2] rec_crd,
                         np.ndarray[np.float64_t, ndim=2] lig_crd,
-                        np.ndarray[np.float64_t, ndim=1] grid_x,
-                        np.ndarray[np.float64_t, ndim=1] grid_y,
-                        np.ndarray[np.float64_t, ndim=1] grid_z,
-                        np.ndarray[np.float64_t, ndim=1] origin_crd,
-                        np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
-                        np.ndarray[np.int64_t, ndim=1]   uper_most_corner,
-                        np.ndarray[np.float64_t, ndim=1] spacing,
-                        np.ndarray[np.int64_t, ndim=2]   eight_corner_shifts,
-                        np.ndarray[np.int64_t, ndim=2]   six_corner_shifts,
-                        np.ndarray[np.int64_t, ndim=2]   nearest_neighbor_shifts,
-                        np.ndarray[np.int64_t, ndim=1]   grid_counts,
                         np.ndarray[np.float64_t, ndim=1] rec_lj_sigma,
                         np.ndarray[np.float64_t, ndim=1] lig_lj_sigma,
+                        np.ndarray[np.float64_t, ndim=1] rec_vdw_radii,
+                        np.ndarray[np.float64_t, ndim=1] lig_vdw_radii,
+                        list rec_atom_names,
+                        list lig_atom_names,
+                        list rec_res_names,
+                        list lig_res_names,
                         np.ndarray[float, ndim=2] rec_sasa,
                         np.ndarray[float, ndim=2] lig_sasa,
+                        bint use_vdw,
+                        bint exclude_H
                            ):
-
     cdef:
-        int rec_ind, lig_ind, i, j, k, l, m, n
+        int rec_ind, lig_ind, i
+        # int ssr_ind, ssl_ind, scr_ind, scl_ind, csr_ind, csl_ind, ccr_ind, ccl_ind
+        # int msr_ind, msl_ind, smr_ind, sml_ind, mcr_ind, mcl_ind, cmr_ind, cml_ind
         int rec_natoms = rec_crd.shape[0]
         int lig_natoms = lig_crd.shape[0]
-        int i_max = grid_x.shape[0]
-        int j_max = grid_y.shape[0]
-        int k_max = grid_z.shape[0]
-        list ten_corners, six_corners, nearest_neighbors
-        np.ndarray[np.float64_t, ndim=1] atom_coordinate
-        double dmin_ss = 10
-        double dmin_sc = 10
-        double dmin_cs = 10
-        double dmin_cc = 10
-        double sigmaR_ss
-        double sigmaL_ss
-        double sigmaR_sc
-        double sigmaL_sc
-        double sigmaR_cs
-        double sigmaL_cs
-        double sigmaR_cc
-        double sigmaL_cc
+        list rec_inds = []
+        list lig_inds = []
+        # dict rec, lig = {}
+        dict sigmaR = {}
+        dict sigmaL = {}
+        dict indR = {}
+        dict indL = {}
+        dict dist = {}
+        str rad_type, diameter
+        list metal_ions = ["ZN", "CA", "MG", "SR"]
+        list key_types = ["ss", "sc", "cs", "cc", "ms", "sm", "mc", "cm"]
 
-    for rec_ind in range(rec_natoms):
-        atom_coordinate = rec_crd[rec_ind]
-        if rec_sasa[0][rec_ind] < 0.01:
-            for lig_ind in range(lig_natoms):
-                if lig_sasa[0][lig_ind] < 0.01:
-                    if dmin_cc > cdistance(rec_crd[rec_ind], lig_crd[lig_ind]):
-                        dmin_cc = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
-                        sigmaR_cc = rec_lj_sigma[rec_ind]
-                        sigmaL_cc = lig_lj_sigma[lig_ind]
-                else:
-                    if dmin_cs > cdistance(rec_crd[rec_ind], lig_crd[lig_ind]):
-                        dmin_cs = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
-                        sigmaR_cs = rec_lj_sigma[rec_ind]
-                        sigmaL_cs = lig_lj_sigma[lig_ind]
+    # make a dictionary from components for cleaner code
+    rec = dict()
+    lig = dict()
+    rec["lj_sigma"] = rec_lj_sigma
+    lig["lj_sigma"] = lig_lj_sigma
+    rec["vdw_dia"] = rec_vdw_radii*2.
+    lig["vdw_dia"] = lig_vdw_radii*2.
+    rec["atom_names"] = rec_atom_names
+    lig["atom_names"] = lig_atom_names
+    rec["res_names"] = rec_res_names
+    lig["res_names"] = lig_res_names
+    rec["sasa"] = rec_sasa
+    lig["sasa"] = lig_sasa
+    # Set initial values for comparison
+    for key in key_types:
+        sigmaR[key] = 0.
+        sigmaL[key] = 0.
+        indR[key] = 0
+        indL[key] = 0
+        dist[key] = 10.
+    # Set either LJ_sigma or VDW diameter for atom size
+    if use_vdw:
+        diameter = "vdw_dia"
+    else:
+        diameter = "lj_sigma"
+    # Build index list without hydrogen if desired
+    for i in range(rec_natoms):
+        if exclude_H:
+            if rec["atom_names"][i][0] != 'H':
+                rec_inds.append(i)
         else:
-            for lig_ind in range(lig_natoms):
-                if lig_sasa[0][lig_ind] < 0.01:
-                    if dmin_sc > cdistance(rec_crd[rec_ind], lig_crd[lig_ind]):
-                        dmin_sc = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
-                        sigmaR_sc = rec_lj_sigma[rec_ind]
-                        sigmaL_sc = lig_lj_sigma[lig_ind]
-                else:
-                    if dmin_ss > cdistance(rec_crd[rec_ind], lig_crd[lig_ind]):
-                        dmin_ss = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
-                        sigmaR_ss = rec_lj_sigma[rec_ind]
-                        sigmaL_ss = lig_lj_sigma[lig_ind]
-    result = (sigmaR_ss, sigmaL_ss, sigmaR_sc, sigmaL_sc, sigmaR_cs, sigmaL_cs, sigmaR_cc, sigmaL_cc, dmin_ss, dmin_sc, dmin_cs, dmin_cc)
+            rec_inds.append(i)
+    for i in range(lig_natoms):
+        if exclude_H:
+            if lig["atom_names"][i][0] != 'H':
+                lig_inds.append(i)
+        else:
+            lig_inds.append(i)
+    # Find the minimum distances between rec and lig for various atom types
+    # s = surface, c = core, m = metal ion
+    for rec_ind in rec_inds:
+        if rec["res_names"][rec_ind] not in metal_ions:
+            if rec["sasa"][0][rec_ind] < 1.00:
+                for lig_ind in lig_inds:
+                    distance = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
+                    if lig["res_names"][lig_ind] not in metal_ions:
+                        if lig["sasa"][0][lig_ind] < 1.00:
+                            if dist["cc"] > distance:
+                                dist["cc"] = distance
+                                indR["cc"] = rec_ind
+                                indL["cc"] = lig_ind
+                                sigmaR["cc"] = rec[diameter][rec_ind]
+                                sigmaL["cc"] = lig[diameter][lig_ind]
+                        else:
+                            if dist["cs"] > distance:
+                                dist["cs"] = distance
+                                indR["cs"] = rec_ind
+                                indL["cs"] = lig_ind
+                                sigmaR["cs"] = rec[diameter][rec_ind]
+                                sigmaL["cs"] = lig[diameter][lig_ind]
+                    else:
+                        if dist["cm"] > distance:
+                                dist["cm"] = distance
+                                indR["cm"] = rec_ind
+                                indL["cm"] = lig_ind
+                                sigmaR["cm"] = rec[diameter][rec_ind]
+                                sigmaL["cm"] = lig[diameter][lig_ind]
+            else:
+                for lig_ind in lig_inds:
+                    distance = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
+                    if lig["res_names"][lig_ind] not in metal_ions:
+                        if lig["sasa"][0][lig_ind] < 1.00:
+                            if dist["sc"] > distance:
+                                dist["sc"] = distance
+                                indR["sc"] = rec_ind
+                                indL["sc"] = lig_ind
+                                sigmaR["sc"] = rec[diameter][rec_ind]
+                                sigmaL["sc"] = lig[diameter][lig_ind]
+                        else:
+                            if dist["ss"] > distance:
+                                dist["ss"] = distance
+                                indR["ss"] = rec_ind
+                                indL["ss"] = lig_ind
+                                sigmaR["ss"] = rec[diameter][rec_ind]
+                                sigmaL["ss"] = lig[diameter][lig_ind]
+                    else:
+                        if dist["sm"] > distance:
+                                dist["sm"] = distance
+                                indR["sm"] = rec_ind
+                                indL["sm"] = lig_ind
+                                sigmaR["sm"] = rec[diameter][rec_ind]
+                                sigmaL["sm"] = lig[diameter][lig_ind]
+        else:
+            for lig_ind in lig_inds:
+                distance = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
+                if lig["res_names"][lig_ind] not in metal_ions:
+                    if lig["sasa"][0][lig_ind] < 1.00:
+                        if dist["mc"] > distance:
+                            dist["mc"] = distance
+                            indR["mc"] = rec_ind
+                            indL["mc"] = lig_ind
+                            sigmaR["mc"] = rec[diameter][rec_ind]
+                            sigmaL["mc"] = lig[diameter][lig_ind]
+                    else:
+                        if dist["ms"] > distance:
+                            dist["ms"] = distance
+                            indR["ms"] = rec_ind
+                            indL["ms"] = lig_ind
+                            sigmaR["ms"] = rec[diameter][rec_ind]
+                            sigmaL["ms"] = lig[diameter][lig_ind]
+
+    # result = (sigmaR_ss, sigmaL_ss, sigmaR_sc, sigmaL_sc,
+    #           sigmaR_cs, sigmaL_cs, sigmaR_cc, sigmaL_cc,
+    #           sigmaR_ms, sigmaL_ms, sigmaR_sm, sigmaL,sm,
+    #           sigmaR_mc, sigmaL_mc, sigmaR_cm, sigmaL_cm,
+    #           dmin_ss, dmin_sc, dmin_cs, dmin_cc, ind_list)
+    result = (sigmaR, sigmaL, dist, indR, indL)
     return result
