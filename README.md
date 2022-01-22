@@ -9,7 +9,7 @@ Calculate the binding potential of mean force (BPMF) using the FFT.
 
 ### Copyright
 
-Copyright (c) 2021, Hai Nguyen, Jim Tufts
+Copyright (c) 2021,2022, Hai Nguyen, Jim Tufts
 
 
 #### Acknowledgements
