@@ -296,13 +296,16 @@ def c_cal_potential_grid(   str name,
                             np.ndarray[np.float64_t, ndim=1] charges,
                             np.ndarray[np.float64_t, ndim=1] lj_sigma,
                             np.ndarray[float, ndim=2] molecule_sasa,
+                            list rec_res_names,
+                            float rec_core_scaling,
+                            float rec_surface_scaling,
+                            float rec_metal_scaling,
                             float rho,
-                            float sasa_core_scaling,
-                            float sasa_surface_scaling,
                             np.ndarray[np.float64_t, ndim=3] sasai_grid):
 
     cdef:
         list corners, rho_i_corners
+        list metal_ions = ["ZN", "CA", "MG", "SR"]
         int natoms = crd.shape[0]
         int i_max = grid_x.shape[0]
         int j_max = grid_y.shape[0]
@@ -359,28 +362,36 @@ def c_cal_potential_grid(   str name,
     else:
         rho_i_corners = []
         if name == "SASAi":
-            for atom_ind in range(natoms): # for "surface layer"
+            for atom_ind in range(natoms): # for "SASAi" grid
                 atom_coordinate = crd[atom_ind]
-                if molecule_sasa[0][atom_ind] > 0.01:  # surface atom
-                    lj_diameter = lj_sigma[atom_ind] * sasa_surface_scaling
-                    corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                                      uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-                    for i, j, k in corners:
-                        grid[i, j, k] = rho
-                        rho_i_corners.append(np.array([i, j, k], dtype=int))
+                if rec_res_names[atom_ind] not in metal_ions:
+                    if molecule_sasa[0][atom_ind] > 0.01:  # surface atom
+                        lj_diameter = lj_sigma[atom_ind] * rec_surface_scaling
+                        corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                          uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                        for i, j, k in corners:
+                            grid[i, j, k] = rho
+                            rho_i_corners.append(np.array([i, j, k], dtype=int))
 
-                elif molecule_sasa[0][atom_ind] < 0.01: # core atom
-                    lj_diameter = lj_sigma[atom_ind] * sasa_core_scaling
+                    elif molecule_sasa[0][atom_ind] < 0.01: # core atom
+                        lj_diameter = lj_sigma[atom_ind] * rec_core_scaling
+                        corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                          uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                        for i, j, k in corners:
+                            grid[i, j, k] = rho
+                            rho_i_corners.append(np.array([i, j, k], dtype=int))
+                else:
+                    lj_diameter = lj_sigma[atom_ind] * rec_metal_scaling
                     corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                       uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                     for i, j, k in corners:
                         grid[i, j, k] = rho
                         rho_i_corners.append(np.array([i, j, k], dtype=int))
         else:
-            for atom_ind in range(natoms): # for "water layer"
+            for atom_ind in range(natoms): # for "SASAr" grid
                 atom_coordinate = crd[atom_ind]
                 if molecule_sasa[0][atom_ind] > 0.01: # surface atom
-                    lj_diameter = lj_sigma[atom_ind] + 6.8 # 6.8A/2 = 3.4A corresponds to H2O diameter
+                    lj_diameter = lj_sigma[atom_ind] + 3.4 # 6.8A/2 = 3.4A corresponds to H2O diameter
                     corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                       uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                     for i, j, k in corners:
@@ -586,8 +597,7 @@ def c_cal_lig_sasa_grid(  str name,
     return sasai_grid, grid, rho_i_corners
 
 @cython.boundscheck(False)
-def c_cal_lig_sasa_grids(  str name,
-                        np.ndarray[np.float64_t, ndim=2] crd,
+def c_cal_lig_sasa_grids(np.ndarray[np.float64_t, ndim=2] crd,
                         np.ndarray[np.float64_t, ndim=1] grid_x,
                         np.ndarray[np.float64_t, ndim=1] grid_y,
                         np.ndarray[np.float64_t, ndim=1] grid_z,
@@ -595,51 +605,65 @@ def c_cal_lig_sasa_grids(  str name,
                         np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
                         np.ndarray[np.int64_t, ndim=1]   uper_most_corner,
                         np.ndarray[np.float64_t, ndim=1] spacing,
-                        np.ndarray[np.int64_t, ndim=2]   eight_corner_shifts,
-                        np.ndarray[np.int64_t, ndim=2]   six_corner_shifts,
                         np.ndarray[np.int64_t, ndim=2]   nearest_neighbor_shifts,
                         np.ndarray[np.int64_t, ndim=1]   grid_counts,
-                        np.ndarray[np.float64_t, ndim=1] charges,
-                        np.ndarray[np.float64_t, ndim=1] lj_sigma,
-                        np.ndarray[float, ndim=2] molecule_sasa,
+                        np.ndarray[np.float64_t, ndim=1] radii,
+                        list core_atoms,
+                        list surface_atoms,
+                        list core_ions,
+                        list surface_ions,
+                        float lig_core_scaling,
+                        float lig_surface_scaling,
+                        float lig_metal_scaling,
                         float rho,
-                        float sasa_core_scaling,
-                        float sasa_surface_scaling
                            ):
 
     cdef:
-        int atom_ind, i, j, k, l, m, n
+        int atom_ind, i, j, k
         int natoms = crd.shape[0]
         int i_max = grid_x.shape[0]
         int j_max = grid_y.shape[0]
         int k_max = grid_z.shape[0]
-        double charge
-        list ten_corners, six_corners, nearest_neighbors, rho_i_zeros, changes_list
-        np.ndarray[np.float64_t, ndim=1] distributed_charges
+        list nearest_neighbors, rho_i_zeros, changes_list
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
         np.ndarray[np.float64_t, ndim=3] sasai_grid = np.zeros([i_max, j_max, k_max], dtype=float)
         np.ndarray[np.float64_t, ndim=3] sasar_grid = np.zeros([i_max, j_max, k_max], dtype=float)
 
 
-    assert name in ["SASAi", "SASAr", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
+    for atom_ind in core_atoms:
+        atom_coordinate = crd[atom_ind]
+        radius = radii[atom_ind] * lig_core_scaling
+        corners = c_corners_within_radius(atom_coordinate, radius, origin_crd, uper_most_corner_crd,
+                                          uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+        for i, j, k in corners:
+            sasai_grid[i, j, k] = rho
 
-    for atom_ind in range(natoms):
+    for atom_ind in surface_atoms:
         atom_coordinate = crd[atom_ind]
-        if molecule_sasa[0][atom_ind] < 0.01:  # core atom
-            lj_diameter = lj_sigma[atom_ind] * sasa_core_scaling
-            corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                              uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-            for i, j, k in corners:
-                sasai_grid[i, j, k] = rho
-    for atom_ind in range(natoms):
+        radius = radii[atom_ind] * lig_surface_scaling
+        corners = c_corners_within_radius(atom_coordinate, radius, origin_crd, uper_most_corner_crd,
+                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+        for i, j, k in corners:
+            if sasai_grid[i][j][k] == 0:
+                sasar_grid[i][j][k] = 1.
+
+    for atom_ind in core_ions:
         atom_coordinate = crd[atom_ind]
-        if molecule_sasa[0][atom_ind] > 0.01:  # surface atom
-            lj_diameter = lj_sigma[atom_ind] * sasa_surface_scaling
-            corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                              uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-            for i, j, k in corners:
-                if sasai_grid[i][j][k] == 0:
-                    sasar_grid[i][j][k] = 1.
+        radius = radii[atom_ind] * lig_metal_scaling
+        corners = c_corners_within_radius(atom_coordinate, radius, origin_crd, uper_most_corner_crd,
+                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+        for i, j, k in corners:
+            sasai_grid[i, j, k] = rho
+
+    for atom_ind in surface_ions:
+        atom_coordinate = crd[atom_ind]
+        radius = radii[atom_ind] * lig_metal_scaling
+        corners = c_corners_within_radius(atom_coordinate, radius, origin_crd, uper_most_corner_crd,
+                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+        for i, j, k in corners:
+            if sasai_grid[i][j][k] == 0:
+                sasar_grid[i][j][k] = 1.
+
     rho_i_hits = np.array(np.where(sasai_grid == rho)).transpose()
     print(rho_i_hits[0])
     changes_list = []

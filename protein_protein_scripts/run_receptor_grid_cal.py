@@ -21,8 +21,12 @@ parser.add_argument("--out_dir",            type=str, default="out")
 parser.add_argument("--grid_file_name",     type=str, default="grid.nc")
 
 parser.add_argument("--lj_scale",    type=float, default=0.8)
-parser.add_argument("--sc_scale",    type=float, default=sqrt(1.5))
-parser.add_argument("--ss_scale",    type=float, default=sqrt(0.8))
+parser.add_argument("--rc_scale",    type=float, default=0.59)
+parser.add_argument("--rs_scale",    type=float, default=0.55)
+parser.add_argument("--rm_scale",    type=float, default=0.55)
+# parser.add_argument("--lc_scale",    type=float, default=0.67)
+# parser.add_argument("--ls_scale",    type=float, default=0.50)
+# parser.add_argument("--lm_scale",    type=float, default=0.51)
 parser.add_argument("--rho",         type=float, default=9.0)
 parser.add_argument("--spacing",     type=float, default=0.5)
 parser.add_argument("--buffer",      type=float, default=1.0)
@@ -118,8 +122,12 @@ python ''' + this_script + \
 else:
     prmtop = os.path.join(args.amber_dir, RECEPTOR_PRMTOP)
     lj_scale = args.lj_scale
-    sc_scale = args.sc_scale
-    ss_scale = args.ss_scale
+    rc_scale = args.rc_scale
+    rs_scale = args.rs_scale
+    rm_scale = args.rm_scale
+    # lc_scale = args.lc_scale
+    # ls_scale = args.ls_scale
+    # lm_scale = args.lm_scale
     rec_inpcrd = os.path.join(args.coord_dir, RECEPTOR_INPCRD)
     lig_inpcrd = os.path.join(args.coord_dir, LIGAND_INPCRD)
     rho = args.rho
@@ -131,6 +139,7 @@ else:
     pdb_out = os.path.join(args.out_dir, PDB_OUT)
     box_out = os.path.join(args.out_dir, BOX_OUT)
     print()
-    rec_grid_cal(prmtop, lj_scale, sc_scale, ss_scale, rho, rec_inpcrd, lig_inpcrd, spacing, buffer, grid_out, pdb_out, box_out)
+    rec_grid_cal(prmtop, lj_scale, rc_scale, rs_scale, rm_scale, rho,
+                 rec_inpcrd, lig_inpcrd, spacing, buffer, grid_out, pdb_out, box_out)
 
 
