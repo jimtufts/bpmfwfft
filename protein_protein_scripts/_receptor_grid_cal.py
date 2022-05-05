@@ -47,16 +47,13 @@ def _max_box_edge(inpcrd):
 
 def rec_grid_cal(prmtop, lj_scale, sc_scale, ss_scale, sm_scale, rho,
                  rec_inpcrd, lig_inpcrd, spacing, buffer,
-                 grid_out, pdb_out, box_out):
+                 grid_out, pdb_out, box_out, radii_type, exclude_H):
     """
     prmtop: str, prmtop file for receptor
     lj_scale:   float, 0 < lj_scale <=1
     rc_scale:   float, 0 < rc_scale
     rs_scale:   float, 0 < rs_scale
     rm_scale:   float, 0 < rm_scale
-    lc_scale:   float, 0 < lc_scale
-    ls_scale:   float, 0 < ls_scale
-    lm_scale:   float, 0 < lm_scale
     rec_inpcrd: str, inpcrd file for receptor
     lig_inpcrd: str, inpcrd file for ligand, used to determine grid size
     spacing:    float, distance between grid points in Angstroms
@@ -64,6 +61,8 @@ def rec_grid_cal(prmtop, lj_scale, sc_scale, ss_scale, sm_scale, rho,
     grid_out:   str, name of output nc file
     pdb_out:    str, name of output pdb file
     box_out:    str, name of output box
+    radii_type: str, name of radii to use, LJ_SIGMA or VDW_RADII
+    exclude_H:  bool, exclude hydrogen from grid calculation
     """
     #ligand_max_size = _max_inter_atom_distance(lig_inpcrd)
     #print "Ligand maximum inter-atomic distance: %f"%ligand_max_size
@@ -85,7 +84,9 @@ def rec_grid_cal(prmtop, lj_scale, sc_scale, ss_scale, sm_scale, rho,
                              grid_out,
                              new_calculation=True,
                              spacing=spacing,
-                             extra_buffer=total_buffer)
+                             extra_buffer=total_buffer,
+                             radii_type=radii_type,
+                             exclude_H=exclude_H)
     # potential_grid = RecGrid(prmtop, lj_scale, sc_scale, ss_scale, rho, rec_inpcrd, bsite_file, grid_out, new_calculation=True, spacing=spacing, )
 
     potential_grid.write_pdb(pdb_out, "w")

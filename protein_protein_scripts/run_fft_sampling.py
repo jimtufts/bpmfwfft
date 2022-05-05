@@ -25,7 +25,14 @@ parser.add_argument("--start_index",                    type=int, default=0)
 
 parser.add_argument("--out_dir",                       type=str, default="out")
 
-parser.add_argument("--lj_scale",                      type=float, default=0.8)
+parser.add_argument("--lj_scale",                      type=float, default=1.0)
+parser.add_argument("--rc_scale",                      type=float, default=0.76)
+parser.add_argument("--rs_scale",                      type=float, default=0.53)
+parser.add_argument("--rm_scale",                      type=float, default=0.55)
+parser.add_argument("--lc_scale",                      type=float, default=0.81)
+parser.add_argument("--ls_scale",                      type=float, default=0.50)
+parser.add_argument("--lm_scale",                      type=float, default=0.54)
+parser.add_argument("--rho",                           type=float, default=9.0)
 parser.add_argument("--submit",   action="store_true", default=False)
 args = parser.parse_args()
 
@@ -37,7 +44,7 @@ LIGAND_PRMTOP = "ligand.prmtop"
 
 LIG_COOR_NC = "rotation.nc"
 
-GRID_NC = "grid.nc"
+GRID_NC = "all_grid_noH.nc"
 FFT_SAMPLING_NC = "fft_sample.nc"
 
 
@@ -136,6 +143,13 @@ python ''' + this_script + \
 else:
     rec_prmtop = os.path.join(args.amber_dir, RECEPTOR_PRMTOP)
     lj_sigma_scal_fact = args.lj_scale
+    rc_scale = args.rc_scale
+    rs_scale = args.rs_scale
+    rm_scale = args.rm_scale
+    lc_scale = args.lc_scale
+    ls_scale = args.ls_scale
+    lm_scale = args.lm_scale
+    rho = args.rho
     rec_inpcrd = os.path.join(args.amber_dir, RECEPTOR_INPCRD)
 
     grid_nc_file = os.path.join(args.grid_dir, GRID_NC)
@@ -151,6 +165,9 @@ else:
     output_nc = os.path.join(args.out_dir, FFT_SAMPLING_NC)
 
     sampling(rec_prmtop, lj_sigma_scal_fact,
+             rc_scale, rs_scale, rm_scale,
+             lc_scale, ls_scale, lm_scale,
+             rho,
              rec_inpcrd, grid_nc_file,
              lig_prmtop, lig_inpcrd,
              lig_coor_nc, nr_lig_conf, start_index,

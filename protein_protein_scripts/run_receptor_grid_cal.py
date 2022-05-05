@@ -19,17 +19,17 @@ parser.add_argument("--amber_dir",          type=str, default="amber")
 parser.add_argument("--coord_dir",          type=str, default="min")
 parser.add_argument("--out_dir",            type=str, default="out")
 parser.add_argument("--grid_file_name",     type=str, default="grid.nc")
+parser.add_argument("--radii_type",         type=str, default="VDW_RADII")
 
-parser.add_argument("--lj_scale",    type=float, default=0.8)
-parser.add_argument("--rc_scale",    type=float, default=0.59)
-parser.add_argument("--rs_scale",    type=float, default=0.55)
+parser.add_argument("--lj_scale",    type=float, default=1.0)
+parser.add_argument("--rc_scale",    type=float, default=0.76)
+parser.add_argument("--rs_scale",    type=float, default=0.53)
 parser.add_argument("--rm_scale",    type=float, default=0.55)
-# parser.add_argument("--lc_scale",    type=float, default=0.67)
-# parser.add_argument("--ls_scale",    type=float, default=0.50)
-# parser.add_argument("--lm_scale",    type=float, default=0.51)
 parser.add_argument("--rho",         type=float, default=9.0)
 parser.add_argument("--spacing",     type=float, default=0.5)
 parser.add_argument("--buffer",      type=float, default=1.0)
+
+parser.add_argument("--exclude_H",    type=bool, default=True)
 
 parser.add_argument("--submit",   action="store_true", default=False)
 
@@ -125,21 +125,20 @@ else:
     rc_scale = args.rc_scale
     rs_scale = args.rs_scale
     rm_scale = args.rm_scale
-    # lc_scale = args.lc_scale
-    # ls_scale = args.ls_scale
-    # lm_scale = args.lm_scale
     rec_inpcrd = os.path.join(args.coord_dir, RECEPTOR_INPCRD)
     lig_inpcrd = os.path.join(args.coord_dir, LIGAND_INPCRD)
     rho = args.rho
+    exclude_H = args.exclude_H
 
     spacing = args.spacing
     buffer = args.buffer
+    radii_type = args.radii_type
 
     grid_out = os.path.join(args.out_dir, GRID_NC)
     pdb_out = os.path.join(args.out_dir, PDB_OUT)
     box_out = os.path.join(args.out_dir, BOX_OUT)
     print()
     rec_grid_cal(prmtop, lj_scale, rc_scale, rs_scale, rm_scale, rho,
-                 rec_inpcrd, lig_inpcrd, spacing, buffer, grid_out, pdb_out, box_out)
+                 rec_inpcrd, lig_inpcrd, spacing, buffer, grid_out, pdb_out, box_out, radii_type, exclude_H)
 
 

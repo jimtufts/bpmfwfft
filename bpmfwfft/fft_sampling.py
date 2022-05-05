@@ -16,12 +16,16 @@ except:
     from grids import LigGrid
 
 
-KB = 0.001987204134799235
+KB = 0.001987204134799235 # kcal/mol*K
 
 
 class Sampling(object):
-    def __init__(self, rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, 
-                        bsite_file, grid_nc_file,
+    def __init__(self, rec_prmtop, lj_sigma_scal_fact,
+                        rc_scale, rs_scale, rm_scale,
+                        lc_scale, ls_scale, lm_scale,
+                        rho,
+                        rec_inpcrd, bsite_file,
+                        grid_nc_file,
                         lig_prmtop, lig_inpcrd,
                         lig_coord_ensemble,
                         energy_sample_size_per_ligand,
@@ -44,23 +48,29 @@ class Sampling(object):
         self._energy_sample_size_per_ligand = energy_sample_size_per_ligand
         self._beta = 1./ temperature / KB
 
-        rec_grid = self._create_rec_grid(rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, 
+        rec_grid = self._create_rec_grid(rec_prmtop, lj_sigma_scal_fact, rc_scale,
+                                         rs_scale, rm_scale, rho, rec_inpcrd,
                                         bsite_file, grid_nc_file)
         self._rec_crd = rec_grid.get_crd()
 
-        self._lig_grid = self._create_lig_grid(lig_prmtop, lj_sigma_scal_fact, lig_inpcrd, rec_grid)
+        self._lig_grid = self._create_lig_grid(lig_prmtop, lj_sigma_scal_fact,
+                                               lc_scale, ls_scale, lm_scale,
+                                               lig_inpcrd, rec_grid)
 
         self._lig_coord_ensemble = self._load_ligand_coor_ensemble(lig_coord_ensemble)
 
         self._nc_handle = self._initialize_nc(output_nc)
 
-    def _create_rec_grid(self, rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file, grid_nc_file):
-        rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact, rec_inpcrd, bsite_file, 
-                            grid_nc_file, new_calculation=False)
+    def _create_rec_grid(self, rec_prmtop, lj_sigma_scal_fact,
+                         rc_scale, rs_scale, rm_scale, rho,
+                         rec_inpcrd, bsite_file, grid_nc_file):
+        rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact, rc_scale, rs_scale, rm_scale,
+                           rho, rec_inpcrd, bsite_file, grid_nc_file, new_calculation=False)
         return rec_grid
 
-    def _create_lig_grid(self, lig_prmtop, lj_sigma_scal_fact, lig_inpcrd, rec_grid):
-        lig_grid = LigGrid(lig_prmtop, lj_sigma_scal_fact, lig_inpcrd, rec_grid)
+    def _create_lig_grid(self, lig_prmtop, lj_sigma_scal_fact, lc_scale, ls_scale, lm_scale,
+                         lig_inpcrd, rec_grid):
+        lig_grid = LigGrid(lig_prmtop, lj_sigma_scal_fact, lc_scale, ls_scale, lm_scale, lig_inpcrd, rec_grid)
         return lig_grid
 
     def _load_ligand_coor_ensemble(self, lig_coord_ensemble):
@@ -172,6 +182,8 @@ class Sampling(object):
 
         exp_energies = -self._beta * energies
         print(f"Max exp energy {exp_energies.max()}, Min exp energy {exp_energies.min()}")
+        # print out bottom 5 lowest energies
+
         self._log_of_divisor = exp_energies.max()
         exp_energies[exp_energies < 0] = 0
         exp_energies = np.exp(exp_energies - self._log_of_divisor)
