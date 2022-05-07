@@ -333,7 +333,7 @@ def c_cal_potential_grid(   str name,
             raise RuntimeError("Wrong grid name %s"%name)
 
         grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
-        for atom_ind in range(natoms):
+        for atom_ind in atom_list:
             atom_coordinate = crd[atom_ind]
             charge = charges[atom_ind]
             lj_diameter = lj_sigma[atom_ind]

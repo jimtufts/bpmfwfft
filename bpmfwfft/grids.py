@@ -425,12 +425,8 @@ class LigGrid(Grid):
         lower_ligand_corner_grid_aligned = lower_ligand_corner - (spacing + lower_ligand_corner % spacing) #new grid aligned variable
         upper_ligand_corner = np.array([self._crd[:,i].max() for i in range(3)], dtype=float) + 2.5*spacing
         upper_ligand_corner_grid_aligned = upper_ligand_corner + (spacing - upper_ligand_corner % spacing) #new grid aligned variable
-        #print("lower ligand corner grid aligned=", lower_ligand_corner_grid_aligned)
-        #print("upper ligand corner grid aligned=", upper_ligand_corner_grid_aligned)
-        #
         ligand_box_lengths = upper_ligand_corner_grid_aligned - lower_ligand_corner_grid_aligned
-#        ligand_box_lengths = upper_ligand_corner - lower_ligand_corner
-        #print("ligand_box_lengths=", ligand_box_lengths)
+
         if np.any(ligand_box_lengths < 0):
             raise RuntimeError("One of the ligand box lengths are negative")
 
@@ -438,8 +434,7 @@ class LigGrid(Grid):
         self._max_grid_indices = self._grid["counts"] - np.array(max_grid_indices, dtype=int)
         if np.any(self._max_grid_indices <= 1):
             raise RuntimeError("At least one of the max grid indices is <= one")
-        
-        #displacement = self._origin_crd - lower_ligand_corner
+
         displacement = self._origin_crd - lower_ligand_corner_grid_aligned #formerly lower_ligand_corner
         for atom_ind in range(len(self._crd)):
             self._crd[atom_ind] += displacement
@@ -606,9 +601,24 @@ class LigGrid(Grid):
         if np.any(self._free_of_clash):
             grid_names = [name for name in self._grid_func_names if name[:4] != "SASA"]
             for name in grid_names:
-                self._meaningful_energies += self._cal_corr_func(name)
+                grid_func_energy = self._cal_corr_func(name)
+                print(f"{name} energy: {grid_func_energy[71][43][54]}")
+                # testing new LJr calculation method #DONTFORGETME
+                if name == 'LJa':
+                    grid_func_energy[grid_func_energy > 0] = 0
+                    self._meaningful_energies += grid_func_energy
+                if name == 'LJr':
+                    grid_func_energy[grid_func_energy < 0] = 0
+                    self._meaningful_energies += grid_func_energy
+                else:
+                    self._meaningful_energies += grid_func_energy
+                del grid_func_energy
             # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
-            self._meaningful_energies -= ((corr_func * SASA_SLOPE) + SASA_INTERCEPT) * GAMMA
+            bsa_energy = ((corr_func * SASA_SLOPE) + SASA_INTERCEPT) * GAMMA
+            self._meaningful_energies += bsa_energy
+            print(f"shape complementarity score: {corr_func[71][43][54]}")
+            print(f"buried surface area energy: {bsa_energy[71][43][54]}")
+            del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j, 0:max_k] # exclude positions where ligand crosses border
         
@@ -1134,9 +1144,9 @@ class RecGrid(Grid):
         """
 
         if radii_type == "LJ_SIGMA":
-            radii = self._prmtop["LJ_SIGMA"]/2
+            sasa_radii = self._prmtop["LJ_SIGMA"]/2
         else:
-            radii = self._prmtop["VDW_RADII"]
+            sasa_radii = self._prmtop["VDW_RADII"]
 
         atom_names = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"]
         atom_list = []
@@ -1166,24 +1176,44 @@ class RecGrid(Grid):
 
                     if name != "SASAr":
                         dummy_grid = np.empty((1,1,1), dtype=np.float64)
-                        futures_array.append(executor.submit(
-                            process_potential_grid_function,
-                            name,
-                            self._crd,
-                            origin,
-                            self._grid["spacing"],
-                            counts,
-                            self._get_charges(name),
-                            radii,
-                            atom_list,
-                            self._molecule_sasa,
-                            self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
-                            self._rec_core_scaling,
-                            self._rec_surface_scaling,
-                            self._rec_metal_scaling,
-                            self._rho,
-                            dummy_grid
-                        ))
+                        if name[:4] != "SASA":
+                            futures_array.append(executor.submit(
+                                process_potential_grid_function,
+                                name,
+                                self._crd,
+                                origin,
+                                self._grid["spacing"],
+                                counts,
+                                self._get_charges(name),
+                                self._prmtop["LJ_SIGMA"],
+                                atom_list,
+                                self._molecule_sasa,
+                                self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
+                                self._rec_core_scaling,
+                                self._rec_surface_scaling,
+                                self._rec_metal_scaling,
+                                self._rho,
+                                dummy_grid
+                            ))
+                        else:
+                            futures_array.append(executor.submit(
+                                process_potential_grid_function,
+                                name,
+                                self._crd,
+                                origin,
+                                self._grid["spacing"],
+                                counts,
+                                self._get_charges(name),
+                                sasa_radii,
+                                atom_list,
+                                self._molecule_sasa,
+                                self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
+                                self._rec_core_scaling,
+                                self._rec_surface_scaling,
+                                self._rec_metal_scaling,
+                                self._rho,
+                                dummy_grid
+                            ))
                     else:
                         futures_array.append(executor.submit(
                             process_potential_grid_function,
@@ -1193,7 +1223,7 @@ class RecGrid(Grid):
                             self._grid["spacing"],
                             counts,
                             self._get_charges(name),
-                            radii,
+                            sasa_radii,
                             atom_list,
                             self._molecule_sasa,
                             self._prmtop["PDB_TEMPLATE"]["RES_NAME"],

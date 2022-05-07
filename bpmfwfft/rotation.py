@@ -2,7 +2,7 @@
 import numpy as np
 import netCDF4
 
-from IO import InpcrdLoad
+from bpmfwfft.IO import InpcrdLoad
 
 
 def _rotation_matrix(u):

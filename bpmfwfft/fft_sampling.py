@@ -194,8 +194,8 @@ class Sampling(object):
         try:
             sel_ind = np.random.choice(exp_energies.shape[0], size=self._energy_sample_size_per_ligand, p=exp_energies, replace=False)
         except:
-            print(f"Only {np.count_nonzero(exp_energies)} non-zero entries in p, falling back to replacement")
-            sel_ind = np.random.choice(exp_energies.shape[0], size=self._energy_sample_size_per_ligand, p=exp_energies, replace=True)
+            print(f"Only {np.count_nonzero(exp_energies)} non-zero entries in p, falling back to {self._energy_sample_size_per_ligand} lowest energies")
+            sel_ind = np.argsort(energies)[:self._energy_sample_size_per_ligand]
 
         del exp_energies
 
