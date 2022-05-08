@@ -66,6 +66,11 @@ def _move_molecule_to_origin(crd):
     displacement  = -ligand_center
     for atom_ind in range(len(crd)):
         crd[atom_ind] += displacement
+    return crd, displacement
+
+def _move_molecule_to_original_position(crd, displacement):
+    for atom_ind in range(len(crd)):
+        crd[atom_ind] -= displacement
     return crd
 
 
@@ -108,18 +113,18 @@ def random_gen_rotation(ligand_crd, total_count, output_nc):
     output_nc:      str, name of output file
     """
     initial_crd = InpcrdLoad(ligand_crd).get_coordinates()
-    initial_crd = _move_molecule_to_origin(initial_crd)
+    initial_crd, displacement = _move_molecule_to_origin(initial_crd)
 
     print("Generating total %d rotations"%total_count)
     nc_handle = _open_nc(initial_crd, output_nc)
-    nc_handle.variables["positions"][0,:,:] = initial_crd
+    nc_handle.variables["positions"][0,:,:] = _move_molecule_to_original_position(initial_crd, displacement)
 
     for i in range(total_count):
         if (i%100) == 0:
             print("Doing %d-th"%i)
         A = _random_rotation_matrix()
         crd = _rotate_molecule(A, initial_crd)
-        nc_handle.variables["positions"][i+1,:,:] = crd
+        nc_handle.variables["positions"][i+1,:,:] = _move_molecule_to_original_position(crd, displacement)
     nc_handle.close()
     print("Generation Done!")
     return None

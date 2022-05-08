@@ -44,6 +44,7 @@ LIGAND_PRMTOP = "ligand.prmtop"
 
 LIG_COOR_NC = "rotation.nc"
 
+# GRID_NC = "all_grid_noH.nc"
 GRID_NC = "sasa_grid_noH.nc"
 FFT_SAMPLING_NC = "fft_sample.nc"
 

@@ -1185,7 +1185,7 @@ class RecGrid(Grid):
                                 self._grid["spacing"],
                                 counts,
                                 self._get_charges(name),
-                                self._prmtop["LJ_SIGMA"],
+                                sasa_radii,
                                 atom_list,
                                 self._molecule_sasa,
                                 self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
