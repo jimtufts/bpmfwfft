@@ -9,8 +9,8 @@ import pickle
 import numpy as np
 import netCDF4
 
-from md_openmm import openmm_energy
-from md_sander import sander_energy
+from bpmfwfft.md_openmm import openmm_energy
+from bpmfwfft.md_sander import sander_energy
 import IO 
 
 

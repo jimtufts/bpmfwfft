@@ -3,8 +3,8 @@ define function to run postprocessing
 """
 import sys
 
-sys.path.append("/home/tnguye46/opt/src/BPMFwFFT/bpmfwfft")
-from postprocess import PostProcess
+sys.path.append("/home/jim/src/p39/bpmfwfft/")
+from bpmfwfft.postprocess import PostProcess
 
 
 #SOLVENT_PHASES = ["OpenMM_GBn", "OpenMM_GBn2", "OpenMM_HCT", "OpenMM_OBC1", "OpenMM_OBC2"]
