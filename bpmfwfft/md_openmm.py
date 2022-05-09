@@ -39,7 +39,7 @@ class OpenMM_MD(object):
                 constraints = openmm.app.HBonds, implicitSolvent = selected_solvent)
         integrator = openmm.LangevinIntegrator(temperature*openmm.unit.kelvin, 1/openmm.unit.picosecond, 0.002*openmm.unit.picoseconds)
         
-        self._simulation = openmm.openmm.app.Simulation(self._prmtop.topology, system, integrator)
+        self._simulation = openmm.app.Simulation(self._prmtop.topology, system, integrator)
         self._simulation.context.setPositions(inpcrd.positions)
         print("Energy minimizing")
         self._simulation.minimizeEnergy()
