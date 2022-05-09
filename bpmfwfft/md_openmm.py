@@ -9,18 +9,19 @@ import copy
 import numpy as np
 import netCDF4
 
-import simtk.openmm
-import simtk.openmm.app
-import simtk.unit
+import openmm
+import openmm.app
+import openmm.unit
+
 
 from rotation import random_rotation
 
 openmm_solvent_models = {  "OpenMM_Gas":None,
-                            "OpenMM_GBn":simtk.openmm.app.GBn,
-                            "OpenMM_GBn2":simtk.openmm.app.GBn2,
-                            "OpenMM_HCT":simtk.openmm.app.HCT,
-                            "OpenMM_OBC1":simtk.openmm.app.OBC1,
-                            "OpenMM_OBC2":simtk.openmm.app.OBC2 }
+                            "OpenMM_GBn":openmm.app.GBn,
+                            "OpenMM_GBn2":openmm.app.GBn2,
+                            "OpenMM_HCT":openmm.app.HCT,
+                            "OpenMM_OBC1":openmm.app.OBC1,
+                            "OpenMM_OBC2":openmm.app.OBC2 }
 
 
 KB = 0.001987204134799235  # kcal/mol/K
@@ -30,15 +31,15 @@ class OpenMM_MD(object):
     def __init__(self, prmtop, inpcrd, phase="OpenMM_Gas", temperature=300.):
         """
         """
-        self._prmtop = simtk.openmm.app.AmberPrmtopFile(prmtop)
-        inpcrd = simtk.openmm.app.AmberInpcrdFile(inpcrd)
+        self._prmtop = openmm.app.AmberPrmtopFile(prmtop)
+        inpcrd = openmm.app.AmberInpcrdFile(inpcrd)
         
         selected_solvent = openmm_solvent_models[phase]
-        system = self._prmtop.createSystem(nonbondedMethod = simtk.openmm.app.NoCutoff, \
-                constraints = simtk.openmm.app.HBonds, implicitSolvent = selected_solvent)
-        integrator = simtk.openmm.LangevinIntegrator(temperature*simtk.unit.kelvin, 1/simtk.unit.picosecond, 0.002*simtk.unit.picoseconds)
+        system = self._prmtop.createSystem(nonbondedMethod = openmm.app.NoCutoff, \
+                constraints = openmm.app.HBonds, implicitSolvent = selected_solvent)
+        integrator = openmm.LangevinIntegrator(temperature*openmm.unit.kelvin, 1/openmm.unit.picosecond, 0.002*openmm.unit.picoseconds)
         
-        self._simulation = simtk.openmm.app.Simulation(self._prmtop.topology, system, integrator)
+        self._simulation = openmm.openmm.app.Simulation(self._prmtop.topology, system, integrator)
         self._simulation.context.setPositions(inpcrd.positions)
         print("Energy minimizing")
         self._simulation.minimizeEnergy()
@@ -57,7 +58,7 @@ class OpenMM_MD(object):
     def run(self, nc_file_name, steps_per_iteration=500, niterations=1000):
         """
         """
-        self._simulation.reporters.append(simtk.openmm.app.StateDataReporter(stdout, steps_per_iteration,
+        self._simulation.reporters.append(openmm.app.StateDataReporter(stdout, steps_per_iteration,
                                             step=True, potentialEnergy=True))
         
         nc_handle = self._initialize_nc(nc_file_name, niterations)
@@ -67,7 +68,7 @@ class OpenMM_MD(object):
             state = self._simulation.context.getState(getPositions=True, getEnergy=True)
             
             positions = copy.deepcopy(state.getPositions())
-            conf = np.array(positions.value_in_unit(simtk.unit.angstrom), dtype=float)    
+            conf = np.array(positions.value_in_unit(openmm.unit.angstrom), dtype=float)
             conf = random_rotation(conf)
 
             nc_handle.variables["positions"][iteration,:,:] = conf
@@ -105,10 +106,10 @@ class OpenMM_TREMD(object):
 
             positions = self._get_positions()
             for state, p in enumerate(positions):
-                crd = np.array(p.value_in_unit(simtk.unit.angstrom), dtype=float)
+                crd = np.array(p.value_in_unit(openmm.unit.angstrom), dtype=float)
                 nc_handle.variables["positions"][iteration, state, :, :] = crd
 
-            crd = np.array(positions[0].value_in_unit(simtk.unit.angstrom), dtype=float)
+            crd = np.array(positions[0].value_in_unit(openmm.unit.angstrom), dtype=float)
             for rotation in range(rotations_per_iteration):
                 rotated_crd = random_rotation(crd)
                 nc_handle.variables["rotated_positions"][nrotations, :, :] = rotated_crd
@@ -135,14 +136,14 @@ class OpenMM_TREMD(object):
         return
 
     def _create_simulation(self, prmtop, inpcrd, phase, temperature):
-        prmtop = simtk.openmm.app.AmberPrmtopFile(prmtop)
-        inpcrd = simtk.openmm.app.AmberInpcrdFile(inpcrd)
+        prmtop = openmm.app.AmberPrmtopFile(prmtop)
+        inpcrd = openmm.app.AmberInpcrdFile(inpcrd)
         selected_solvent = openmm_solvent_models[phase]
 
-        system = prmtop.createSystem(nonbondedMethod=simtk.openmm.app.NoCutoff, constraints=simtk.openmm.app.HBonds, implicitSolvent=selected_solvent)
-        integrator = simtk.openmm.LangevinIntegrator(temperature*simtk.unit.kelvin, 1/simtk.unit.picosecond, 0.002*simtk.unit.picoseconds)
+        system = prmtop.createSystem(nonbondedMethod=openmm.app.NoCutoff, constraints=openmm.app.HBonds, implicitSolvent=selected_solvent)
+        integrator = openmm.LangevinIntegrator(temperature*openmm.unit.kelvin, 1/openmm.unit.picosecond, 0.002*openmm.unit.picoseconds)
 
-        simulation = simtk.openmm.app.Simulation(prmtop.topology, system, integrator)
+        simulation = openmm.app.Simulation(prmtop.topology, system, integrator)
         simulation.context.setPositions(inpcrd.positions)
         simulation.minimizeEnergy()
         return simulation
@@ -164,7 +165,7 @@ class OpenMM_TREMD(object):
         for sim in self._simulations:
             state = sim.context.getState(getEnergy=True)
             energy = copy.deepcopy(state.getPotentialEnergy())
-            e = energy.value_in_unit(simtk.unit.kilocalorie_per_mole)
+            e = energy.value_in_unit(openmm.unit.kilocalorie_per_mole)
             energies.append(e)
         return energies
 
@@ -217,13 +218,13 @@ class OpenMM_TREMD(object):
                 simulation_pairs[i][0].context.setPositions( position_pairs[i][1] )
                 simulation_pairs[i][1].context.setPositions( position_pairs[i][0] )
 
-                vel_unit = simtk.unit.nanometer/simtk.unit.picosecond
+                vel_unit = openmm.unit.nanometer/openmm.unit.picosecond
 
                 v1 = np.sqrt(T1 / T2 ) * np.array( velocity_pairs[i][1].value_in_unit(vel_unit) )
                 v2 = np.sqrt(T2 / T1 ) * np.array( velocity_pairs[i][0].value_in_unit(vel_unit) )
 
-                simulation_pairs[i][0].context.setVelocities( simtk.unit.quantity.Quantity(v1, unit=vel_unit) )
-                simulation_pairs[i][1].context.setVelocities( simtk.unit.quantity.Quantity(v2, unit=vel_unit) )
+                simulation_pairs[i][0].context.setVelocities( openmm.unit.quantity.Quantity(v1, unit=vel_unit) )
+                simulation_pairs[i][1].context.setVelocities( openmm.unit.quantity.Quantity(v2, unit=vel_unit) )
 
                 self._acepted_exchange[pair_indices[i]] += 1. 
 
@@ -262,9 +263,9 @@ def openmm_energy(prmtop_file, crd, phase):
     selected_solvent = implicit_solvents[phase]
     
     if type(crd) == str:
-        inpcrd = simtk.openmm.app.AmberInpcrdFile(crd)
+        inpcrd = openmm.app.AmberInpcrdFile(crd)
         position = inpcrd.positions
-        crd = position.value_in_unit(simtk.unit.angstrom) 
+        crd = position.value_in_unit(openmm.unit.angstrom)
     
     crd_ensemble = np.array(crd, dtype=float)
     if len(crd_ensemble.shape) == 2:
@@ -273,18 +274,18 @@ def openmm_energy(prmtop_file, crd, phase):
     if len(crd_ensemble.shape) != 3:
         raise RuntimeError("crd_ensemble has wrong shape")
     
-    prmtop = simtk.openmm.app.AmberPrmtopFile(prmtop_file)
-    system = prmtop.createSystem(nonbondedMethod=simtk.openmm.app.NoCutoff,
+    prmtop = openmm.app.AmberPrmtopFile(prmtop_file)
+    system = prmtop.createSystem(nonbondedMethod=openmm.app.NoCutoff,
                                  constraints=None, implicitSolvent=selected_solvent)
-    dummy_integrator = simtk.openmm.VerletIntegrator(0.002*simtk.unit.picoseconds)
-    simulation = simtk.openmm.app.Simulation(prmtop.topology, system, dummy_integrator)
+    dummy_integrator = openmm.VerletIntegrator(0.002*openmm.unit.picoseconds)
+    simulation = openmm.app.Simulation(prmtop.topology, system, dummy_integrator)
     
     pot_energies = []
     for conf in crd_ensemble:
         simulation.context.setPositions(conf / 10.)  # convert to nano-meter which is internal unit of OpenMM
         state = simulation.context.getState(getEnergy=True)
         energy = state.getPotentialEnergy()
-        pot_energies.append(energy.value_in_unit(simtk.unit.kilocalorie_per_mole))
+        pot_energies.append(energy.value_in_unit(openmm.unit.kilocalorie_per_mole))
     
     return np.array(pot_energies, dtype=float)
 
