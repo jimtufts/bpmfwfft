@@ -11,7 +11,7 @@ import netCDF4
 
 from bpmfwfft.md_openmm import openmm_energy
 from bpmfwfft.md_sander import sander_energy
-import IO 
+import bpmfwfft.IO
 
 
 KB = 0.001987204134799235       # kcal/mol/K
@@ -440,13 +440,13 @@ class PostProcess(object):
 
     def write_rececptor_pdb(self, file):
         rec_crd = self._nc_handle.variables["rec_positions"][:]
-        IO.write_pdb(self._rec_prmtop, rec_crd, file, "w")
+        bpmfwfft.IO.write_pdb(self._rec_prmtop, rec_crd, file, "w")
         return
 
     def write_resampled_ligand_pdb(self, file):
         open(file, "w")
         for conf in self._resampled_holo_lig_confs:
-            IO.write_pdb(self._lig_prmtop, conf, file, "a")
+            bpmfwfft.IO.write_pdb(self._lig_prmtop, conf, file, "a")
         return None
 
 
