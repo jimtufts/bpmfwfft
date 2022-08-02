@@ -371,6 +371,19 @@ class Grid(object):
     def get_allowed_keys(self):
         return self._grid_allowed_keys
 
+    def translate_grid(self, grid, displacement):
+        """
+        translate grid in grid units
+        grid:   ndarray
+        displacement:   3-array translation vector
+        return: ndarray
+        """
+        x, y, z = displacement
+        grid = np.roll(grid, x, axis=0)
+        grid = np.roll(grid, y, axis=1)
+        grid = np.roll(grid, z, axis=2)
+        return grid
+
 
  
 
@@ -793,6 +806,17 @@ class LigGrid(Grid):
                                                       self._rho)
         return sasai_grid, sasar_grid
 
+    def get_ligand_grids(self, grid_names, displacement):
+        """
+        translate the ligand and calculate grids
+        grid_names: list of grid names ["SASA", "electrostatic", "LJr", "LJa"]
+        return: dictionary {"grid_name": grid}
+        """
+        self.translate_ligand(displacement)
+        grids = self._cal_ligand_grids(grid_names)
+
+        return grids
+    
     def translate_ligand(self, displacement):
         """
         translate the ligand by displacement in Angstroms
