@@ -593,7 +593,8 @@ class LigGrid(Grid):
         max_i, max_j, max_k = self._max_grid_indices
         corr_func = self._cal_shape_complementarity()
         print(f"Max Shape Complementarity Score: {corr_func.max()} Min: {corr_func.min()}")
-        self._free_of_clash = (corr_func > 1) #& (corr_func < 4000)
+        self._free_of_clash = (corr_func > 1) #+ (corr_func < 4000)
+        print(corr_func.max(), corr_func.min(), corr_func.mean())
         print("number of poses free of clash:", self._free_of_clash.shape)
         self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
         print("Ligand positions excluding border crossers", self._free_of_clash.shape)
@@ -602,8 +603,8 @@ class LigGrid(Grid):
             grid_names = [name for name in self._grid_func_names if name[:4] != "SASA"]
             for name in grid_names:
                 grid_func_energy = self._cal_corr_func(name)
-                print(f"{name} energy: {grid_func_energy[71][43][54]}")
-                # testing new LJr calculation method #DONTFORGETME
+                print(f"{name} energy: {grid_func_energy[68][87][45]}")
+                # testing new LJr calculation method #TODO
                 if name == 'LJa':
                     grid_func_energy[grid_func_energy > 0] = 0
                     self._meaningful_energies += grid_func_energy
@@ -616,8 +617,8 @@ class LigGrid(Grid):
             # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
             bsa_energy = ((corr_func * SASA_SLOPE) + SASA_INTERCEPT) * GAMMA
             self._meaningful_energies += bsa_energy
-            print(f"shape complementarity score: {corr_func[71][43][54]}")
-            print(f"buried surface area energy: {bsa_energy[71][43][54]}")
+            print(f"shape complementarity score: {corr_func[68][87][45]}")
+            print(f"buried surface area energy: {bsa_energy[68][87][45]}")
             del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j, 0:max_k] # exclude positions where ligand crosses border

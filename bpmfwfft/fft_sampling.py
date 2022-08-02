@@ -175,6 +175,7 @@ class Sampling(object):
 
         energies = self._lig_grid.get_meaningful_energies()
         print("Energies shape:", energies.shape)
+
         self._mean_energy = energies.mean()
         self._min_energy  = energies.min()
         self._energy_std  = energies.std()

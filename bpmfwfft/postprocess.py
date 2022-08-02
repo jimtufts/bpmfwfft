@@ -226,17 +226,24 @@ class PostProcess(object):
         strata_weights /= strata_weights.sum()
 
         conf_trans_inds = []
-        for conf_ind in range(len(strata_weights)):
-            stratum_size = int(round(strata_weights[conf_ind] * nr_resampled_complexes))
-            if stratum_size > 0:
-                weights = self._nc_handle.variables["resampled_energies"][conf_ind]
-                e_min   = weights.min()
-                weights = np.exp(-beta * (weights - e_min))
-                weights /= weights.sum()
-                selected_trans_ind = np.random.choice(weights.shape[0], size=stratum_size, p=weights, replace=False)
-
-                for trans_ind in selected_trans_ind:
-                    conf_trans_inds.append((conf_ind, trans_ind))
+        # for conf_ind in range(len(strata_weights)):
+        #     stratum_size = int(round(strata_weights[conf_ind] * nr_resampled_complexes))
+        #     print(f'stratum_size: {stratum_size}')
+        #     if stratum_size > 0:
+        #         weights = self._nc_handle.variables["resampled_energies"][conf_ind]
+        #         e_min   = weights.min()
+        #         weights = np.exp(-beta * (weights - e_min))
+        #         weights /= weights.sum()
+        #         print(f'weights shape: {weights.shape[0]}')
+        #         # selected_trans_ind = np.random.choice(weights.shape[0], size=stratum_size, p=weights, replace=True)
+        #         selected_trans_ind =
+        #         for trans_ind in selected_trans_ind:
+        #             conf_trans_inds.append((conf_ind, trans_ind))
+        lowest_energy_confs = np.argsort(np.array(self._nc_handle.variables['resampled_energies']).flatten())[:nr_resampled_complexes]
+        lowest_energy_confs = np.unravel_index(lowest_energy_confs, self._nc_handle.variables['resampled_energies'].shape)
+        lowest_energy_confs = np.array(lowest_energy_confs).transpose()
+        for conf in lowest_energy_confs:
+            conf_trans_inds.append((conf[0], conf[1]))
         print("conf_trans_inds", conf_trans_inds)
         return conf_trans_inds
 
@@ -292,6 +299,15 @@ class PostProcess(object):
         and self._complex_sol_fe
         """
         complex_confs = self._construct_complexes(nr_resampled_complexes, randomly_translate_complex)
+        fft_energies = np.array(self._nc_handle.variables['resampled_energies'])
+        fft_min_energies = np.sort(fft_energies.flatten())[:nr_resampled_complexes]
+        fft_trans_ind = np.argsort(fft_energies.flatten())[:nr_resampled_complexes]
+        fft_trans_ind = np.unravel_index(fft_trans_ind, fft_energies.shape)
+        fft_trans_ind = np.array(fft_trans_ind).transpose()
+
+
+        for i in range(len(fft_min_energies)):
+            print(fft_trans_ind[i], fft_min_energies[i])
 
         complex_energies = {}
         for p in self._gas_phases + self._solvent_phases:
@@ -310,8 +326,8 @@ class PostProcess(object):
                 conf_ind = self._resampled_conf_trans_inds[i][0]
                 inter_energies[i] = complex_energies[p][i] - self._lig_energies[p][conf_ind] - self._rec_energies[p]
 
-            self._mean_interaction_energies[p] = inter_energies.mean()
-            self._std_interaction_energies[p]  = inter_energies.std()
+            self._mean_interaction_energies[p] = inter_energies.mean() # This will be wrong
+            self._std_interaction_energies[p]  = inter_energies.std() # As will this
             self._min_interaction_energies[p]  = inter_energies.min()
 
         beta = 1./ KB/ self._temperature
@@ -321,18 +337,25 @@ class PostProcess(object):
         for solvent_phase in self._solvent_phases:
             corresp_gas_phase = self._corresponding_gas_phase(solvent_phase)
 
-            delta_E = -beta * (complex_energies[solvent_phase] - complex_energies[corresp_gas_phase])
-            delta_E_max = delta_E.max()
-            exp_energies = np.exp(delta_E - delta_E_max)
-            exp_mean = exp_energies.mean()
-            self._complex_sol_fe[solvent_phase] = -KB * self._temperature * (np.log(exp_mean) + delta_E_max)
+            delta_E = complex_energies[solvent_phase] - complex_energies[corresp_gas_phase]
+            lse_num_arg = -beta * (fft_min_energies + delta_E)
+            lse_num = np.log(np.sum(np.exp(lse_num_arg - lse_num_arg.max()))) + lse_num_arg.max()
+            lse_den_arg = -beta * fft_min_energies
+            lse_den = np.log(np.sum(np.exp(lse_den_arg - lse_den_arg.max()))) + lse_den_arg.max()
+            self._complex_sol_fe[solvent_phase] = -KB * self._temperature * (lse_num - lse_den)
 
-            exp_means = bootstrapping(exp_energies, self._bootstrapping_nrepetitions) / float(exp_energies.shape[0])
-            self._complex_sol_fe_std[solvent_phase] = (-KB * self._temperature * (np.log(exp_means) + delta_E_max)).std()
+            # delta_E_max = delta_E.max()
+            # exp_energies = np.exp(delta_E - delta_E_max)
+            # exp_mean = exp_energies.mean()
+            # self._complex_sol_fe[solvent_phase] = -KB * self._temperature * (np.log(exp_mean) + delta_E_max)
+            #
+            # exp_means = bootstrapping(exp_energies, self._bootstrapping_nrepetitions) / float(exp_energies.shape[0])
+            # self._complex_sol_fe_std[solvent_phase] = (-KB * self._temperature * (np.log(exp_means) + delta_E_max)).std()
         
         print("Complex solvation energies:")
         for p in self._complex_sol_fe.keys():
-            print(p, self._complex_sol_fe[p], "+-", self._complex_sol_fe_std[p])
+            # print(p, self._complex_sol_fe[p], "+-", self._complex_sol_fe_std[p])
+            print(p, self._complex_sol_fe[p])
         return None
 
     def _cal_complex_solv_no_sample(self):
@@ -435,7 +458,7 @@ class PostProcess(object):
 
         data["std"] = standard_dev
 
-        pickle.dump(data, open(file, "w"))
+        pickle.dump(data, open(file, "wb"))
         return None
 
     def write_rececptor_pdb(self, file):
