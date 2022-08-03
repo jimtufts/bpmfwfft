@@ -154,6 +154,20 @@ def is_nc_grid_good(nc_grid_file):
 # def get_min_dists_pool():
 
 
+def translate_grid(grid, displacement):
+    """
+    translate grid in grid units
+    grid:   ndarray
+    displacement:   3-array translation vector
+    return: ndarray
+    """
+    x, y, z = displacement
+    grid = np.roll(grid, x, axis=0)
+    grid = np.roll(grid, y, axis=1)
+    grid = np.roll(grid, z, axis=2)
+    return grid
+
+
 class Grid(object):
     """
     an abstract class that defines some common methods and data attributes
@@ -371,21 +385,6 @@ class Grid(object):
     def get_allowed_keys(self):
         return self._grid_allowed_keys
 
-    def translate_grid(self, grid, displacement):
-        """
-        translate grid in grid units
-        grid:   ndarray
-        displacement:   3-array translation vector
-        return: ndarray
-        """
-        x, y, z = displacement
-        grid = np.roll(grid, x, axis=0)
-        grid = np.roll(grid, y, axis=1)
-        grid = np.roll(grid, z, axis=2)
-        return grid
-
-
- 
 
 class LigGrid(Grid):
     """
@@ -640,6 +639,24 @@ class LigGrid(Grid):
         self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
         
         return None
+
+    def _cal_ligand_grids(self, grid_names):
+        """
+        calculate ligand grids on demand for debugging
+        takes a list of grid names and calculates the grid for current translation
+        grid_names: list of strings ["SASA", "electrostatic", "LJr", "LJa"]
+        return: dictionary of grids {"grid_name": grid}
+        """
+        grids = {}
+        for grid_name in grid_names:
+            if grid_name == "SASA":
+                sasai_grid, sasar_grid = self.get_SASA_grids()
+                grid = np.add(sasar_grid, sasai_grid*1.j)
+                grids[grid_name] = grid
+            else:
+                grid = self._cal_charge_grid(grid_name)
+                grids[grid_name] = grid
+        return grids
 
     def _cal_energies_NOT_USED(self):
         """
@@ -1386,6 +1403,14 @@ class RecGrid(Grid):
     def write_pdb(self, file_name, mode):
         IO.write_pdb(self._prmtop, self._crd, file_name, mode)
         return None
+
+    def make_complex(self, lig_grid):
+        import copy
+        complex_grid = copy.deepcopy(self)
+        complex_grid._crd = np.concatenate(self._crd, lig_grid._crd)
+        complex_grid._prmtop["VDW_RADII"] = np.concatenate(self._prmtop["VDW_RADII"], lig_grid._prmtop["VDW_RADII"])
+
+        return complex_grid
 
 
 if __name__ == "__main__":
