@@ -805,3 +805,98 @@ def get_min_dists(
     #           dmin_ss, dmin_sc, dmin_cs, dmin_cc, ind_list)
     result = {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": dist, "indR": indR, "indL": indL}
     return result
+
+@cython.boundscheck(False)
+def c_cal_potential_grid_pp(   str name,
+                            np.ndarray[np.float64_t, ndim=2] crd,
+                            np.ndarray[np.float64_t, ndim=1] grid_x,
+                            np.ndarray[np.float64_t, ndim=1] grid_y,
+                            np.ndarray[np.float64_t, ndim=1] grid_z,
+                            np.ndarray[np.float64_t, ndim=1] origin_crd,
+                            np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
+                            np.ndarray[np.int64_t, ndim=1]   uper_most_corner,
+                            np.ndarray[np.float64_t, ndim=1] spacing,
+                            np.ndarray[np.int64_t, ndim=1]   grid_counts,
+                            np.ndarray[np.float64_t, ndim=1] charges,
+                            np.ndarray[np.float64_t, ndim=1] lj_sigma,
+                            list atom_list,
+                            np.ndarray[float, ndim=2] molecule_sasa,
+                            np.ndarray[float, ndim=2] sasa_cutoffs,
+                            list rec_res_names,
+                            float rec_core_scaling,
+                            float rec_surface_scaling,
+                            float rec_metal_scaling,
+                            float rho,
+                            np.ndarray[np.float64_t, ndim=3] sasai_grid):
+
+    cdef:
+        list corners, rho_i_corners
+        list metal_ions = ["ZN", "CA", "MG", "SR"]
+        int natoms = crd.shape[0]
+        int i_max = grid_x.shape[0]
+        int j_max = grid_y.shape[0]
+        int k_max = grid_z.shape[0]
+        int i, j, k
+        int atom_ind
+        double charge, lj_diameter
+        double d, exponent
+        double dx_tmp, dy_tmp
+        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=float)
+        np.ndarray[np.float64_t, ndim=3] grid_tmp
+        np.ndarray[np.float64_t, ndim=1] atom_coordinate
+        np.ndarray[np.float64_t, ndim=1] dx2, dy2, dz2
+
+    if name[:4] != "SASA":
+
+        if name == "LJa":
+            exponent = 3.
+        elif name == "LJr":
+            exponent = 6.
+        elif name == "electrostatic":
+            exponent = 0.5
+        elif name == "sasa":
+            exponent = 1.
+        else:
+            raise RuntimeError("Wrong grid name %s"%name)
+
+        grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
+        for atom_ind in range(natoms):
+            atom_coordinate = crd[atom_ind]
+            if name == "sasa":
+                charge = molecule_sasa[atom_ind]
+            else:
+                charge = charges[atom_ind]
+            lj_diameter = lj_sigma[atom_ind]
+
+            dx2 = (atom_coordinate[0] - grid_x)**2
+            dy2 = (atom_coordinate[1] - grid_y)**2
+            dz2 = (atom_coordinate[2] - grid_z)**2
+
+            for i in range(i_max):
+                dx_tmp = dx2[i]
+                for j in range(j_max):
+                    dy_tmp = dy2[j]
+                    for k in range(k_max):
+
+                        d = dx_tmp + dy_tmp + dz2[k]
+                        d = d**exponent
+                        grid_tmp[i,j,k] = charge / d
+
+            corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+
+            for i, j, k in corners:
+                grid_tmp[i,j,k] = 0
+
+            grid += grid_tmp
+    # TODO: Add SASA grid as replacement for occupancy grid
+    else:
+        for atom_ind in range(natoms):
+            atom_coordinate = crd[atom_ind]
+            lj_diameter = lj_sigma[atom_ind]
+            corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                              uper_most_corner, spacing, grid_x, grid_y, grid_z, gird_counts)
+            for i, j, k in corners:
+                grid[i, j, k] = 1.
+
+    return grid
