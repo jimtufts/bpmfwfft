@@ -175,7 +175,8 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        self._grid_func_names   = ("SASAi", "electrostatic", "LJr", "LJa", "SASAr")  # calculate all grids
+        # self._grid_func_names   = ("SASAi", "electrostatic", "LJr", "LJa", "SASAr")  # calculate all grids
+        self._grid_func_names = ("sasa")  # test new sasa grid
         # self._grid_func_names = ("SASAi", "SASAr")  # uncomment to only calculate SASA grids
         # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes  = ("x", "y", "z")
