@@ -15,13 +15,13 @@ try:
     try:        
         from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
         from bpmfwfft.util import c_cal_charge_grid_new
-        from bpmfwfft.util import c_cal_potential_grid
+        from bpmfwfft.util import c_cal_potential_grid, c_cal_potential_grid_pp
         from bpmfwfft.util import c_cal_lig_sasa_grid
         from bpmfwfft.util import c_cal_lig_sasa_grids
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
         from util import c_cal_charge_grid_new
-        from util import c_cal_potential_grid
+        from util import c_cal_potential_grid, c_cal_potential_grid_pp
         from util import c_cal_lig_sasa_grid
         from util import c_cal_lig_sasa_grids
 
@@ -29,7 +29,7 @@ except:
     import IO
     from util import c_is_in_grid, cdistance, c_containing_cube
     from util import c_cal_charge_grid_new
-    from util import c_cal_potential_grid
+    from util import c_cal_potential_grid, c_cal_potential_grid_pp
     from util import c_cal_lig_sasa_grid
     from util import c_cal_lig_sasa_grids
 
@@ -48,12 +48,11 @@ def process_potential_grid_function(
         prmtop_ljsigma,
         atom_list,
         molecule_sasa,
+        sasa_cutoffs,
         rec_res_names,
         rec_core_scaling,
         rec_surface_scaling,
         rec_metal_scaling,
-        rho,
-        sasa_grid
 ):
     """
     gets called by cal_potential_grid and assigned to a new python process
@@ -79,13 +78,13 @@ def process_potential_grid_function(
     uper_most_corner_crd = origin_crd + (grid_counts - 1.) * grid_spacing
     uper_most_corner = (grid_counts - 1)
 
-    grid = c_cal_potential_grid(name, crd,
+    grid = c_cal_potential_grid_pp(name, crd,
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
-                                grid_spacing, grid_counts,
-                                charges, prmtop_ljsigma, atom_list, molecule_sasa, rec_res_names,
-                                rec_core_scaling, rec_surface_scaling, rec_metal_scaling,
-                                rho, sasa_grid)
+                                grid_spacing, grid_counts, charges, prmtop_ljsigma,
+                                atom_list, molecule_sasa, sasa_cutoffs,
+                                rec_res_names, rec_core_scaling, rec_surface_scaling,
+                                rec_metal_scaling)
     return grid
 
 def process_charge_grid_function(
@@ -176,7 +175,7 @@ class Grid(object):
     def __init__(self):
         self._grid = {}
         # self._grid_func_names   = ("SASAi", "electrostatic", "LJr", "LJa", "SASAr")  # calculate all grids
-        self._grid_func_names = ("sasa")  # test new sasa grid
+        self._grid_func_names = ("occupancy", "sasa")  # test new sasa grid
         # self._grid_func_names = ("SASAi", "SASAr")  # uncomment to only calculate SASA grids
         # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes  = ("x", "y", "z")
@@ -420,8 +419,8 @@ class LigGrid(Grid):
         self._load_prmtop(prmtop_file_name, lj_sigma_scaling_factor)
         self._load_inpcrd(inpcrd_file_name)
         self._move_ligand_to_lower_corner()
-        # self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
-        self._molecule_sasa = self._get_molecule_sasa(0.001, 960)
+        self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
+        # self._molecule_sasa = self._get_molecule_sasa(0.001, 960)
         self._lig_core_scaling = lig_core_scaling
         self._lig_surface_scaling = lig_surface_scaling
         self._lig_metal_scaling = lig_metal_scaling
@@ -1203,7 +1202,6 @@ class RecGrid(Grid):
         task_divisor = 6
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures = {}
-            sasa_grid = np.empty((0,0,0))
             for name in self._grid_func_names:
                 futures_array = []
                 for i in range(task_divisor):
@@ -1217,80 +1215,30 @@ class RecGrid(Grid):
                     origin = np.copy(self._origin_crd)
                     origin[0] = grid_start_x * self._grid["spacing"][0]
 
-                    if name != "SASAr":
-                        dummy_grid = np.empty((1,1,1), dtype=np.float64)
-                        if name[:4] != "SASA":
-                            futures_array.append(executor.submit(
-                                process_potential_grid_function,
-                                name,
-                                self._crd,
-                                origin,
-                                self._grid["spacing"],
-                                counts,
-                                self._get_charges(name),
-                                sasa_radii,
-                                atom_list,
-                                self._molecule_sasa,
-                                self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
-                                self._rec_core_scaling,
-                                self._rec_surface_scaling,
-                                self._rec_metal_scaling,
-                                self._rho,
-                                dummy_grid
-                            ))
-                        else:
-                            futures_array.append(executor.submit(
-                                process_potential_grid_function,
-                                name,
-                                self._crd,
-                                origin,
-                                self._grid["spacing"],
-                                counts,
-                                self._get_charges(name),
-                                sasa_radii,
-                                atom_list,
-                                self._molecule_sasa,
-                                self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
-                                self._rec_core_scaling,
-                                self._rec_surface_scaling,
-                                self._rec_metal_scaling,
-                                self._rho,
-                                dummy_grid
-                            ))
-                    else:
-                        futures_array.append(executor.submit(
-                            process_potential_grid_function,
-                            name,
-                            self._crd,
-                            origin,
-                            self._grid["spacing"],
-                            counts,
-                            self._get_charges(name),
-                            sasa_radii,
-                            atom_list,
-                            self._molecule_sasa,
-                            self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
-                            self._rec_core_scaling,
-                            self._rec_surface_scaling,
-                            self._rec_metal_scaling,
-                            self._rho,
-                            sasa_grid
-                        ))
+                    futures_array.append(executor.submit(
+                        process_potential_grid_function,
+                        name,
+                        self._crd,
+                        origin,
+                        self._grid["spacing"],
+                        counts,
+                        self._get_charges(name),
+                        sasa_radii,
+                        atom_list,
+                        self._molecule_sasa,
+                        self._get_molecule_sasa(0.086, 960),
+                        self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
+                        self._rec_core_scaling,
+                        self._rec_surface_scaling,
+                        self._rec_metal_scaling,
+                    ))
                 futures[name] = futures_array
-                if name == "SASAi":
-                    sasa_array = []
-                    for i in range(task_divisor):
-                        partial_sasa_grid = futures[name][i].result()
-                        sasa_array.append(partial_sasa_grid)
-                    sasa_grid = np.concatenate(tuple(sasa_array))
             for name in futures:
                 grid_array = []
                 for i in range(task_divisor):
                     partial_grid = futures[name][i].result()
                     grid_array.append(partial_grid)
                 grid = np.concatenate(tuple(grid_array), axis=0)
-                if name == "SASAi":
-                    sasa_grid = np.copy(grid)
                 self._write_to_nc(nc_handle, name, grid)
                 self._set_grid_key_value(name, grid)
                 # self._set_grid_key_value(name, None)     # to save memory

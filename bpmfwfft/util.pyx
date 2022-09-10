@@ -825,12 +825,10 @@ def c_cal_potential_grid_pp(   str name,
                             list rec_res_names,
                             float rec_core_scaling,
                             float rec_surface_scaling,
-                            float rec_metal_scaling,
-                            float rho,
-                            np.ndarray[np.float64_t, ndim=3] sasai_grid):
+                            float rec_metal_scaling):
 
     cdef:
-        list corners, rho_i_corners
+        list corners
         list metal_ions = ["ZN", "CA", "MG", "SR"]
         int natoms = crd.shape[0]
         int i_max = grid_x.shape[0]
@@ -846,8 +844,7 @@ def c_cal_potential_grid_pp(   str name,
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
         np.ndarray[np.float64_t, ndim=1] dx2, dy2, dz2
 
-    if name[:4] != "SASA":
-
+    if name != "occupancy":
         if name == "LJa":
             exponent = 3.
         elif name == "LJr":
@@ -889,7 +886,7 @@ def c_cal_potential_grid_pp(   str name,
                 grid_tmp[i,j,k] = 0
 
             grid += grid_tmp
-    # TODO: Add SASA grid as replacement for occupancy grid
+    # TODO: Add in new atomic scaling factors for occupancy grid
     else:
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
