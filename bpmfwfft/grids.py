@@ -14,13 +14,13 @@ try:
     from bpmfwfft import IO
     try:        
         from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
-        from bpmfwfft.util import c_cal_charge_grid_new
+        from bpmfwfft.util import c_cal_charge_grid_new, c_cal_charge_grid_pp
         from bpmfwfft.util import c_cal_potential_grid, c_cal_potential_grid_pp
         from bpmfwfft.util import c_cal_lig_sasa_grid
         from bpmfwfft.util import c_cal_lig_sasa_grids
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
-        from util import c_cal_charge_grid_new
+        from util import c_cal_charge_grid_new, c_cal_charge_grid_pp
         from util import c_cal_potential_grid, c_cal_potential_grid_pp
         from util import c_cal_lig_sasa_grid
         from util import c_cal_lig_sasa_grids
@@ -28,7 +28,7 @@ try:
 except:
     import IO
     from util import c_is_in_grid, cdistance, c_containing_cube
-    from util import c_cal_charge_grid_new
+    from util import c_cal_charge_grid_new, c_cal_charge_grid_pp
     from util import c_cal_potential_grid, c_cal_potential_grid_pp
     from util import c_cal_lig_sasa_grid
     from util import c_cal_lig_sasa_grids
@@ -46,6 +46,7 @@ def process_potential_grid_function(
         grid_counts,
         charges,
         prmtop_ljsigma,
+        clash_radii,
         atom_list,
         molecule_sasa,
         sasa_cutoffs,
@@ -82,7 +83,7 @@ def process_potential_grid_function(
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, grid_counts, charges, prmtop_ljsigma,
-                                atom_list, molecule_sasa, sasa_cutoffs,
+                                clash_radii, atom_list, molecule_sasa, sasa_cutoffs,
                                 rec_res_names, rec_core_scaling, rec_surface_scaling,
                                 rec_metal_scaling)
     return grid
@@ -97,7 +98,13 @@ def process_charge_grid_function(
         grid_counts,
         charges,
         prmtop_ljsigma,
+        clash_radii,
         molecule_sasa,
+        sasa_cutoffs,
+        lig_res_names,
+        lig_core_scaling,
+        lig_surface_scaling,
+        lig_metal_scaling
 ):
     """
     gets called by cal_charge_grid and assigned to a new python process
@@ -123,11 +130,13 @@ def process_charge_grid_function(
     uper_most_corner_crd = origin_crd + (grid_counts - 1.) * grid_spacing
     uper_most_corner = (grid_counts - 1)
 
-    grid = c_cal_charge_grid_new(name, crd,
+    grid = c_cal_charge_grid_pp(name, crd,
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, eight_corner_shifts, six_corner_shifts,
-                                grid_counts, charges, prmtop_ljsigma, molecule_sasa)
+                                grid_counts, charges, prmtop_ljsigma, clash_radii,
+                                molecule_sasa, sasa_cutoffs, lig_res_names,
+                                lig_core_scaling, lig_surface_scaling, lig_metal_scaling)
 
     return grid
 
@@ -291,6 +300,7 @@ class Grid(object):
     def _get_molecule_sasa(self, probe_radius, n_sphere_points):
         """
         return the per atom SASA of the target molecule in Angstroms
+        probe radius is in nm...
         """
         xyz = self._crd
         xyz = np.expand_dims(xyz, 0)
@@ -420,7 +430,7 @@ class LigGrid(Grid):
         self._load_inpcrd(inpcrd_file_name)
         self._move_ligand_to_lower_corner()
         self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
-        # self._molecule_sasa = self._get_molecule_sasa(0.001, 960)
+        self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
         self._lig_core_scaling = lig_core_scaling
         self._lig_surface_scaling = lig_surface_scaling
         self._lig_metal_scaling = lig_metal_scaling
@@ -466,21 +476,34 @@ class LigGrid(Grid):
             return np.array(self._prmtop["A_LJ_CHARGE"], dtype=float)
         elif name == "LJr":
             return np.array(self._prmtop["R_LJ_CHARGE"], dtype=float)
-        elif name == "SASAi":
+        elif name == "sasa":
             return np.array([0], dtype=float)
-        elif name == "SASAr":
+        elif name == "occupancy":
             return np.array([0], dtype=float)
         else:
             raise RuntimeError("%s is unknown"%name)
 
     def _cal_charge_grid(self, name):
         charges = self._get_charges(name)
+        clash_radii = self._prmtop["VDW_RADII"]
         grid_counts = np.copy(self._grid["counts"])
-        grid = c_cal_charge_grid_new(name, self._crd, self._grid["x"], self._grid["y"], self._grid["z"],
+        atom_names = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"]
+        atom_list = []
+        exclude_H = True
+        for i in range(self._crd.shape[0]):
+            if exclude_H:
+                if atom_names[i][0] != 'H':
+                    atom_list.append(i)
+            else:
+                atom_list.append(i)
+
+        grid = c_cal_charge_grid_pp(name, self._crd, self._grid["x"], self._grid["y"], self._grid["z"],
                                 self._origin_crd, self._uper_most_corner_crd, self._uper_most_corner,
                                 self._grid["spacing"], self._eight_corner_shifts, self._six_corner_shifts,
-                                grid_counts, charges, self._prmtop["LJ_SIGMA"],
-                                self._molecule_sasa
+                                grid_counts, charges, self._prmtop["LJ_SIGMA"], clash_radii, atom_list,
+                                self._molecule_sasa, self._sasa_cutoffs,
+                                self._prmtop["PDB_TEMPLATE"]["RES_NAME"], self._lig_core_scaling,
+                                self._lig_surface_scaling, self._lig_metal_scaling
                                 )
         # task_divisor = 1
         # with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -879,6 +902,7 @@ class RecGrid(Grid):
         if new_calculation:
             self._load_inpcrd(inpcrd_file_name)
             self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
+            self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
             self._rho = rho
             self._rec_core_scaling = rec_core_scaling
             self._rec_surface_scaling = rec_surface_scaling
@@ -928,6 +952,7 @@ class RecGrid(Grid):
         nc_handle = netCDF4.Dataset(grid_nc_file, "r")
         keys = [key for key in self._grid_allowed_keys if key not in self._grid_func_names]
         for key in keys:
+            print(key)
             self._set_grid_key_value(key, nc_handle.variables[key][:])
 
         if self._grid["lj_sigma_scaling_factor"][0] != lj_sigma_scaling_factor:
@@ -943,15 +968,14 @@ class RecGrid(Grid):
         self._rho = nc_handle.variables["rho"][:]
 
         for key in self._grid_func_names:
-            if key[:4] != "SASA":
-                self._set_grid_key_value(key, nc_handle.variables[key][:])
-                self._FFTs[key] = self._cal_FFT(key)
-                self._set_grid_key_value(key, None)     # to save memory
-        self._set_grid_key_value("SASAi", nc_handle.variables["SASAi"][:])  #UNCOMMENT ME
-        self._set_grid_key_value("SASAr", nc_handle.variables["SASAr"][:])  #UNCOMMENT ME
-        self._FFTs["SASA"] = self._cal_SASA_FFT()  #UNCOMMENT ME
-        self._set_grid_key_value("SASAi", None)  #UNCOMMENT ME
-        self._set_grid_key_value("SASAr", None)  #UNCOMMENT ME
+            self._set_grid_key_value(key, nc_handle.variables[key][:])
+            self._FFTs[key] = self._cal_FFT(key)
+            self._set_grid_key_value(key, None)     # to save memory
+        # self._set_grid_key_value("SASAi", nc_handle.variables["SASAi"][:])  #UNCOMMENT ME
+        # self._set_grid_key_value("SASAr", nc_handle.variables["SASAr"][:])  #UNCOMMENT ME
+        # self._FFTs["SASA"] = self._cal_SASA_FFT()  #UNCOMMENT ME
+        # self._set_grid_key_value("SASAi", None)  #UNCOMMENT ME
+        # self._set_grid_key_value("SASAr", None)  #UNCOMMENT ME
         nc_handle.close()
         return None
 
@@ -1170,9 +1194,10 @@ class RecGrid(Grid):
             return -2.0 * np.array(self._prmtop["A_LJ_CHARGE"], dtype=float)
         elif name == "LJr":
             return np.array(self._prmtop["R_LJ_CHARGE"], dtype=float)
-        elif name == "SASAi":
+        elif name == "occupancy":
             return np.array([0], dtype=float)
-        elif name == "SASAr":
+        elif name == "sasa":
+            # return self._molecule_sasa
             return np.array([0], dtype=float)
         else:
             raise RuntimeError("%s is unknown"%name)
@@ -1186,9 +1211,9 @@ class RecGrid(Grid):
         """
 
         if radii_type == "LJ_SIGMA":
-            sasa_radii = self._prmtop["LJ_SIGMA"]/2
+            clash_radii = self._prmtop["LJ_SIGMA"]/2
         else:
-            sasa_radii = self._prmtop["VDW_RADII"]
+            clash_radii = self._prmtop["VDW_RADII"]
 
         atom_names = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"]
         atom_list = []
@@ -1199,7 +1224,7 @@ class RecGrid(Grid):
             else:
                 atom_list.append(i)
 
-        task_divisor = 6
+        task_divisor = 12
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures = {}
             for name in self._grid_func_names:
@@ -1214,7 +1239,6 @@ class RecGrid(Grid):
                     grid_start_x = i * (self._grid["counts"][0] // task_divisor)
                     origin = np.copy(self._origin_crd)
                     origin[0] = grid_start_x * self._grid["spacing"][0]
-
                     futures_array.append(executor.submit(
                         process_potential_grid_function,
                         name,
@@ -1223,10 +1247,11 @@ class RecGrid(Grid):
                         self._grid["spacing"],
                         counts,
                         self._get_charges(name),
-                        sasa_radii,
+                        self._prmtop["LJ_SIGMA"],
+                        clash_radii,
                         atom_list,
                         self._molecule_sasa,
-                        self._get_molecule_sasa(0.086, 960),
+                        self._sasa_cutoffs,
                         self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
                         self._rec_core_scaling,
                         self._rec_surface_scaling,
