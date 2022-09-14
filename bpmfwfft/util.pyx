@@ -860,32 +860,45 @@ def c_cal_potential_grid_pp(   str name,
         grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
+            dx2 = (atom_coordinate[0] - grid_x) ** 2
+            dy2 = (atom_coordinate[1] - grid_y) ** 2
+            dz2 = (atom_coordinate[2] - grid_z) ** 2
+            # grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
+            grid_tmp[grid_tmp>0.] = 0.
             if name == "sasa":
                 charge = molecule_sasa[0][atom_ind]
                 lj_diameter = clash_radii[atom_ind]
+                surface_layer = lj_diameter + 2.8
+                corners = c_corners_within_radius(atom_coordinate, surface_layer, origin_crd,
+                                                  uper_most_corner_crd,
+                                                  uper_most_corner, spacing, grid_x, grid_y, grid_z,
+                                                  grid_counts)
+                for i, j, k in corners:
+                    dx_tmp = dx2[i]
+                    dy_tmp = dy2[j]
+                    d = dx_tmp + dy_tmp + dz2[k]
+                    sigma = 2.8/3  # H2O diameter/3, so 3*sigma ~= H2O diameter
+                    exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
+                    pdf = (1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
+                    grid_tmp[i, j, k] = pdf
+                if grid_tmp.sum() != 0:
+                    grid_tmp = grid_tmp / grid_tmp.sum()
+                    grid_tmp *= charge
             else:
                 charge = charges[atom_ind]
                 lj_diameter = lj_sigma[atom_ind]
-
-            dx2 = (atom_coordinate[0] - grid_x)**2
-            dy2 = (atom_coordinate[1] - grid_y)**2
-            dz2 = (atom_coordinate[2] - grid_z)**2
-
-            for i in range(i_max):
-                dx_tmp = dx2[i]
-                for j in range(j_max):
-                    dy_tmp = dy2[j]
-                    for k in range(k_max):
-                        d = dx_tmp + dy_tmp + dz2[k]
-                        if name != "sasa":
+                for i in range(i_max):
+                    dx_tmp = dx2[i]
+                    for j in range(j_max):
+                        dy_tmp = dy2[j]
+                        for k in range(k_max):
+                            d = dx_tmp + dy_tmp + dz2[k]
                             d = d**exponent
                             grid_tmp[i,j,k] = charge / d
-                        else:
-                            sigma = 2
-                            exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
-                            pdf = charge*(1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
-                            grid_tmp[i, j, k] = pdf
 
+            #normalize grid values
+            if grid_tmp.sum() != 0:
+                grid_tmp = grid_tmp / grid_tmp.sum()
 
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                 uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
@@ -971,26 +984,29 @@ def c_cal_charge_grid_pp(  str name,
             charge = molecule_sasa[0][atom_ind]
             lj_diameter = clash_radii[atom_ind]
 
+            surface_layer = lj_diameter + 2.8
+            corners = c_corners_within_radius(atom_coordinate, surface_layer, origin_crd,
+                                              uper_most_corner_crd,
+                                              uper_most_corner, spacing, grid_x, grid_y, grid_z,
+                                              grid_counts)
             grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
             dx2 = (atom_coordinate[0] - grid_x) ** 2
             dy2 = (atom_coordinate[1] - grid_y) ** 2
             dz2 = (atom_coordinate[2] - grid_z) ** 2
-
-            for i in range(i_max):
+            for i, j, k in corners:
                 dx_tmp = dx2[i]
-                for j in range(j_max):
-                    dy_tmp = dy2[j]
-                    for k in range(k_max):
-                        d = dx_tmp + dy_tmp + dz2[k]
-                        if d < lj_diameter*2:
-                            sigma = 2
-                            exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
-                            pdf = charge*(1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
-                            grid_tmp[i,j,k] = pdf
-                        else:
-                            grid_tmp[i, j, k] = 0
+                dy_tmp = dy2[j]
+                d = dx_tmp + dy_tmp + dz2[k]
+                sigma = 2.8/3
+                exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
+                pdf = charge*(1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
+                grid_tmp[i,j,k] = pdf
+            if grid_tmp.sum() != 0:
+                grid_tmp = grid_tmp / grid_tmp.sum()
+                grid_tmp *= charge
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                           uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+
 
             for i, j, k in corners:
                 grid_tmp[i, j, k] = 0
