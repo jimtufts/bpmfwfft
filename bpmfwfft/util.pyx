@@ -1037,3 +1037,83 @@ def c_cal_charge_grid_pp(  str name,
                 grid[i, j, k] = 1.
 
     return grid
+
+@cython.boundscheck(False)
+cdef void c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
+                            np.ndarray[np.float64_t, ndim=1] atom_radii,
+                            np.ndarray[np.float64_t, ndim=2] sphere_points,
+                            int n_sphere_points,
+                            np.ndarray[np.int64_t, ndim = 1] neighbor_indices,
+                            np.ndarray[np.float64_t, ndim=2] centered_sphere_points,
+                            np.ndarray[np.float64_t, ndim=1] areas):
+    cdef:
+        int natoms = crd.shape[0]
+        int i, j, k, index
+        int atom_ind, neighbor_ind
+        int n_neighbor_indices, k_closest_neighbor, k_prime
+        double atom_radius
+        double neighbor_radius
+        float radius_cutoff, radius_cutoff2, r2, r
+        float constant = 4.0 * np.pi / n_sphere_points
+        bint is_accessible
+        np.ndarray[np.float64_t, ndim=1] atom_coordinate
+        np.ndarray[np.float64_t, ndim=1] neighbor_coordinate
+        np.ndarray[np.float64_t, ndim=1] sphere_point_coordinate
+        np.ndarray[np.float64_t, ndim=1] vector_an
+        np.ndarray[np.float64_t, ndim=1] vector_ks
+
+
+
+    for atom_ind in range(natoms):
+        atom_coordinate = crd[atom_ind]
+        atom_radius = atom_radii[atom_ind]
+        n_neighbor_indices = 0
+        for neighbor_ind in range(natoms):
+            if atom_ind == neighbor_ind:
+                continue
+            neighbor_coordinate = crd[neighbor_ind]
+            vector_an = atom_coordinate-neighbor_coordinate
+            neighbor_radius = atom_radii[neighbor_ind]
+
+            # look for neighbors around the atom
+            radius_cutoff = atom_radius+neighbor_radius
+            radius_cutoff2 = radius_cutoff**2
+            r2 = np.dot(vector_an, vector_an)
+
+            if r2 < radius_cutoff2:
+                neighbor_indices[n_neighbor_indices] = neighbor_ind
+                n_neighbor_indices += 1
+            if r2 < 1e-10:
+                print("This code is known to fail when atoms are too close")
+                break
+
+        # Center the sphere points on atom i
+        for i in range(n_sphere_points):
+            centered_sphere_points[i, 0] = crd[i, 0] + atom_radius*sphere_points[i, 0]
+            centered_sphere_points[i, 1] = crd[i, 1] + atom_radius*sphere_points[i, 1]
+            centered_sphere_points[i, 2] = crd[i, 2] + atom_radius * sphere_points[i, 2]
+
+        # Check if these points are accessible
+        k_closest_neighbor = 0
+        for i in range(n_sphere_points):
+            is_accessible = True
+            sphere_point_coordinate = centered_sphere_points[i]
+
+            for k in range(n_neighbor_indices + k_closest_neighbor)[k_closest_neighbor:]:
+                k_prime = k % neighbor_indices
+                r = atom_radii[neighbor_indices[k_prime]]
+
+                index = neighbor_indices[k_prime]
+                vector_ks = sphere_point_coordinate-crd[index]
+                if np.dot(vector_ks, vector_ks) < r*r:
+                    k_closest_neighbor = k
+                    is_accessible = False
+                    break;
+            if(is_accessible):
+                areas[atom_ind] += 1
+
+            areas[atom_ind] *= constant * (atom_radii[atom_ind]**2)
+
+
+
+
