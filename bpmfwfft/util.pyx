@@ -1039,81 +1039,112 @@ def c_cal_charge_grid_pp(  str name,
     return grid
 
 @cython.boundscheck(False)
-cdef void c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
+def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
                             np.ndarray[np.float64_t, ndim=1] atom_radii,
                             np.ndarray[np.float64_t, ndim=2] sphere_points,
-                            int n_sphere_points,
-                            np.ndarray[np.int64_t, ndim = 1] neighbor_indices,
-                            np.ndarray[np.float64_t, ndim=2] centered_sphere_points,
-                            np.ndarray[np.float64_t, ndim=1] areas):
+                            int n_sphere_points
+                            ):
     cdef:
         int natoms = crd.shape[0]
         int i, j, k, index
-        int atom_ind, neighbor_ind
+        # int atom_ind, neighbor_ind
         int n_neighbor_indices, k_closest_neighbor, k_prime
-        double atom_radius
-        double neighbor_radius
+        float atom_radius_i, atom_radius_j
         float radius_cutoff, radius_cutoff2, r2, r
         float constant = 4.0 * np.pi / n_sphere_points
         bint is_accessible
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
         np.ndarray[np.float64_t, ndim=1] neighbor_coordinate
         np.ndarray[np.float64_t, ndim=1] sphere_point_coordinate
-        np.ndarray[np.float64_t, ndim=1] vector_an
-        np.ndarray[np.float64_t, ndim=1] vector_ks
+        np.ndarray[np.float64_t, ndim=1] r_i, r_j, r_ij, r_jk
+        np.ndarray[np.int64_t, ndim = 1] neighbor_indices = np.empty(natoms, dtype=np.int64)
+        np.ndarray[np.float64_t, ndim = 3] centered_sphere_points = np.empty([natoms,n_sphere_points,3], dtype=np.float64)
+        np.ndarray[np.float64_t, ndim = 1] areas = np.zeros(natoms, dtype=np.float64)
 
+    for i in range(natoms):
+        atom_radius_i = atom_radii[i]
+        r_i = crd[i]
 
-
-    for atom_ind in range(natoms):
-        atom_coordinate = crd[atom_ind]
-        atom_radius = atom_radii[atom_ind]
+        # Get all the atoms close to atom i
         n_neighbor_indices = 0
-        for neighbor_ind in range(natoms):
-            if atom_ind == neighbor_ind:
+        for j in range(natoms):
+            if i == j:
                 continue
-            neighbor_coordinate = crd[neighbor_ind]
-            vector_an = atom_coordinate-neighbor_coordinate
-            neighbor_radius = atom_radii[neighbor_ind]
 
-            # look for neighbors around the atom
-            radius_cutoff = atom_radius+neighbor_radius
-            radius_cutoff2 = radius_cutoff**2
-            r2 = np.dot(vector_an, vector_an)
+            r_j = crd[j]
+            r_ij = r_i-r_j
+            atom_radius_j = atom_radii[j]
+
+            # look for atoms j around atom i
+            radius_cutoff = atom_radius_i+atom_radius_j
+            radius_cutoff2 = radius_cutoff*radius_cutoff
+            r2 = np.dot(r_ij, r_ij)
 
             if r2 < radius_cutoff2:
-                neighbor_indices[n_neighbor_indices] = neighbor_ind
+                neighbor_indices[n_neighbor_indices] = j
                 n_neighbor_indices += 1
             if r2 < 1e-10:
                 print("This code is known to fail when atoms are too close")
                 break
-
         # Center the sphere points on atom i
-        for i in range(n_sphere_points):
-            centered_sphere_points[i, 0] = crd[i, 0] + atom_radius*sphere_points[i, 0]
-            centered_sphere_points[i, 1] = crd[i, 1] + atom_radius*sphere_points[i, 1]
-            centered_sphere_points[i, 2] = crd[i, 2] + atom_radius * sphere_points[i, 2]
+        for j in range(n_sphere_points):
+            centered_sphere_points[i, j, 0] = crd[i, 0] + atom_radius_i*sphere_points[j, 0]
+            centered_sphere_points[i, j, 1] = crd[i, 1] + atom_radius_i*sphere_points[j, 1]
+            centered_sphere_points[i, j, 2] = crd[i, 2] + atom_radius_i*sphere_points[j, 2]
 
         # Check if these points are accessible
         k_closest_neighbor = 0
-        for i in range(n_sphere_points):
+        for j in range(n_sphere_points):
             is_accessible = True
-            sphere_point_coordinate = centered_sphere_points[i]
-
+            r_j = centered_sphere_points[i, j, :]
             for k in range(n_neighbor_indices + k_closest_neighbor)[k_closest_neighbor:]:
-                k_prime = k % neighbor_indices
+                k_prime = k % n_neighbor_indices
                 r = atom_radii[neighbor_indices[k_prime]]
-
                 index = neighbor_indices[k_prime]
-                vector_ks = sphere_point_coordinate-crd[index]
-                if np.dot(vector_ks, vector_ks) < r*r:
+                r_jk = r_j-crd[index]
+                if np.dot(r_jk,r_jk) < r*r:
                     k_closest_neighbor = k
                     is_accessible = False
                     break;
             if(is_accessible):
-                areas[atom_ind] += 1
+                areas[i] += 1
+        areas[i] *= constant * (atom_radii[i]) * (atom_radii[i])
+    return areas, centered_sphere_points
 
-            areas[atom_ind] *= constant * (atom_radii[atom_ind]**2)
+@cython.boundscheck(False)
+def c_generate_sphere_points(int n_points):
+    cdef:
+        int i
+        float y, r, phi
+        float inc = np.pi * (3.0 - np.sqrt(5.0))
+        float offset = 2.0 / n_points
+        np.ndarray[np.float64_t, ndim = 2] sphere_points = np.empty([n_points, 3], dtype=np.float64)
+
+    for i in range(n_points):
+        y = i * offset - 1.0 + (offset / 2.0)
+        r = np.sqrt(1.0 - y*y)
+        phi = i * inc
+
+        sphere_points[i, 0] = np.cos(phi) * r
+        sphere_points[i, 1] = y
+        sphere_points[i, 2] = np.sin(phi) * r
+    return sphere_points
 
 
+@cython.boundscheck(False)
+def c_sasa(           np.ndarray[np.float64_t, ndim=2] crd,
+                            np.ndarray[np.float64_t, ndim=1] atom_radii,
+                            int n_sphere_points):
+    cdef:
+        int natoms = crd.shape[0]
+        int i, j
+        np.ndarray[np.int64_t, ndim = 1] wb1 = np.empty(natoms, dtype=np.int64)
+        np.ndarray[np.float64_t, ndim = 2] wb2 = np.empty([n_sphere_points, 3], dtype=np.float64)
+        np.ndarray[np.float64_t, ndim = 1] outframe
+        np.ndarray[np.float64_t, ndim = 1] outframebuffer = np.empty(natoms, dtype=np.float64)
+        np.ndarray[np.float64_t, ndim = 2] sphere_points = np.empty([n_sphere_points, 3], dtype=np.float64)
+    sphere_points = c_generate_sphere_points(n_sphere_points)
+    out, centered_sphere_points = c_asa_frame(crd, atom_radii, sphere_points, n_sphere_points)
 
+    return out, centered_sphere_points
 

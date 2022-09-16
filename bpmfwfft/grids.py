@@ -18,12 +18,14 @@ try:
         from bpmfwfft.util import c_cal_potential_grid, c_cal_potential_grid_pp
         from bpmfwfft.util import c_cal_lig_sasa_grid
         from bpmfwfft.util import c_cal_lig_sasa_grids
+        from bpmfwfft.util import c_sasa
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
         from util import c_cal_charge_grid_new, c_cal_charge_grid_pp
         from util import c_cal_potential_grid, c_cal_potential_grid_pp
         from util import c_cal_lig_sasa_grid
         from util import c_cal_lig_sasa_grids
+        from util import c_sasa
 
 except:
     import IO
@@ -32,6 +34,7 @@ except:
     from util import c_cal_potential_grid, c_cal_potential_grid_pp
     from util import c_cal_lig_sasa_grid
     from util import c_cal_lig_sasa_grids
+    from util import c_sasa
 
 SASA_SLOPE = 2.127036
 SASA_INTERCEPT = 111.86583367165035
@@ -303,19 +306,19 @@ class Grid(object):
         probe radius is in nm...
         """
         xyz = self._crd
-        xyz = np.expand_dims(xyz, 0)
+        # xyz = np.expand_dims(xyz, 0)
         # convert coordinates to nanometers for mdtraj
-        xyz = xyz.astype(np.float32)/10.
+        xyz = xyz.astype(np.float64)/10.
         atom_radii = self._prmtop["VDW_RADII"]/10.
-
-        radii = np.array(atom_radii, np.float32) + probe_radius
+        radii = np.array(atom_radii, np.float64) + probe_radius
         dim1 = xyz.shape[1]
-        atom_mapping = np.arange(dim1, dtype=np.int32)
-        out = np.zeros((xyz.shape[0], dim1), dtype=np.float32)
-        _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
+        atom_mapping = np.arange(dim1, dtype=np.int64)
+        out = np.zeros((dim1), dtype=np.float64)
+        # _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
+        out, centered_sphere_points = c_sasa(xyz, radii, int(n_sphere_points))
         # convert values from nm^2 to A^2
-        out = out*100.
-        return out
+        out = out
+        return out, centered_sphere_points
 
     def _get_corner_crd(self, corner):
         """
@@ -430,7 +433,7 @@ class LigGrid(Grid):
         self._load_inpcrd(inpcrd_file_name)
         self._move_ligand_to_lower_corner()
         self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
-        self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
+        # self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
         self._lig_core_scaling = lig_core_scaling
         self._lig_surface_scaling = lig_surface_scaling
         self._lig_metal_scaling = lig_metal_scaling
@@ -902,7 +905,7 @@ class RecGrid(Grid):
         if new_calculation:
             self._load_inpcrd(inpcrd_file_name)
             self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
-            self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
+            # self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
             self._rho = rho
             self._rec_core_scaling = rec_core_scaling
             self._rec_surface_scaling = rec_surface_scaling
