@@ -306,19 +306,19 @@ class Grid(object):
         probe radius is in nm...
         """
         xyz = self._crd
-        # xyz = np.expand_dims(xyz, 0)
+        xyz = np.expand_dims(xyz, 0)
         # convert coordinates to nanometers for mdtraj
-        xyz = xyz.astype(np.float64)/10.
+        xyz = xyz.astype(np.float32)/10.
         atom_radii = self._prmtop["VDW_RADII"]/10.
-        radii = np.array(atom_radii, np.float64) + probe_radius
+        radii = np.array(atom_radii, np.float32) + probe_radius
         dim1 = xyz.shape[1]
-        atom_mapping = np.arange(dim1, dtype=np.int64)
-        out = np.zeros((dim1), dtype=np.float64)
-        # _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
-        out, centered_sphere_points = c_sasa(xyz, radii, int(n_sphere_points))
+        atom_mapping = np.arange(dim1, dtype=np.int32)
+        out = np.zeros((xyz.shape[0],dim1), dtype=np.float32)
+        _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
+        # out, centered_sphere_points = c_sasa(xyz, radii, int(n_sphere_points))
         # convert values from nm^2 to A^2
-        out = out
-        return out, centered_sphere_points
+        out = out*100.
+        return out
 
     def _get_corner_crd(self, corner):
         """
@@ -433,7 +433,7 @@ class LigGrid(Grid):
         self._load_inpcrd(inpcrd_file_name)
         self._move_ligand_to_lower_corner()
         self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
-        # self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
+        self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
         self._lig_core_scaling = lig_core_scaling
         self._lig_surface_scaling = lig_surface_scaling
         self._lig_metal_scaling = lig_metal_scaling
@@ -446,9 +446,13 @@ class LigGrid(Grid):
         store self._max_grid_indices and self._initial_com
         """
         spacing = self._grid["spacing"]
-        lower_ligand_corner = np.array([self._crd[:,i].min() for i in range(3)], dtype=float) - 2.5*spacing
+        min_edge_ind = np.array([self._crd[:,i].argmin() for i in range(3)], dtype=int)
+        min_edge_radii = np.array([self._prmtop["VDW_RADII"][i] for i in min_edge_ind], dtype=float)
+        lower_ligand_corner = np.array([self._crd[:,i].min()-min_edge_radii[i] for i in range(3)], dtype=float) - 2.8*spacing
         lower_ligand_corner_grid_aligned = lower_ligand_corner - (spacing + lower_ligand_corner % spacing) #new grid aligned variable
-        upper_ligand_corner = np.array([self._crd[:,i].max() for i in range(3)], dtype=float) + 2.5*spacing
+        max_edge_ind = np.array([self._crd[:, i].argmax() for i in range(3)], dtype=int)
+        max_edge_radii = np.array([self._prmtop["VDW_RADII"][i] for i in max_edge_ind], dtype=float)
+        upper_ligand_corner = np.array([self._crd[:,i].max()+max_edge_radii[i] for i in range(3)], dtype=float) + 2.8*spacing
         upper_ligand_corner_grid_aligned = upper_ligand_corner + (spacing - upper_ligand_corner % spacing) #new grid aligned variable
         ligand_box_lengths = upper_ligand_corner_grid_aligned - lower_ligand_corner_grid_aligned
 
@@ -905,7 +909,7 @@ class RecGrid(Grid):
         if new_calculation:
             self._load_inpcrd(inpcrd_file_name)
             self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
-            # self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
+            self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
             self._rho = rho
             self._rec_core_scaling = rec_core_scaling
             self._rec_surface_scaling = rec_surface_scaling

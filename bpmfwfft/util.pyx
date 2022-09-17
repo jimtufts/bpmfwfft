@@ -19,6 +19,24 @@ def cdistance(np.ndarray[np.float64_t, ndim=1] x, np.ndarray[np.float64_t, ndim=
         d += tmp*tmp
     return sqrt(d)
 
+@cython.boundscheck(False)
+def cmround(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t, ndim=1] m):
+    cdef:
+        int lmax = crd.shape[0]
+        int i
+        np.ndarray[np.float64_t, ndim = 1] aligned_crd = np.zeros([lmax], dtype=np.float64)
+
+    for i in range(lmax):
+        aligned_crd[i] = m[i] * round(crd[i]/m[i])
+    return aligned_crd
+
+@cython.boundscheck(False)
+def c_crd_to_grid(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t, ndim=1] spacing):
+    cdef:
+        int lmax = crd.shape[0]
+        int i
+        np.ndarray[np.float64_t, ndim = 1] grid_crd = crd/spacing
+    return grid_crd.astype(int)
 
 @cython.boundscheck(False)
 def c_get_corner_crd(np.ndarray[np.int64_t, ndim=1] corner,
@@ -868,7 +886,7 @@ def c_cal_potential_grid_pp(   str name,
             if name == "sasa":
                 charge = molecule_sasa[0][atom_ind]
                 lj_diameter = clash_radii[atom_ind]
-                surface_layer = lj_diameter + 2.8
+                surface_layer = lj_diameter + 1.4
                 corners = c_corners_within_radius(atom_coordinate, surface_layer, origin_crd,
                                                   uper_most_corner_crd,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z,
@@ -895,10 +913,6 @@ def c_cal_potential_grid_pp(   str name,
                             d = dx_tmp + dy_tmp + dz2[k]
                             d = d**exponent
                             grid_tmp[i,j,k] = charge / d
-
-            #normalize grid values
-            if grid_tmp.sum() != 0:
-                grid_tmp = grid_tmp / grid_tmp.sum()
 
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                 uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
@@ -984,7 +998,7 @@ def c_cal_charge_grid_pp(  str name,
             charge = molecule_sasa[0][atom_ind]
             lj_diameter = clash_radii[atom_ind]
 
-            surface_layer = lj_diameter + 2.8
+            surface_layer = lj_diameter + 1.4
             corners = c_corners_within_radius(atom_coordinate, surface_layer, origin_crd,
                                               uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z,
@@ -1042,19 +1056,21 @@ def c_cal_charge_grid_pp(  str name,
 def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
                             np.ndarray[np.float64_t, ndim=1] atom_radii,
                             np.ndarray[np.float64_t, ndim=2] sphere_points,
-                            int n_sphere_points
+                            np.ndarray[np.float64_t, ndim=1] spacing,
+                            int n_sphere_points,
+                            np.ndarray[np.float64_t, ndim=3] grid
                             ):
     cdef:
         int natoms = crd.shape[0]
         int i, j, k, index
+        int l, m, n
         # int atom_ind, neighbor_ind
         int n_neighbor_indices, k_closest_neighbor, k_prime
         float atom_radius_i, atom_radius_j
         float radius_cutoff, radius_cutoff2, r2, r
         float constant = 4.0 * np.pi / n_sphere_points
         bint is_accessible
-        np.ndarray[np.float64_t, ndim=1] atom_coordinate
-        np.ndarray[np.float64_t, ndim=1] neighbor_coordinate
+        np.ndarray[np.int64_t, ndim=1] grid_crd = np.empty(3, dtype=np.int64)
         np.ndarray[np.float64_t, ndim=1] sphere_point_coordinate
         np.ndarray[np.float64_t, ndim=1] r_i, r_j, r_ij, r_jk
         np.ndarray[np.int64_t, ndim = 1] neighbor_indices = np.empty(natoms, dtype=np.int64)
@@ -1107,9 +1123,12 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
                     is_accessible = False
                     break;
             if(is_accessible):
+                grid_crd = c_crd_to_grid(cmround(r_j, spacing), spacing)
+                l,m,n = grid_crd.astype(int)
+                grid[l,m,n] += constant * (atom_radii[i]) * (atom_radii[i])
                 areas[i] += 1
         areas[i] *= constant * (atom_radii[i]) * (atom_radii[i])
-    return areas, centered_sphere_points
+    return grid, areas
 
 @cython.boundscheck(False)
 def c_generate_sphere_points(int n_points):
@@ -1132,19 +1151,21 @@ def c_generate_sphere_points(int n_points):
 
 
 @cython.boundscheck(False)
-def c_sasa(           np.ndarray[np.float64_t, ndim=2] crd,
-                            np.ndarray[np.float64_t, ndim=1] atom_radii,
-                            int n_sphere_points):
+def c_sasa(         np.ndarray[np.float64_t, ndim=2] crd,
+                    np.ndarray[np.float64_t, ndim=1] atom_radii,
+                    np.ndarray[np.float64_t, ndim=1] spacing,
+                    int n_sphere_points,
+                    np.ndarray[np.float64_t, ndim=3] grid):
     cdef:
         int natoms = crd.shape[0]
         int i, j
-        np.ndarray[np.int64_t, ndim = 1] wb1 = np.empty(natoms, dtype=np.int64)
-        np.ndarray[np.float64_t, ndim = 2] wb2 = np.empty([n_sphere_points, 3], dtype=np.float64)
-        np.ndarray[np.float64_t, ndim = 1] outframe
-        np.ndarray[np.float64_t, ndim = 1] outframebuffer = np.empty(natoms, dtype=np.float64)
+        # np.ndarray[np.int64_t, ndim = 1] wb1 = np.empty(natoms, dtype=np.int64)
+        # np.ndarray[np.float64_t, ndim = 2] wb2 = np.empty([n_sphere_points, 3], dtype=np.float64)
+        # np.ndarray[np.float64_t, ndim = 1] outframe
+        # np.ndarray[np.float64_t, ndim = 1] outframebuffer = np.empty(natoms, dtype=np.float64)
         np.ndarray[np.float64_t, ndim = 2] sphere_points = np.empty([n_sphere_points, 3], dtype=np.float64)
     sphere_points = c_generate_sphere_points(n_sphere_points)
-    out, centered_sphere_points = c_asa_frame(crd, atom_radii, sphere_points, n_sphere_points)
+    grid, areas = c_asa_frame(crd, atom_radii, sphere_points, spacing, n_sphere_points, grid)
 
-    return out, centered_sphere_points
+    return grid, areas
 
