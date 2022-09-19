@@ -895,13 +895,14 @@ def c_cal_potential_grid_pp(   str name,
                     dx_tmp = dx2[i]
                     dy_tmp = dy2[j]
                     d = dx_tmp + dy_tmp + dz2[k]
-                    sigma = 2.8/3  # H2O diameter/3, so 3*sigma ~= H2O diameter
-                    exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
-                    pdf = (1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
-                    grid_tmp[i, j, k] = pdf
-                if grid_tmp.sum() != 0:
-                    grid_tmp = grid_tmp / grid_tmp.sum()
-                    grid_tmp *= charge
+                    # sigma = 2.8/3  # H2O diameter/3, so 3*sigma ~= H2O diameter
+                    # exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
+                    # pdf = (1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
+                    # grid_tmp[i, j, k] = pdf
+                    grid_tmp[i, j, k] = 1.
+                # if grid_tmp.sum() != 0:
+                #     grid_tmp = grid_tmp / grid_tmp.sum()
+                #     grid_tmp *= charge
             else:
                 charge = charges[atom_ind]
                 lj_diameter = lj_sigma[atom_ind]
@@ -914,11 +915,11 @@ def c_cal_potential_grid_pp(   str name,
                             d = d**exponent
                             grid_tmp[i,j,k] = charge / d
 
-            corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                                uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-
-            for i, j, k in corners:
-                grid_tmp[i,j,k] = 0
+            # corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+            #                                     uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+            #
+            # for i, j, k in corners:
+            #     grid_tmp[i,j,k] = 0
 
             grid += grid_tmp
     # TODO: Add in new atomic scaling factors for occupancy grid
@@ -1011,13 +1012,14 @@ def c_cal_charge_grid_pp(  str name,
                 dx_tmp = dx2[i]
                 dy_tmp = dy2[j]
                 d = dx_tmp + dy_tmp + dz2[k]
-                sigma = 2.8/3
-                exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
-                pdf = charge*(1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
-                grid_tmp[i,j,k] = pdf
-            if grid_tmp.sum() != 0:
-                grid_tmp = grid_tmp / grid_tmp.sum()
-                grid_tmp *= charge
+                # sigma = 2.8/3
+                # exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
+                # pdf = charge*(1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
+                # grid_tmp[i,j,k] = pdf
+                grid_tmp[i, j, k] = 1.
+            # if grid_tmp.sum() != 0:
+            #     grid_tmp = grid_tmp / grid_tmp.sum()
+            #     grid_tmp *= charge
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                           uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
 
@@ -1060,11 +1062,11 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
                             int n_sphere_points,
                             np.ndarray[np.float64_t, ndim=3] grid
                             ):
+    print("c_asa_frame")
     cdef:
-        int natoms = crd.shape[0]
         int i, j, k, index
         int l, m, n
-        # int atom_ind, neighbor_ind
+        int natoms = crd.shape[0]
         int n_neighbor_indices, k_closest_neighbor, k_prime
         float atom_radius_i, atom_radius_j
         float radius_cutoff, radius_cutoff2, r2, r
@@ -1076,7 +1078,7 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
         np.ndarray[np.int64_t, ndim = 1] neighbor_indices = np.empty(natoms, dtype=np.int64)
         np.ndarray[np.float64_t, ndim = 3] centered_sphere_points = np.empty([natoms,n_sphere_points,3], dtype=np.float64)
         np.ndarray[np.float64_t, ndim = 1] areas = np.zeros(natoms, dtype=np.float64)
-
+    print("debug test")
     for i in range(natoms):
         atom_radius_i = atom_radii[i]
         r_i = crd[i]
@@ -1154,8 +1156,10 @@ def c_generate_sphere_points(int n_points):
 def c_sasa(         np.ndarray[np.float64_t, ndim=2] crd,
                     np.ndarray[np.float64_t, ndim=1] atom_radii,
                     np.ndarray[np.float64_t, ndim=1] spacing,
+                    float probe_size,
                     int n_sphere_points,
                     np.ndarray[np.float64_t, ndim=3] grid):
+    print(crd.shape[0])
     cdef:
         int natoms = crd.shape[0]
         int i, j
@@ -1165,7 +1169,7 @@ def c_sasa(         np.ndarray[np.float64_t, ndim=2] crd,
         # np.ndarray[np.float64_t, ndim = 1] outframebuffer = np.empty(natoms, dtype=np.float64)
         np.ndarray[np.float64_t, ndim = 2] sphere_points = np.empty([n_sphere_points, 3], dtype=np.float64)
     sphere_points = c_generate_sphere_points(n_sphere_points)
-    grid, areas = c_asa_frame(crd, atom_radii, sphere_points, spacing, n_sphere_points, grid)
+    grid, areas = c_asa_frame(crd, atom_radii+probe_size, sphere_points, spacing, n_sphere_points, grid)
 
     return grid, areas
 
