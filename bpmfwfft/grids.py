@@ -432,6 +432,7 @@ class LigGrid(Grid):
         self._load_prmtop(prmtop_file_name, lj_sigma_scaling_factor)
         self._load_inpcrd(inpcrd_file_name)
         self._move_ligand_to_lower_corner()
+        self._displacement = self._new_displacement
         self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
         self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
         self._lig_core_scaling = lig_core_scaling
@@ -468,7 +469,7 @@ class LigGrid(Grid):
         for atom_ind in range(len(self._crd)):
             self._crd[atom_ind] += displacement
         print(f"Ligand translated by {displacement}")
-        self._displacement = displacement
+        self._new_displacement = displacement
         lower_corner_origin = np.array([self._crd[:,i].min() for i in range(3)], dtype=float) - 1.5*spacing
         print(lower_corner_origin)
         self._initial_com = self._get_molecule_center_of_mass()
