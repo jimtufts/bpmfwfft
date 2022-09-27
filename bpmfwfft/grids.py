@@ -18,14 +18,14 @@ try:
         from bpmfwfft.util import c_cal_potential_grid, c_cal_potential_grid_pp
         from bpmfwfft.util import c_cal_lig_sasa_grid
         from bpmfwfft.util import c_cal_lig_sasa_grids
-        from bpmfwfft.util import c_sasa
+        from bpmfwfft.util import c_sasa, c_crd_to_grid
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
         from util import c_cal_charge_grid_new, c_cal_charge_grid_pp
         from util import c_cal_potential_grid, c_cal_potential_grid_pp
         from util import c_cal_lig_sasa_grid
         from util import c_cal_lig_sasa_grids
-        from util import c_sasa
+        from util import c_sasa, c_crd_to_grid
 
 except:
     import IO
@@ -34,7 +34,7 @@ except:
     from util import c_cal_potential_grid, c_cal_potential_grid_pp
     from util import c_cal_lig_sasa_grid
     from util import c_cal_lig_sasa_grids
-    from util import c_sasa
+    from util import c_sasa, c_crd_to_grid
 
 SASA_SLOPE = 2.127036
 SASA_INTERCEPT = 111.86583367165035
@@ -60,10 +60,9 @@ def process_potential_grid_function(
 ):
     """
     gets called by cal_potential_grid and assigned to a new python process
-    use cython to calculate electrostatic, LJa, LJr, SASAr, and SASAi grids
+    use cython to calculate electrostatic, LJa, LJr, and water grids
     and save them to nc file
     """
-    print("calculating Receptor %s grid" % name)
     grid_x = np.linspace(
         origin_crd[0],
         origin_crd[0] + ((grid_counts[0]-1) * grid_spacing[0]),
@@ -102,6 +101,7 @@ def process_charge_grid_function(
         charges,
         prmtop_ljsigma,
         clash_radii,
+        atom_list,
         molecule_sasa,
         sasa_cutoffs,
         lig_res_names,
@@ -111,7 +111,7 @@ def process_charge_grid_function(
 ):
     """
     gets called by cal_charge_grid and assigned to a new python process
-    use cython to calculate electrostatic, LJa, LJr, SASAr, and SASAi grids
+    use cython to calculate electrostatic, LJa, LJr, and water grids
     and save them to nc file
     """
     print("calculating Ligand %s grid" % name)
@@ -137,11 +137,29 @@ def process_charge_grid_function(
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, eight_corner_shifts, six_corner_shifts,
-                                grid_counts, charges, prmtop_ljsigma, clash_radii,
+                                grid_counts, charges, prmtop_ljsigma, clash_radii, atom_list,
                                 molecule_sasa, sasa_cutoffs, lig_res_names,
                                 lig_core_scaling, lig_surface_scaling, lig_metal_scaling)
 
     return grid
+
+def process_sasa_grid_function(
+        crd,
+        radii,
+        spacing,
+        probe_size,
+        n_sphere_points,
+        natoms_i,
+        atomind
+        ):
+    """
+    gets called by cal_potential_grid and assigned to a new python process
+    uses cython to calculate a sasa grid
+    """
+    # print(f"calculating sasa")
+
+    points = c_sasa(crd, radii, spacing, probe_size, n_sphere_points, natoms_i, atomind)
+    return points
 
 def is_nc_grid_good(nc_grid_file):
     """
@@ -186,9 +204,9 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        # self._grid_func_names   = ("SASAi", "electrostatic", "LJr", "LJa", "SASAr")  # calculate all grids
-        self._grid_func_names = ("occupancy", "sasa")  # test new sasa grid
-        # self._grid_func_names = ("SASAi", "SASAr")  # uncomment to only calculate SASA grids
+        # self._grid_func_names   = ("occupancy", "water", "electrostatic", "LJr", "LJa", "sasa")  # calculate all grids
+        # self._grid_func_names = ("occupancy", "water", "sasa")  # test new sasa grid
+        self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes  = ("x", "y", "z")
         box_dim_names   = ("d0", "d1", "d2")
@@ -486,6 +504,8 @@ class LigGrid(Grid):
             return np.array(self._prmtop["R_LJ_CHARGE"], dtype=float)
         elif name == "sasa":
             return np.array([0], dtype=float)
+        elif name == "water":
+            return np.array([0], dtype=float)
         elif name == "occupancy":
             return np.array([0], dtype=float)
         else:
@@ -505,54 +525,61 @@ class LigGrid(Grid):
             else:
                 atom_list.append(i)
 
-        grid = c_cal_charge_grid_pp(name, self._crd, self._grid["x"], self._grid["y"], self._grid["z"],
-                                self._origin_crd, self._uper_most_corner_crd, self._uper_most_corner,
-                                self._grid["spacing"], self._eight_corner_shifts, self._six_corner_shifts,
-                                grid_counts, charges, self._prmtop["LJ_SIGMA"], clash_radii, atom_list,
-                                self._molecule_sasa, self._sasa_cutoffs,
-                                self._prmtop["PDB_TEMPLATE"]["RES_NAME"], self._lig_core_scaling,
-                                self._lig_surface_scaling, self._lig_metal_scaling
-                                )
-        # task_divisor = 1
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     futures = {}
-        #     grid_names = [name for name in self._grid_func_names if name[:4] != "SASA"]
-        #     for name in grid_names:
-        #         futures_array = []
-        #         for i in range(task_divisor):
-        #             counts = np.copy(self._grid["counts"])
-        #             counts_x = counts[0] // task_divisor
-        #             if i == task_divisor - 1:
-        #                 counts_x += counts[0] % task_divisor
-        #             counts[0] = counts_x
-        #
-        #             grid_start_x = i * (self._grid["counts"][0] // task_divisor)
-        #             origin = np.copy(self._origin_crd)
-        #             origin[0] = grid_start_x * self._grid["spacing"][0]
-        #
-        #             futures_array.append(executor.submit(
-        #                 process_charge_grid_function,
-        #                 name,
-        #                 self._crd,
-        #                 origin,
-        #                 self._grid["spacing"],
-        #                 self._eight_corner_shifts,
-        #                 self._six_corner_shifts,
-        #                 counts,
-        #                 self._get_charges(name),
-        #                 self._prmtop["LJ_SIGMA"],
-        #                 self._molecule_sasa,
-        #             ))
-        #         futures[name] = futures_array
-        #     for name in futures:
-        #         grid_array = []
-        #         for i in range(task_divisor):
-        #             partial_grid = futures[name][i].result()
-        #             grid_array.append(partial_grid)
-        #         grid = np.concatenate(tuple(grid_array), axis=0)
-        #         # self._write_to_nc(nc_handle, name, grid)
-        #         # self._set_grid_key_value(name, grid)
-        #         # self._set_grid_key_value(name, None)     # to save memory
+        # grid = c_cal_charge_grid_pp(name, self._crd, self._grid["x"], self._grid["y"], self._grid["z"],
+        #                         self._origin_crd, self._uper_most_corner_crd, self._uper_most_corner,
+        #                         self._grid["spacing"], self._eight_corner_shifts, self._six_corner_shifts,
+        #                         grid_counts, charges, self._prmtop["LJ_SIGMA"], clash_radii, atom_list,
+        #                         self._molecule_sasa, self._sasa_cutoffs,
+        #                         self._prmtop["PDB_TEMPLATE"]["RES_NAME"], self._lig_core_scaling,
+        #                         self._lig_surface_scaling, self._lig_metal_scaling
+        #                         )
+        task_divisor = 22
+        if name == "sasa":
+            grid = np.zeros(grid_counts, dtype=np.float64)
+            points = lig_grid._cal_sasa_grid(1.4, 960)
+            for atom in points:
+                for point in atom:
+                    x, y, z = c_crd_to_grid(point[:3], self._grid["spacing"])
+                    grid[x, y, z] += 4 * np.pi * (point[3] ** 2) / points.shape[1]
+        else:
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                futures_array = []
+                for i in range(task_divisor):
+                    counts = np.copy(self._grid["counts"])
+                    counts_x = counts[0] // task_divisor
+                    if i == task_divisor - 1:
+                        counts_x += counts[0] % task_divisor
+                    counts[0] = counts_x
+
+                    grid_start_x = i * (self._grid["counts"][0] // task_divisor)
+                    origin = np.copy(self._origin_crd)
+                    origin[0] = grid_start_x * self._grid["spacing"][0]
+
+                    futures_array.append(executor.submit(
+                        process_charge_grid_function,
+                        name,
+                        self._crd,
+                        origin,
+                        self._grid["spacing"],
+                        self._eight_corner_shifts,
+                        self._six_corner_shifts,
+                        counts,
+                        charges,
+                        self._prmtop["LJ_SIGMA"],
+                        clash_radii,
+                        atom_list,
+                        self._molecule_sasa,
+                        self._sasa_cutoffs,
+                        self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
+                        self._lig_core_scaling,
+                        self._lig_surface_scaling,
+                        self._lig_metal_scaling
+                    ))
+                grid_array = []
+                for i in range(task_divisor):
+                    partial_grid = futures_array[i].result()
+                    grid_array.append(partial_grid)
+                grid = np.concatenate(tuple(grid_array), axis=0)
 
         return grid
 
@@ -634,16 +661,13 @@ class LigGrid(Grid):
         TODO
         """
         max_i, max_j, max_k = self._max_grid_indices
-        corr_func = self._cal_shape_complementarity()
-        print(f"Max Shape Complementarity Score: {corr_func.max()} Min: {corr_func.min()}")
-        self._free_of_clash = (corr_func > 1) #+ (corr_func < 4000)
-        print(corr_func.max(), corr_func.min(), corr_func.mean())
-        print("number of poses free of clash:", self._free_of_clash.shape)
+        corr_func = self._cal_corr_func("occupancy")
+        self._free_of_clash = (corr_func < 0.001)
         self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
         print("Ligand positions excluding border crossers", self._free_of_clash.shape)
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
         if np.any(self._free_of_clash):
-            grid_names = [name for name in self._grid_func_names if name[:4] != "SASA"]
+            grid_names = [name for name in self._grid_func_names if name != "occupancy"]
             for name in grid_names:
                 grid_func_energy = self._cal_corr_func(name)
                 print(f"{name} energy: {grid_func_energy[68][87][45]}")
@@ -688,6 +712,43 @@ class LigGrid(Grid):
                 grid = self._cal_charge_grid(grid_name)
                 grids[grid_name] = grid
         return grids
+
+    def _cal_sasa_grid(self, probe_size, n_sphere_points):
+        """
+        Divides each grid calculation into a separate process (electrostatic, LJr, LJa,
+        SASAr, SASAi) and then divides the grid into slices along the x-axis determined by
+        the "task divisor". Remainders are calculated in the last slice.  This adds
+        multiprocessing functionality to the grid generation.
+        """
+
+        task_divisor = 22
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            futures_array = []
+            for i in range(task_divisor):
+                natoms_i = self._crd.shape[0]
+                natoms_slice = natoms_i // task_divisor
+                if i == task_divisor - 1:
+                    natoms_slice += natoms_i % task_divisor
+                natoms_i = natoms_slice
+
+                atomind = i * (self._crd.shape[0] // task_divisor)
+                futures_array.append(executor.submit(
+                    process_sasa_grid_function,
+                    self._crd,
+                    self._prmtop["VDW_RADII"],
+                    self._spacing,
+                    probe_size,
+                    n_sphere_points,
+                    natoms_i,
+                    atomind,
+                ))
+            point_array = []
+            for i in range(task_divisor):
+                partial_points = futures_array[i].result()
+                point_array.append(partial_points)
+            points = np.concatenate(tuple(point_array), axis=0)
+
+        return points
 
     def _cal_energies_NOT_USED(self):
         """
@@ -1205,7 +1266,8 @@ class RecGrid(Grid):
         elif name == "occupancy":
             return np.array([0], dtype=float)
         elif name == "sasa":
-            # return self._molecule_sasa
+            return np.array([0], dtype=float)
+        elif name == "water":
             return np.array([0], dtype=float)
         else:
             raise RuntimeError("%s is unknown"%name)
@@ -1223,6 +1285,9 @@ class RecGrid(Grid):
         else:
             clash_radii = self._prmtop["VDW_RADII"]
 
+        probe_size = 1.4
+        n_sphere_points = 960
+
         atom_names = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"]
         atom_list = []
         for i in range(self._crd.shape[0]):
@@ -1232,46 +1297,73 @@ class RecGrid(Grid):
             else:
                 atom_list.append(i)
 
-        task_divisor = 12
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            futures = {}
-            for name in self._grid_func_names:
+        task_divisor = 22
+        for name in self._grid_func_names:
+            print("calculating receptor %s grid" % name)
+            with concurrent.futures.ProcessPoolExecutor() as executor:
                 futures_array = []
-                for i in range(task_divisor):
-                    counts = np.copy(self._grid["counts"])
-                    counts_x = counts[0] // task_divisor
-                    if i == task_divisor-1:
-                        counts_x += counts[0] % task_divisor
-                    counts[0] = counts_x
+                if name != "sasa":
+                    for i in range(task_divisor):
+                        counts = np.copy(self._grid["counts"])
+                        counts_x = counts[0] // task_divisor
+                        if i == task_divisor-1:
+                            counts_x += counts[0] % task_divisor
+                        counts[0] = counts_x
+                        grid_start_x = i * (self._grid["counts"][0] // task_divisor)
+                        origin = np.copy(self._origin_crd)
+                        origin[0] = grid_start_x * self._grid["spacing"][0]
+                        futures_array.append(executor.submit(
+                            process_potential_grid_function,
+                            name,
+                            self._crd,
+                            origin,
+                            self._grid["spacing"],
+                            counts,
+                            self._get_charges(name),
+                            self._prmtop["LJ_SIGMA"],
+                            clash_radii,
+                            atom_list,
+                            self._molecule_sasa,
+                            self._sasa_cutoffs,
+                            self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
+                            self._rec_core_scaling,
+                            self._rec_surface_scaling,
+                            self._rec_metal_scaling,
+                        ))
+                    grid_array = []
+                    for i in range(task_divisor):
+                        partial_grid = futures_array[i].result()
+                        grid_array.append(partial_grid)
+                    grid = np.concatenate(tuple(grid_array), axis=0)
+                else:
+                    for i in range(task_divisor):
+                        natoms_i = self._crd.shape[0]
+                        natoms_slice = natoms_i // task_divisor
+                        if i == task_divisor - 1:
+                            natoms_slice += natoms_i % task_divisor
+                        natoms_i = natoms_slice
+                        atomind = i * (self._crd.shape[0] // task_divisor)
+                        futures_array.append(executor.submit(
+                            process_sasa_grid_function,
+                            self._crd,
+                            self._prmtop["VDW_RADII"],
+                            self._spacing,
+                            probe_size,
+                            n_sphere_points,
+                            natoms_i,
+                            atomind,
+                        ))
+                    point_array = []
+                    for i in range(task_divisor):
+                        partial_points = futures_array[i].result()
+                        point_array.append(partial_points)
+                    points = np.concatenate(tuple(point_array), axis=0)
+                    grid = np.zeros(self._grid["counts"], dtype=np.float64)
+                    for atom in points:
+                        for point in atom:
+                            x,y,z = c_crd_to_grid(point[:3], self._grid["spacing"])
+                            grid[x,y,z] += 4*np.pi*(point[3]**2)/points.shape[1]
 
-                    grid_start_x = i * (self._grid["counts"][0] // task_divisor)
-                    origin = np.copy(self._origin_crd)
-                    origin[0] = grid_start_x * self._grid["spacing"][0]
-                    futures_array.append(executor.submit(
-                        process_potential_grid_function,
-                        name,
-                        self._crd,
-                        origin,
-                        self._grid["spacing"],
-                        counts,
-                        self._get_charges(name),
-                        self._prmtop["LJ_SIGMA"],
-                        clash_radii,
-                        atom_list,
-                        self._molecule_sasa,
-                        self._sasa_cutoffs,
-                        self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
-                        self._rec_core_scaling,
-                        self._rec_surface_scaling,
-                        self._rec_metal_scaling,
-                    ))
-                futures[name] = futures_array
-            for name in futures:
-                grid_array = []
-                for i in range(task_divisor):
-                    partial_grid = futures[name][i].result()
-                    grid_array.append(partial_grid)
-                grid = np.concatenate(tuple(grid_array), axis=0)
                 self._write_to_nc(nc_handle, name, grid)
                 self._set_grid_key_value(name, grid)
                 # self._set_grid_key_value(name, None)     # to save memory

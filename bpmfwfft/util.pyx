@@ -864,27 +864,25 @@ def c_cal_potential_grid_pp(   str name,
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
         np.ndarray[np.float64_t, ndim=1] dx2, dy2, dz2
 
-    if name != "occupancy":
+    if name in ["LJa","LJr","electrostatic","water"]:
         if name == "LJa":
             exponent = 3.
         elif name == "LJr":
             exponent = 6.
         elif name == "electrostatic":
             exponent = 0.5
-        elif name == "sasa":
+        elif name == "water":
             exponent = 1.
         else:
             raise RuntimeError("Wrong grid name %s"%name)
-
         grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
             dx2 = (atom_coordinate[0] - grid_x) ** 2
             dy2 = (atom_coordinate[1] - grid_y) ** 2
             dz2 = (atom_coordinate[2] - grid_z) ** 2
-            # grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
-            grid_tmp[grid_tmp>0.] = 0.
-            if name == "sasa":
+            grid_tmp[grid_tmp > 0.] = 0.
+            if name == "water":
                 charge = molecule_sasa[0][atom_ind]
                 lj_diameter = clash_radii[atom_ind]
                 surface_layer = lj_diameter + 1.4
@@ -893,17 +891,7 @@ def c_cal_potential_grid_pp(   str name,
                                                   uper_most_corner, spacing, grid_x, grid_y, grid_z,
                                                   grid_counts)
                 for i, j, k in corners:
-                    dx_tmp = dx2[i]
-                    dy_tmp = dy2[j]
-                    d = dx_tmp + dy_tmp + dz2[k]
-                    # sigma = 2.8/3  # H2O diameter/3, so 3*sigma ~= H2O diameter
-                    # exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
-                    # pdf = (1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
-                    # grid_tmp[i, j, k] = pdf
                     grid_tmp[i, j, k] = 1.
-                # if grid_tmp.sum() != 0:
-                #     grid_tmp = grid_tmp / grid_tmp.sum()
-                #     grid_tmp *= charge
             else:
                 charge = charges[atom_ind]
                 lj_diameter = lj_sigma[atom_ind]
@@ -923,7 +911,6 @@ def c_cal_potential_grid_pp(   str name,
             #     grid_tmp[i,j,k] = 0
 
             grid += grid_tmp
-    # TODO: Add in new atomic scaling factors for occupancy grid
     else:
         for atom_ind in atom_list:
             atom_coordinate = crd[atom_ind]
@@ -979,9 +966,9 @@ def c_cal_charge_grid_pp(  str name,
         np.ndarray[np.float64_t, ndim=1] atom_coordinate
         np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=float)
 
-    assert name in ["occupancy", "sasa", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
+    assert name in ["occupancy", "sasa", "water", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
 
-    if name != "occupancy" and name != "sasa":
+    if name in ["LJa", "LJr", "electrostatic"]:
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
             charge = charges[atom_ind]
@@ -992,9 +979,8 @@ def c_cal_charge_grid_pp(  str name,
                                                                     grid_x, grid_y, grid_z)
             for i in range(len(ten_corners)):
                 l, m, n = ten_corners[i]
-                # below is effectively grid[l, m, n] += distributed_charges[i] for complex nums
                 grid[l, m, n] += distributed_charges[i]
-    elif name == "sasa":
+    elif name == "water":
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
             charge = molecule_sasa[0][atom_ind]
@@ -1013,14 +999,8 @@ def c_cal_charge_grid_pp(  str name,
                 dx_tmp = dx2[i]
                 dy_tmp = dy2[j]
                 d = dx_tmp + dy_tmp + dz2[k]
-                # sigma = 2.8/3
-                # exp = np.exp(-(d - lj_diameter) ** 2 / (2 * (sigma ** 2)))
-                # pdf = charge*(1 / np.sqrt(2 * np.pi * sigma ** 2)) * exp
-                # grid_tmp[i,j,k] = pdf
                 grid_tmp[i, j, k] = 1.
-            # if grid_tmp.sum() != 0:
-            #     grid_tmp = grid_tmp / grid_tmp.sum()
-            #     grid_tmp *= charge
+
             # corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
             #                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
 
@@ -1031,14 +1011,6 @@ def c_cal_charge_grid_pp(  str name,
             grid += grid_tmp
 
     else:
-        # for atom_ind in range(natoms):
-        #     atom_coordinate = crd[atom_ind]
-        #     ten_corners = c_ten_corners(atom_coordinate, origin_crd, uper_most_corner_crd,
-        #                                 uper_most_corner, spacing, eight_corner_shifts, six_corner_shifts,
-        #                                 grid_x, grid_y, grid_z)
-        #     for i in range(len(ten_corners)):
-        #         l, m, n = ten_corners[i]
-        #         grid[l, m, n] = 1.0
         for atom_ind in atom_list:
             atom_coordinate = crd[atom_ind]
             if lig_res_names[atom_ind] in metal_ions:
@@ -1062,9 +1034,10 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
                             np.ndarray[np.float64_t, ndim=2] sphere_points,
                             np.ndarray[np.float64_t, ndim=1] spacing,
                             int n_sphere_points,
-                            np.ndarray[np.float64_t, ndim=3] grid
+                            int natoms_i,
+                            int atomind
                             ):
-    print("c_asa_frame")
+
     cdef:
         int i, j, k, index
         int l, m, n
@@ -1078,10 +1051,11 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
         np.ndarray[np.float64_t, ndim=1] sphere_point_coordinate
         np.ndarray[np.float64_t, ndim=1] r_i, r_j, r_ij, r_jk
         np.ndarray[np.int64_t, ndim = 1] neighbor_indices = np.empty(natoms, dtype=np.int64)
-        np.ndarray[np.float64_t, ndim = 3] centered_sphere_points = np.empty([natoms,n_sphere_points,3], dtype=np.float64)
+        np.ndarray[np.float64_t, ndim = 3] centered_sphere_points = np.empty([natoms,n_sphere_points, 3], dtype=np.float64)
+        np.ndarray[np.float64_t, ndim = 3] accessible_sphere_points = np.zeros([natoms_i, n_sphere_points, 4], dtype=np.float64)
         np.ndarray[np.float64_t, ndim = 1] areas = np.zeros(natoms, dtype=np.float64)
-    print("debug test")
-    for i in range(natoms):
+
+    for i in range(natoms)[atomind:atomind+natoms_i]:
         atom_radius_i = atom_radii[i]
         r_i = crd[i]
 
@@ -1111,6 +1085,7 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
             centered_sphere_points[i, j, 0] = crd[i, 0] + atom_radius_i*sphere_points[j, 0]
             centered_sphere_points[i, j, 1] = crd[i, 1] + atom_radius_i*sphere_points[j, 1]
             centered_sphere_points[i, j, 2] = crd[i, 2] + atom_radius_i*sphere_points[j, 2]
+            centered_sphere_points[i, j, 4] = atom_radii[i]
 
         # Check if these points are accessible
         k_closest_neighbor = 0
@@ -1127,12 +1102,9 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
                     is_accessible = False
                     break;
             if(is_accessible):
-                grid_crd = c_crd_to_grid(cmround(r_j, spacing), spacing)
-                l,m,n = grid_crd.astype(int)
-                grid[l,m,n] += constant * (atom_radii[i]) * (atom_radii[i])
-                areas[i] += 1
-        areas[i] *= constant * (atom_radii[i]) * (atom_radii[i])
-    return grid, areas
+                # accessible_sphere_points[i-atomind, j, :] = np.append(centered_sphere_points[i, j, :], atom_radii[i])
+                accessible_sphere_points[i-atomind, j, :] = np.append(cmround(centered_sphere_points[i, j, :], spacing), atom_radii[i])
+    return accessible_sphere_points
 
 @cython.boundscheck(False)
 def c_generate_sphere_points(int n_points):
@@ -1160,117 +1132,138 @@ def c_sasa(         np.ndarray[np.float64_t, ndim=2] crd,
                     np.ndarray[np.float64_t, ndim=1] spacing,
                     float probe_size,
                     int n_sphere_points,
-                    np.ndarray[np.float64_t, ndim=3] grid):
-    print(crd.shape[0])
+                    int natoms_i,
+                    int atomind
+                    ):
     cdef:
         int natoms = crd.shape[0]
         int i, j
-        # np.ndarray[np.int64_t, ndim = 1] wb1 = np.empty(natoms, dtype=np.int64)
-        # np.ndarray[np.float64_t, ndim = 2] wb2 = np.empty([n_sphere_points, 3], dtype=np.float64)
-        # np.ndarray[np.float64_t, ndim = 1] outframe
-        # np.ndarray[np.float64_t, ndim = 1] outframebuffer = np.empty(natoms, dtype=np.float64)
         np.ndarray[np.float64_t, ndim = 2] sphere_points = np.empty([n_sphere_points, 3], dtype=np.float64)
+        np.ndarray[np.float64_t, ndim = 3] accessible_sphere_points = np.zeros([natoms_i, n_sphere_points, 4], dtype=np.float64)
+        np.ndarray[np.float64_t, ndim = 1] areas = np.zeros(natoms_i, dtype=np.float64)
     sphere_points = c_generate_sphere_points(n_sphere_points)
-    grid, areas = c_asa_frame(crd, atom_radii+probe_size, sphere_points, spacing, n_sphere_points, grid)
+    accessible_sphere_points = c_asa_frame(crd, atom_radii+probe_size, sphere_points, spacing, n_sphere_points, natoms_i, atomind)
 
-    return grid, areas
+    return accessible_sphere_points
 
-@cython.boundscheck(False)
-def c_asa_frame_mp(      np.ndarray[np.float64_t, ndim=2] crd,
-                            np.ndarray[np.float64_t, ndim=1] atom_radii,
-                            np.ndarray[np.float64_t, ndim=2] sphere_points,
-                            np.ndarray[np.float64_t, ndim=1] spacing,
-                            int n_sphere_points,
-                            np.ndarray[np.float64_t, ndim=3] grid
-                            ):
-    print("c_asa_frame")
-    cdef:
-        int i, j, k, index
-        int l, m, n
-        int natoms = crd.shape[0]
-        int n_neighbor_indices, k_closest_neighbor, k_prime
-        float atom_radius_i, atom_radius_j
-        float radius_cutoff, radius_cutoff2, r2, r
-        float constant = 4.0 * np.pi / n_sphere_points
-        bint is_accessible
-        np.ndarray[np.int64_t, ndim=1] grid_crd = np.empty(3, dtype=np.int64)
-        np.ndarray[np.float64_t, ndim=1] sphere_point_coordinate
-        np.ndarray[np.float64_t, ndim=1] r_i, r_j, r_ij, r_jk
-        np.ndarray[np.int64_t, ndim = 1] neighbor_indices = np.empty(natoms, dtype=np.int64)
-        np.ndarray[np.float64_t, ndim = 3] centered_sphere_points = np.empty([natoms,n_sphere_points,3], dtype=np.float64)
-        np.ndarray[np.float64_t, ndim = 1] areas = np.zeros(natoms, dtype=np.float64)
-    print("debug test")
-    for i in range(natoms):
-        atom_radius_i = atom_radii[i]
-        r_i = crd[i]
 
-        # Get all the atoms close to atom i
-        n_neighbor_indices = 0
-        for j in range(natoms):
-            if i == j:
-                continue
+# @cython.boundscheck(False)
+# def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
+#                             np.ndarray[np.float64_t, ndim=1] atom_radii,
+#                             np.ndarray[np.float64_t, ndim=2] sphere_points,
+#                             np.ndarray[np.float64_t, ndim=1] spacing,
+#                             int n_sphere_points,
+#                             np.ndarray[np.float64_t, ndim=3] grid
+#                             ):
+#     print("c_asa_frame")
+#     cdef:
+#         int i, j, k, index
+#         int l, m, n
+#         int natoms = crd.shape[0]
+#         int n_neighbor_indices, k_closest_neighbor, k_prime
+#         float atom_radius_i, atom_radius_j
+#         float radius_cutoff, radius_cutoff2, r2, r
+#         float constant = 4.0 * np.pi / n_sphere_points
+#         bint is_accessible
+#         np.ndarray[np.int64_t, ndim=1] grid_crd = np.empty(3, dtype=np.int64)
+#         np.ndarray[np.float64_t, ndim=1] sphere_point_coordinate
+#         np.ndarray[np.float64_t, ndim=1] r_i, r_j, r_ij, r_jk
+#         np.ndarray[np.int64_t, ndim = 1] neighbor_indices = np.empty(natoms, dtype=np.int64)
+#         np.ndarray[np.float64_t, ndim = 3] centered_sphere_points = np.empty([natoms,n_sphere_points,3], dtype=np.float64)
+#         np.ndarray[np.float64_t, ndim = 1] areas = np.zeros(natoms, dtype=np.float64)
+#     print("debug test")
+#     for i in range(natoms):
+#         atom_radius_i = atom_radii[i]
+#         r_i = crd[i]
+#
+#         # Get all the atoms close to atom i
+#         n_neighbor_indices = 0
+#         for j in range(natoms):
+#             if i == j:
+#                 continue
+#
+#             r_j = crd[j]
+#             r_ij = r_i-r_j
+#             atom_radius_j = atom_radii[j]
+#
+#             # look for atoms j around atom i
+#             radius_cutoff = atom_radius_i+atom_radius_j
+#             radius_cutoff2 = radius_cutoff*radius_cutoff
+#             r2 = np.dot(r_ij, r_ij)
+#
+#             if r2 < radius_cutoff2:
+#                 neighbor_indices[n_neighbor_indices] = j
+#                 n_neighbor_indices += 1
+#             if r2 < 1e-10:
+#                 print("This code is known to fail when atoms are too close")
+#                 break
+#         # Center the sphere points on atom i
+#         for j in range(n_sphere_points):
+#             centered_sphere_points[i, j, 0] = crd[i, 0] + atom_radius_i*sphere_points[j, 0]
+#             centered_sphere_points[i, j, 1] = crd[i, 1] + atom_radius_i*sphere_points[j, 1]
+#             centered_sphere_points[i, j, 2] = crd[i, 2] + atom_radius_i*sphere_points[j, 2]
+#
+#         # Check if these points are accessible
+#         k_closest_neighbor = 0
+#         for j in range(n_sphere_points):
+#             is_accessible = True
+#             r_j = centered_sphere_points[i, j, :]
+#             for k in range(n_neighbor_indices + k_closest_neighbor)[k_closest_neighbor:]:
+#                 k_prime = k % n_neighbor_indices
+#                 r = atom_radii[neighbor_indices[k_prime]]
+#                 index = neighbor_indices[k_prime]
+#                 r_jk = r_j-crd[index]
+#                 if np.dot(r_jk,r_jk) < r*r:
+#                     k_closest_neighbor = k
+#                     is_accessible = False
+#                     break;
+#             if(is_accessible):
+#                 grid_crd = c_crd_to_grid(cmround(r_j, spacing), spacing)
+#                 l,m,n = grid_crd.astype(int)
+#                 grid[l,m,n] += constant * (atom_radii[i]) * (atom_radii[i])
+#                 areas[i] += 1
+#         areas[i] *= constant * (atom_radii[i]) * (atom_radii[i])
+#     return grid, areas
+#
+# @cython.boundscheck(False)
+# def c_generate_sphere_points(int n_points):
+#     cdef:
+#         int i
+#         float y, r, phi
+#         float inc = np.pi * (3.0 - np.sqrt(5.0))
+#         float offset = 2.0 / n_points
+#         np.ndarray[np.float64_t, ndim = 2] sphere_points = np.empty([n_points, 3], dtype=np.float64)
+#
+#     for i in range(n_points):
+#         y = i * offset - 1.0 + (offset / 2.0)
+#         r = np.sqrt(1.0 - y*y)
+#         phi = i * inc
+#
+#         sphere_points[i, 0] = np.cos(phi) * r
+#         sphere_points[i, 1] = y
+#         sphere_points[i, 2] = np.sin(phi) * r
+#     return sphere_points
+#
+#
+# @cython.boundscheck(False)
+# def c_sasa(         np.ndarray[np.float64_t, ndim=2] crd,
+#                     np.ndarray[np.float64_t, ndim=1] atom_radii,
+#                     np.ndarray[np.float64_t, ndim=1] spacing,
+#                     float probe_size,
+#                     int n_sphere_points,
+#                     np.ndarray[np.float64_t, ndim=3] grid):
+#     print(crd.shape[0])
+#     cdef:
+#         int natoms = crd.shape[0]
+#         int i, j
+#         # np.ndarray[np.int64_t, ndim = 1] wb1 = np.empty(natoms, dtype=np.int64)
+#         # np.ndarray[np.float64_t, ndim = 2] wb2 = np.empty([n_sphere_points, 3], dtype=np.float64)
+#         # np.ndarray[np.float64_t, ndim = 1] outframe
+#         # np.ndarray[np.float64_t, ndim = 1] outframebuffer = np.empty(natoms, dtype=np.float64)
+#         np.ndarray[np.float64_t, ndim = 2] sphere_points = np.empty([n_sphere_points, 3], dtype=np.float64)
+#     sphere_points = c_generate_sphere_points(n_sphere_points)
+#     grid, areas = c_asa_frame(crd, atom_radii+probe_size, sphere_points, spacing, n_sphere_points, grid)
+#
+#     return grid, areas
 
-            r_j = crd[j]
-            r_ij = r_i-r_j
-            atom_radius_j = atom_radii[j]
-
-            # look for atoms j around atom i
-            radius_cutoff = atom_radius_i+atom_radius_j
-            radius_cutoff2 = radius_cutoff*radius_cutoff
-            r2 = np.dot(r_ij, r_ij)
-
-            if r2 < radius_cutoff2:
-                neighbor_indices[n_neighbor_indices] = j
-                n_neighbor_indices += 1
-            if r2 < 1e-10:
-                print("This code is known to fail when atoms are too close")
-                break
-        # Center the sphere points on atom i
-        for j in range(n_sphere_points):
-            centered_sphere_points[i, j, 0] = crd[i, 0] + atom_radius_i*sphere_points[j, 0]
-            centered_sphere_points[i, j, 1] = crd[i, 1] + atom_radius_i*sphere_points[j, 1]
-            centered_sphere_points[i, j, 2] = crd[i, 2] + atom_radius_i*sphere_points[j, 2]
-
-        # Check if these points are accessible
-        k_closest_neighbor = 0
-        for j in range(n_sphere_points):
-            is_accessible = True
-            r_j = centered_sphere_points[i, j, :]
-            for k in range(n_neighbor_indices + k_closest_neighbor)[k_closest_neighbor:]:
-                k_prime = k % n_neighbor_indices
-                r = atom_radii[neighbor_indices[k_prime]]
-                index = neighbor_indices[k_prime]
-                r_jk = r_j-crd[index]
-                if np.dot(r_jk,r_jk) < r*r:
-                    k_closest_neighbor = k
-                    is_accessible = False
-                    break;
-            if(is_accessible):
-                grid_crd = c_crd_to_grid(cmround(r_j, spacing), spacing)
-                l,m,n = grid_crd.astype(int)
-                grid[l,m,n] += constant * (atom_radii[i]) * (atom_radii[i])
-                areas[i] += 1
-        areas[i] *= constant * (atom_radii[i]) * (atom_radii[i])
-    return grid
-
-@cython.boundscheck(False)
-def c_sasa_mp(         np.ndarray[np.float64_t, ndim=2] crd,
-                    np.ndarray[np.float64_t, ndim=1] atom_radii,
-                    np.ndarray[np.float64_t, ndim=1] spacing,
-                    float probe_size,
-                    int n_sphere_points,
-                    np.ndarray[np.float64_t, ndim=3] grid):
-    print(crd.shape[0])
-    cdef:
-        int natoms = crd.shape[0]
-        int i, j
-        # np.ndarray[np.int64_t, ndim = 1] wb1 = np.empty(natoms, dtype=np.int64)
-        # np.ndarray[np.float64_t, ndim = 2] wb2 = np.empty([n_sphere_points, 3], dtype=np.float64)
-        # np.ndarray[np.float64_t, ndim = 1] outframe
-        # np.ndarray[np.float64_t, ndim = 1] outframebuffer = np.empty(natoms, dtype=np.float64)
-        np.ndarray[np.float64_t, ndim = 2] sphere_points = np.empty([n_sphere_points, 3], dtype=np.float64)
-    sphere_points = c_generate_sphere_points(n_sphere_points)
-    grid = c_asa_frame_mp(crd, atom_radii+probe_size, sphere_points, spacing, n_sphere_points, grid)
-
-    return grid
 
