@@ -17,6 +17,7 @@ parser.add_argument("--max_jobs",                      type=int, default=50)
 parser.add_argument("--amber_dir",                     type=str, default="amber")
 parser.add_argument("--coord_dir",                     type=str, default="min")
 parser.add_argument("--grid_dir",                      type=str, default="grid")
+parser.add_argument("--grid_name",                      type=str, default="grid.nc")
 parser.add_argument("--lig_ensemble_dir",              type=str, default="rotation")
 
 parser.add_argument("--energy_sample_size_per_ligand", type=int, default=1000)
@@ -45,7 +46,7 @@ LIGAND_PRMTOP = "ligand.prmtop"
 LIG_COOR_NC = "rotation.nc"
 
 # GRID_NC = "all_grid_noH.nc"
-GRID_NC = "sasa_grid_noH.nc"
+GRID_NC = args.grid_name
 FFT_SAMPLING_NC = "fft_sample.nc"
 
 

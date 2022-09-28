@@ -14,27 +14,27 @@ try:
     from bpmfwfft import IO
     try:        
         from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
-        from bpmfwfft.util import c_cal_charge_grid_new, c_cal_charge_grid_pp
+        from bpmfwfft.util import c_cal_charge_grid_new, c_cal_charge_grid_pp, c_cal_charge_grid_pp_mp
         from bpmfwfft.util import c_cal_potential_grid, c_cal_potential_grid_pp
         from bpmfwfft.util import c_cal_lig_sasa_grid
         from bpmfwfft.util import c_cal_lig_sasa_grids
-        from bpmfwfft.util import c_sasa, c_crd_to_grid
+        from bpmfwfft.util import c_sasa, c_crd_to_grid, c_points_to_grid
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
-        from util import c_cal_charge_grid_new, c_cal_charge_grid_pp
+        from util import c_cal_charge_grid_new, c_cal_charge_grid_pp, c_cal_charge_grid_pp_mp
         from util import c_cal_potential_grid, c_cal_potential_grid_pp
         from util import c_cal_lig_sasa_grid
         from util import c_cal_lig_sasa_grids
-        from util import c_sasa, c_crd_to_grid
+        from util import c_sasa, c_crd_to_grid, c_points_to_grid
 
 except:
     import IO
     from util import c_is_in_grid, cdistance, c_containing_cube
-    from util import c_cal_charge_grid_new, c_cal_charge_grid_pp
+    from util import c_cal_charge_grid_new, c_cal_charge_grid_pp, c_cal_charge_grid_pp_mp
     from util import c_cal_potential_grid, c_cal_potential_grid_pp
     from util import c_cal_lig_sasa_grid
     from util import c_cal_lig_sasa_grids
-    from util import c_sasa, c_crd_to_grid
+    from util import c_sasa, c_crd_to_grid, c_points_to_grid
 
 SASA_SLOPE = 2.127036
 SASA_INTERCEPT = 111.86583367165035
@@ -102,6 +102,8 @@ def process_charge_grid_function(
         prmtop_ljsigma,
         clash_radii,
         atom_list,
+        natoms_i,
+        atomind,
         molecule_sasa,
         sasa_cutoffs,
         lig_res_names,
@@ -114,7 +116,6 @@ def process_charge_grid_function(
     use cython to calculate electrostatic, LJa, LJr, and water grids
     and save them to nc file
     """
-    print("calculating Ligand %s grid" % name)
     grid_x = np.linspace(
         origin_crd[0],
         origin_crd[0] + ((grid_counts[0]-1) * grid_spacing[0]),
@@ -133,12 +134,12 @@ def process_charge_grid_function(
     uper_most_corner_crd = origin_crd + (grid_counts - 1.) * grid_spacing
     uper_most_corner = (grid_counts - 1)
 
-    grid = c_cal_charge_grid_pp(name, crd,
+    grid = c_cal_charge_grid_pp_mp(name, crd,
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, eight_corner_shifts, six_corner_shifts,
                                 grid_counts, charges, prmtop_ljsigma, clash_radii, atom_list,
-                                molecule_sasa, sasa_cutoffs, lig_res_names,
+                                natoms_i, atomind, molecule_sasa, sasa_cutoffs, lig_res_names,
                                 lig_core_scaling, lig_surface_scaling, lig_metal_scaling)
 
     return grid
@@ -205,8 +206,8 @@ class Grid(object):
     def __init__(self):
         self._grid = {}
         # self._grid_func_names   = ("occupancy", "water", "electrostatic", "LJr", "LJa", "sasa")  # calculate all grids
-        # self._grid_func_names = ("occupancy", "water", "sasa")  # test new sasa grid
-        self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
+        self._grid_func_names = ("occupancy", "water", "sasa")  # test new sasa grid
+        # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes  = ("x", "y", "z")
         box_dim_names   = ("d0", "d1", "d2")
@@ -494,7 +495,7 @@ class LigGrid(Grid):
         return None
     
     def _get_charges(self, name):
-        assert name in self._grid_func_names, "%s is not allowed"%name
+        # assert name in self._grid_func_names, "%s is not allowed"%name
 
         if name == "electrostatic":
             return np.array(self._prmtop["CHARGE_E_UNIT"], dtype=float)
@@ -512,49 +513,61 @@ class LigGrid(Grid):
             raise RuntimeError("%s is unknown"%name)
 
     def _cal_charge_grid(self, name):
-        charges = self._get_charges(name)
-        clash_radii = self._prmtop["VDW_RADII"]
+        crd = np.copy(self._crd)
+        clash_radii = np.copy(self._prmtop["VDW_RADII"])
         grid_counts = np.copy(self._grid["counts"])
-        atom_names = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"]
-        atom_list = []
+        origin = np.copy(self._origin_crd)
+        atom_names = np.copy(self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"])
+        spacing = np.copy(self._spacing)
         exclude_H = True
-        for i in range(self._crd.shape[0]):
-            if exclude_H:
-                if atom_names[i][0] != 'H':
-                    atom_list.append(i)
-            else:
-                atom_list.append(i)
-
-        # grid = c_cal_charge_grid_pp(name, self._crd, self._grid["x"], self._grid["y"], self._grid["z"],
-        #                         self._origin_crd, self._uper_most_corner_crd, self._uper_most_corner,
-        #                         self._grid["spacing"], self._eight_corner_shifts, self._six_corner_shifts,
-        #                         grid_counts, charges, self._prmtop["LJ_SIGMA"], clash_radii, atom_list,
-        #                         self._molecule_sasa, self._sasa_cutoffs,
-        #                         self._prmtop["PDB_TEMPLATE"]["RES_NAME"], self._lig_core_scaling,
-        #                         self._lig_surface_scaling, self._lig_metal_scaling
-        #                         )
-        task_divisor = 22
-        if name == "sasa":
-            grid = np.zeros(grid_counts, dtype=np.float64)
-            points = lig_grid._cal_sasa_grid(1.4, 960)
-            for atom in points:
-                for point in atom:
-                    x, y, z = c_crd_to_grid(point[:3], self._grid["spacing"])
-                    grid[x, y, z] += 4 * np.pi * (point[3] ** 2) / points.shape[1]
-        else:
-            with concurrent.futures.ProcessPoolExecutor() as executor:
-                futures_array = []
+        probe_size = 1.4
+        n_sphere_points = 960
+        task_divisor = 10
+        print("calculating Ligand %s grid" % name)
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            futures_array = []
+            if name == "sasa":
                 for i in range(task_divisor):
-                    counts = np.copy(self._grid["counts"])
-                    counts_x = counts[0] // task_divisor
+                    natoms_i = self._crd.shape[0]
+                    natoms_slice = natoms_i // task_divisor
                     if i == task_divisor - 1:
-                        counts_x += counts[0] % task_divisor
-                    counts[0] = counts_x
-
-                    grid_start_x = i * (self._grid["counts"][0] // task_divisor)
-                    origin = np.copy(self._origin_crd)
-                    origin[0] = grid_start_x * self._grid["spacing"][0]
-
+                        natoms_slice += natoms_i % task_divisor
+                    natoms_i = natoms_slice
+                    atomind = i * (self._crd.shape[0] // task_divisor)
+                    futures_array.append(executor.submit(
+                        process_sasa_grid_function,
+                        self._crd,
+                        self._prmtop["VDW_RADII"],
+                        self._spacing,
+                        1.4,
+                        960,
+                        natoms_i,
+                        atomind,
+                    ))
+                point_array = []
+                for i in range(task_divisor):
+                    partial_points = futures_array[i].result()
+                    point_array.append(partial_points)
+                    futures_array[i].done()
+                points = np.concatenate(tuple(point_array), axis=0)
+                grid = np.zeros(grid_counts, dtype=np.float64)
+                grid = c_points_to_grid(points, spacing, grid)
+            else:
+                charges = self._get_charges(name)
+                for i in range(task_divisor):
+                    natoms_i = self._crd.shape[0]
+                    natoms_slice = natoms_i // task_divisor
+                    if i == task_divisor-1:
+                        natoms_slice += natoms_i % task_divisor
+                    natoms_i = natoms_slice
+                    atomind = i * (self._crd.shape[0] // task_divisor)
+                    atom_list = []
+                    for i in range(self._crd.shape[0])[atomind:atomind+natoms_i]:
+                        if exclude_H:
+                            if atom_names[i][0] != 'H':
+                                atom_list.append(i)
+                        else:
+                            atom_list.append(i)
                     futures_array.append(executor.submit(
                         process_charge_grid_function,
                         name,
@@ -563,11 +576,13 @@ class LigGrid(Grid):
                         self._grid["spacing"],
                         self._eight_corner_shifts,
                         self._six_corner_shifts,
-                        counts,
+                        grid_counts,
                         charges,
                         self._prmtop["LJ_SIGMA"],
                         clash_radii,
                         atom_list,
+                        natoms_i,
+                        atomind,
                         self._molecule_sasa,
                         self._sasa_cutoffs,
                         self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
@@ -575,13 +590,14 @@ class LigGrid(Grid):
                         self._lig_surface_scaling,
                         self._lig_metal_scaling
                     ))
-                grid_array = []
+                grid = np.zeros(grid_counts, dtype=np.float64)
                 for i in range(task_divisor):
                     partial_grid = futures_array[i].result()
-                    grid_array.append(partial_grid)
-                grid = np.concatenate(tuple(grid_array), axis=0)
-
+                    grid = np.add(grid,partial_grid)
+                    futures_array[i].done()
+            executor.shutdown()
         return grid
+
 
     def _cal_corr_func(self, grid_name):
         """
@@ -600,6 +616,30 @@ class LigGrid(Grid):
         corr_func = np.fft.ifftn(self._rec_FFTs[grid_name] * corr_func)
         corr_func = np.real(corr_func)
         return corr_func
+
+    def _cal_delta_sasa_func(self):
+        """
+        :param grid_name: str
+        :return: fft correlation function
+        """
+
+        grid = self._cal_charge_grid("sasa")
+        self._set_grid_key_value("sasa", grid)
+        lig_sasa_func = np.fft.fftn(self._grid["sasa"])
+        self._set_grid_key_value("sasa", None)           # to save memory
+
+        grid = self._cal_charge_grid("water")
+        grid[grid>0.] = 1.
+        self._set_grid_key_value("water", grid)
+        lig_water_func = np.fft.fftn(self._grid["water"])
+        self._set_grid_key_value("water", None)
+        del grid
+
+        lig_sasa_func = lig_sasa_func.conjugate()
+        lig_water_func = lig_water_func.conjugate()
+        delta_sasa_func = np.fft.ifftn(self._rec_FFTs["sasa"] * lig_water_func) + np.fft.ifftn(self._rec_FFTs["water"] * lig_sasa_func)
+        delta_sasa_func = np.real(delta_sasa_func)
+        return delta_sasa_func
 
     def _cal_shape_complementarity(self):
         """
@@ -667,25 +707,16 @@ class LigGrid(Grid):
         print("Ligand positions excluding border crossers", self._free_of_clash.shape)
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
         if np.any(self._free_of_clash):
-            grid_names = [name for name in self._grid_func_names if name != "occupancy"]
+            grid_names = [name for name in self._grid_func_names if name not in ["occupancy", "water", "sasa"]]
             for name in grid_names:
                 grid_func_energy = self._cal_corr_func(name)
-                print(f"{name} energy: {grid_func_energy[68][87][45]}")
-                # testing new LJr calculation method #TODO
-                if name == 'LJa':
-                    grid_func_energy[grid_func_energy > 0] = 0
-                    self._meaningful_energies += grid_func_energy
-                if name == 'LJr':
-                    grid_func_energy[grid_func_energy < 0] = 0
-                    self._meaningful_energies += grid_func_energy
-                else:
-                    self._meaningful_energies += grid_func_energy
+                self._meaningful_energies += grid_func_energy
                 del grid_func_energy
             # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
-            bsa_energy = ((corr_func * SASA_SLOPE) + SASA_INTERCEPT) * GAMMA
+            bsa_energy = self._cal_delta_sasa_func()
+            print(bsa_energy.max(), bsa_energy[bsa_energy>800].min())
+            bsa_energy = bsa_energy * GAMMA
             self._meaningful_energies += bsa_energy
-            print(f"shape complementarity score: {corr_func[68][87][45]}")
-            print(f"buried surface area energy: {bsa_energy[68][87][45]}")
             del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j, 0:max_k] # exclude positions where ligand crosses border
@@ -1040,11 +1071,6 @@ class RecGrid(Grid):
             self._set_grid_key_value(key, nc_handle.variables[key][:])
             self._FFTs[key] = self._cal_FFT(key)
             self._set_grid_key_value(key, None)     # to save memory
-        # self._set_grid_key_value("SASAi", nc_handle.variables["SASAi"][:])  #UNCOMMENT ME
-        # self._set_grid_key_value("SASAr", nc_handle.variables["SASAr"][:])  #UNCOMMENT ME
-        # self._FFTs["SASA"] = self._cal_SASA_FFT()  #UNCOMMENT ME
-        # self._set_grid_key_value("SASAi", None)  #UNCOMMENT ME
-        # self._set_grid_key_value("SASAr", None)  #UNCOMMENT ME
         nc_handle.close()
         return None
 
@@ -1052,7 +1078,11 @@ class RecGrid(Grid):
         if name not in self._grid_func_names:
             raise RuntimeError("%s is not allowed.")
         print("Doing FFT for %s"%name)
-        FFT = np.fft.fftn(self._grid[name])
+        if name == "water":
+            self._grid[name][self._grid[name]>0.] = 1.
+            FFT = np.fft.fftn(self._grid[name])
+        else:
+            FFT = np.fft.fftn(self._grid[name])
         return FFT
 
     def _cal_SASA_FFT(self):
@@ -1359,10 +1389,7 @@ class RecGrid(Grid):
                         point_array.append(partial_points)
                     points = np.concatenate(tuple(point_array), axis=0)
                     grid = np.zeros(self._grid["counts"], dtype=np.float64)
-                    for atom in points:
-                        for point in atom:
-                            x,y,z = c_crd_to_grid(point[:3], self._grid["spacing"])
-                            grid[x,y,z] += 4*np.pi*(point[3]**2)/points.shape[1]
+                    grid = c_points_to_grid(points, self._spacing, grid)
 
                 self._write_to_nc(nc_handle, name, grid)
                 self._set_grid_key_value(name, grid)
