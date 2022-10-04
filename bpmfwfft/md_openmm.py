@@ -13,8 +13,10 @@ import openmm
 import openmm.app
 import openmm.unit
 
-
-from bpmfwfft.rotation import random_rotation
+try:
+    from bpmfwfft.rotation import random_rotation
+except:
+    from rotation import random_rotation
 
 openmm_solvent_models = {  "OpenMM_Gas":None,
                             "OpenMM_GBn":openmm.app.GBn,

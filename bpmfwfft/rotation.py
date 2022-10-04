@@ -2,8 +2,10 @@
 import numpy as np
 import netCDF4
 
-from bpmfwfft.IO import InpcrdLoad
-
+try:
+    from bpmfwfft.IO import InpcrdLoad
+except:
+    from IO import InpcrdLoad
 
 def _rotation_matrix(u):
     """

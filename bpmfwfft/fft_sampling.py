@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import numpy as np
 import netCDF4
+import gc
 
 try:
     from bpmfwfft.grids import RecGrid
@@ -332,7 +333,6 @@ class Sampling_PL(Sampling):
     def _do_fft(self, step):
         print("Doing FFT for step %d"%step)
         lig_conf = self._lig_coord_ensemble[step]
-        print(self._lig_grid["SASAr"])
         self._lig_grid.cal_grids(molecular_coord = lig_conf)
 
         energies = self._lig_grid.get_meaningful_energies()
@@ -388,28 +388,34 @@ class Sampling_PL(Sampling):
 
 if __name__ == "__main__":
     # test
-    rec_prmtop = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
-    lj_sigma_scal_fact = 0.8
-    rec_inpcrd = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
+    rec_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    lj_sigma_scal_fact = 1.0
+    rec_inpcrd = "./media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
 
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
-    grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
+    grid_nc_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/sasa1.nc"
 
-    lig_prmtop = "../examples/amber/ubiquitin/ligand.prmtop"
-    lig_inpcrd = "../examples/amber/ubiquitin/ligand.inpcrd"
+    lig_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    lig_inpcrd = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
 
-    energy_sample_size_per_ligand = 200
-    output_nc = "../examples/fft_sampling/ubql_ubiquitin/fft_sampling.nc"
+    energy_sample_size_per_ligand = 1000
+    output_nc = "/media/jim/Research_TWO/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_test.nc"
 
-    ligand_md_trj_file = "../examples/ligand_md/ubiquitin/rotation.nc"
-    lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][:]
+    ligand_md_trj_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation_5000.nc"
+    lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"]
 
-    sampler = Sampling(rec_prmtop, lj_sigma_scal_fact, rec_inpcrd,
-                        bsite_file, grid_nc_file, 
+    rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
+                       0.76, 0.53, 0.55, 9.0, rec_inpcrd,
+                       bsite_file, grid_nc_file,False,0.5,3.0,"VDW_RADII", True)
+
+    sampler = Sampling(rec_prmtop, lj_sigma_scal_fact,
+                       0.76, 0.53, 0.55, 0.81, 0.50, 0.54, 9.0,
+                       rec_inpcrd,
+                        bsite_file, grid_nc_file,
                         lig_prmtop, lig_inpcrd,
                         lig_coord_ensemble,
-                        energy_sample_size_per_ligand, 
+                        energy_sample_size_per_ligand,
                         output_nc,
                         temperature=300.)
     sampler.run_sampling()

@@ -4,6 +4,7 @@ from __future__ import print_function
 import os
 import re
 import concurrent.futures
+import time
 
 import numpy as np
 import netCDF4
@@ -18,14 +19,14 @@ try:
         from bpmfwfft.util import c_cal_potential_grid, c_cal_potential_grid_pp
         from bpmfwfft.util import c_cal_lig_sasa_grid
         from bpmfwfft.util import c_cal_lig_sasa_grids
-        from bpmfwfft.util import c_sasa, c_crd_to_grid, c_points_to_grid
+        from bpmfwfft.util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
         from util import c_cal_charge_grid_new, c_cal_charge_grid_pp, c_cal_charge_grid_pp_mp
         from util import c_cal_potential_grid, c_cal_potential_grid_pp
         from util import c_cal_lig_sasa_grid
         from util import c_cal_lig_sasa_grids
-        from util import c_sasa, c_crd_to_grid, c_points_to_grid
+        from util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
 
 except:
     import IO
@@ -34,10 +35,8 @@ except:
     from util import c_cal_potential_grid, c_cal_potential_grid_pp
     from util import c_cal_lig_sasa_grid
     from util import c_cal_lig_sasa_grids
-    from util import c_sasa, c_crd_to_grid, c_points_to_grid
+    from util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
 
-SASA_SLOPE = 2.127036
-SASA_INTERCEPT = 111.86583367165035
 # Gamma taken from amber manual
 GAMMA = 0.005
 
@@ -513,16 +512,14 @@ class LigGrid(Grid):
             raise RuntimeError("%s is unknown"%name)
 
     def _cal_charge_grid(self, name):
-        crd = np.copy(self._crd)
         clash_radii = np.copy(self._prmtop["VDW_RADII"])
         grid_counts = np.copy(self._grid["counts"])
         origin = np.copy(self._origin_crd)
         atom_names = np.copy(self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"])
-        spacing = np.copy(self._spacing)
         exclude_H = True
         probe_size = 1.4
         n_sphere_points = 960
-        task_divisor = 10
+        task_divisor = 20
         print("calculating Ligand %s grid" % name)
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures_array = []
@@ -539,8 +536,8 @@ class LigGrid(Grid):
                         self._crd,
                         self._prmtop["VDW_RADII"],
                         self._spacing,
-                        1.4,
-                        960,
+                        probe_size,
+                        n_sphere_points,
                         natoms_i,
                         atomind,
                     ))
@@ -548,10 +545,9 @@ class LigGrid(Grid):
                 for i in range(task_divisor):
                     partial_points = futures_array[i].result()
                     point_array.append(partial_points)
-                    futures_array[i].done()
                 points = np.concatenate(tuple(point_array), axis=0)
-                grid = np.zeros(grid_counts, dtype=np.float64)
-                grid = c_points_to_grid(points, spacing, grid)
+                # grid = np.zeros(self._grid["counts"], dtype=np.float64)
+                grid = c_points_to_grid(points, self._spacing, grid_counts)
             else:
                 charges = self._get_charges(name)
                 for i in range(task_divisor):
@@ -595,7 +591,6 @@ class LigGrid(Grid):
                     partial_grid = futures_array[i].result()
                     grid = np.add(grid,partial_grid)
                     futures_array[i].done()
-            executor.shutdown()
         return grid
 
 
@@ -617,29 +612,28 @@ class LigGrid(Grid):
         corr_func = np.real(corr_func)
         return corr_func
 
-    def _cal_delta_sasa_func(self):
+    def _cal_delta_sasa_func(self, occupancy_fft):
         """
         :param grid_name: str
         :return: fft correlation function
         """
-
         grid = self._cal_charge_grid("sasa")
         self._set_grid_key_value("sasa", grid)
-        lig_sasa_func = np.fft.fftn(self._grid["sasa"])
+        lsasa_fft = np.fft.fftn(self._grid["sasa"])
         self._set_grid_key_value("sasa", None)           # to save memory
-
+        del grid
         grid = self._cal_charge_grid("water")
         grid[grid>0.] = 1.
         self._set_grid_key_value("water", grid)
-        lig_water_func = np.fft.fftn(self._grid["water"])
+        lwater_fft = np.fft.fftn(self._grid["water"])
         self._set_grid_key_value("water", None)
         del grid
 
-        lig_sasa_func = lig_sasa_func.conjugate()
-        lig_water_func = lig_water_func.conjugate()
-        delta_sasa_func = np.fft.ifftn(self._rec_FFTs["sasa"] * lig_water_func) + np.fft.ifftn(self._rec_FFTs["water"] * lig_sasa_func)
-        delta_sasa_func = np.real(delta_sasa_func)
-        return delta_sasa_func
+        lsasa_fft = lsasa_fft.conjugate()
+        lwater_fft = lwater_fft.conjugate()
+        dsasa_score = np.fft.ifftn(self._rec_FFTs["sasa"] * lwater_fft).real + np.fft.ifftn(self._rec_FFTs["water"] * lsasa_fft).real
+        dsasa_score[occupancy_fft > 0.001] = 0.
+        return dsasa_score
 
     def _cal_shape_complementarity(self):
         """
@@ -713,9 +707,9 @@ class LigGrid(Grid):
                 self._meaningful_energies += grid_func_energy
                 del grid_func_energy
             # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
-            bsa_energy = self._cal_delta_sasa_func()
-            print(bsa_energy.max(), bsa_energy[bsa_energy>800].min())
-            bsa_energy = bsa_energy * GAMMA
+            bsa_energy = self._cal_delta_sasa_func(corr_func)
+            print("max dSASA:", bsa_energy.max())
+            bsa_energy = bsa_energy * -GAMMA
             self._meaningful_energies += bsa_energy
             del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
@@ -778,6 +772,7 @@ class LigGrid(Grid):
                 partial_points = futures_array[i].result()
                 point_array.append(partial_points)
             points = np.concatenate(tuple(point_array), axis=0)
+            del point_array
 
         return points
 
@@ -1079,8 +1074,9 @@ class RecGrid(Grid):
             raise RuntimeError("%s is not allowed.")
         print("Doing FFT for %s"%name)
         if name == "water":
-            self._grid[name][self._grid[name]>0.] = 1.
-            FFT = np.fft.fftn(self._grid[name])
+            grid = self._grid[name]
+            grid[grid>0] = 1.
+            FFT = np.fft.fftn(grid)
         else:
             FFT = np.fft.fftn(self._grid[name])
         return FFT
@@ -1516,10 +1512,13 @@ class RecGrid(Grid):
 
 if __name__ == "__main__":
     # do some test
-    rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
-    rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
-    grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
-    lj_sigma_scaling_factor = 0.8
+    # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
+    # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
+    # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
+    rec_prmtop_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    rec_inpcrd_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
+    grid_nc_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/sasa1.nc"
+    lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
     spacing = 0.5

@@ -20,7 +20,7 @@ def cdistance(np.ndarray[np.float64_t, ndim=1] x, np.ndarray[np.float64_t, ndim=
         d += tmp*tmp
     return sqrt(d)
 
-@cython.boundscheck(False)
+@cython.boundscheck(True)
 def cmround(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t, ndim=1] m):
     cdef:
         int lmax = crd.shape[0]
@@ -31,7 +31,7 @@ def cmround(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t, ndim=
         aligned_crd[i] = m[i] * round(crd[i]/m[i])
     return aligned_crd
 
-@cython.boundscheck(False)
+@cython.boundscheck(True)
 def c_crd_to_grid(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t, ndim=1] spacing):
     cdef:
         int lmax = crd.shape[0]
@@ -39,17 +39,22 @@ def c_crd_to_grid(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t,
         np.ndarray[np.float64_t, ndim = 1] grid_crd = crd/spacing
     return grid_crd.astype(int)
 
-@cython.boundscheck(False)
+@cython.boundscheck(True)
 def c_points_to_grid(np.ndarray[np.float64_t, ndim=3] points,
                      np.ndarray[np.float64_t, ndim=1] spacing,
-                     np.ndarray[np.float64_t, ndim=3] grid):
+                     np.ndarray[np.int64_t, ndim=1] counts):
     cdef:
         int i, j
+        Py_ssize_t x, y, z
+        int lmax = points[0, 0, :3].shape[0]
         int natoms = points.shape[0]
         int npoints = points.shape[1]
+        np.ndarray[np.float64_t, ndim = 1] aligned_crd = np.empty([lmax], dtype=np.float64)
+        np.ndarray[np.float64_t, ndim = 3] grid = np.zeros(counts, dtype=np.float64)
     for i in range(natoms):
         for j in range(npoints):
-            x, y, z = c_crd_to_grid(points[i, j, :3], spacing)
+            aligned_crd = cmround(points[i, j, :3], spacing)
+            x, y, z = c_crd_to_grid(aligned_crd, spacing)
             grid[x, y, z] += 4 * np.pi * (points[i,j,3] ** 2) / npoints
     return grid
 
@@ -1042,21 +1047,20 @@ def c_cal_charge_grid_pp(  str name,
 
     return grid
 
-@cython.boundscheck(False)
+@cython.boundscheck(True)
 def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
                             np.ndarray[np.float64_t, ndim=1] atom_radii,
-                            np.ndarray[np.float64_t, ndim=2] sphere_points,
                             np.ndarray[np.float64_t, ndim=1] spacing,
+                            np.ndarray[np.float64_t, ndim=2] sphere_points,
                             int n_sphere_points,
                             int natoms_i,
                             int atomind
                             ):
 
     cdef:
-        int i, j, k, index
-        int l, m, n
+        Py_ssize_t i, j, k, index
         int natoms = crd.shape[0]
-        int n_neighbor_indices, k_closest_neighbor, k_prime
+        Py_ssize_t n_neighbor_indices, k_closest_neighbor, k_prime
         float atom_radius_i, atom_radius_j
         float radius_cutoff, radius_cutoff2, r2, r
         float constant = 4.0 * np.pi / n_sphere_points
@@ -1065,9 +1069,8 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
         np.ndarray[np.float64_t, ndim=1] sphere_point_coordinate
         np.ndarray[np.float64_t, ndim=1] r_i, r_j, r_ij, r_jk
         np.ndarray[np.int64_t, ndim = 1] neighbor_indices = np.empty(natoms, dtype=np.int64)
-        np.ndarray[np.float64_t, ndim = 3] centered_sphere_points = np.empty([natoms,n_sphere_points, 3], dtype=np.float64)
+        np.ndarray[np.float64_t, ndim = 3] centered_sphere_points = np.zeros([natoms,n_sphere_points, 3], dtype=np.float64)
         np.ndarray[np.float64_t, ndim = 3] accessible_sphere_points = np.zeros([natoms_i, n_sphere_points, 4], dtype=np.float64)
-        np.ndarray[np.float64_t, ndim = 1] areas = np.zeros(natoms, dtype=np.float64)
 
     for i in range(natoms)[atomind:atomind+natoms_i]:
         atom_radius_i = atom_radii[i]
@@ -1099,7 +1102,6 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
             centered_sphere_points[i, j, 0] = crd[i, 0] + atom_radius_i*sphere_points[j, 0]
             centered_sphere_points[i, j, 1] = crd[i, 1] + atom_radius_i*sphere_points[j, 1]
             centered_sphere_points[i, j, 2] = crd[i, 2] + atom_radius_i*sphere_points[j, 2]
-            centered_sphere_points[i, j, 4] = atom_radii[i]
 
         # Check if these points are accessible
         k_closest_neighbor = 0
@@ -1116,11 +1118,15 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
                     is_accessible = False
                     break;
             if(is_accessible):
-                # accessible_sphere_points[i-atomind, j, :] = np.append(centered_sphere_points[i, j, :], atom_radii[i])
-                accessible_sphere_points[i-atomind, j, :] = np.append(cmround(centered_sphere_points[i, j, :], spacing), atom_radii[i])
+                accessible_sphere_points[i - atomind, j, 0] = centered_sphere_points[i, j, 0]
+                accessible_sphere_points[i - atomind, j, 1] = centered_sphere_points[i, j, 1]
+                accessible_sphere_points[i - atomind, j, 2] = centered_sphere_points[i, j, 2]
+                accessible_sphere_points[i - atomind, j, 3] = atom_radius_i
+                # accessible_sphere_points[i-atomind, j, :] = np.append(cmround(centered_sphere_points[i, j, :], spacing), atom_radii[i])
+
     return accessible_sphere_points
 
-@cython.boundscheck(False)
+@cython.boundscheck(True)
 def c_generate_sphere_points(int n_points):
     cdef:
         int i
@@ -1140,7 +1146,7 @@ def c_generate_sphere_points(int n_points):
     return sphere_points
 
 
-@cython.boundscheck(False)
+@cython.boundscheck(True)
 def c_sasa(         np.ndarray[np.float64_t, ndim=2] crd,
                     np.ndarray[np.float64_t, ndim=1] atom_radii,
                     np.ndarray[np.float64_t, ndim=1] spacing,
@@ -1154,13 +1160,12 @@ def c_sasa(         np.ndarray[np.float64_t, ndim=2] crd,
         int i, j
         np.ndarray[np.float64_t, ndim = 2] sphere_points = np.empty([n_sphere_points, 3], dtype=np.float64)
         np.ndarray[np.float64_t, ndim = 3] accessible_sphere_points = np.zeros([natoms_i, n_sphere_points, 4], dtype=np.float64)
-        np.ndarray[np.float64_t, ndim = 1] areas = np.zeros(natoms_i, dtype=np.float64)
     sphere_points = c_generate_sphere_points(n_sphere_points)
-    accessible_sphere_points = c_asa_frame(crd, atom_radii+probe_size, sphere_points, spacing, n_sphere_points, natoms_i, atomind)
+    accessible_sphere_points = c_asa_frame(crd, atom_radii+probe_size, spacing, sphere_points, n_sphere_points, natoms_i, atomind)
 
     return accessible_sphere_points
 
-@cython.boundscheck(False)
+@cython.boundscheck(True)
 def c_cal_charge_grid_pp_mp(  str name,
                         np.ndarray[np.float64_t, ndim=2] crd,
                         np.ndarray[np.float64_t, ndim=1] grid_x,

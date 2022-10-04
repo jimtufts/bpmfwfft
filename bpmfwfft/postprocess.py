@@ -9,10 +9,14 @@ import pickle
 import numpy as np
 import netCDF4
 
-from bpmfwfft.md_openmm import openmm_energy
-from bpmfwfft.md_sander import sander_energy
-import bpmfwfft.IO
-
+try:
+    from bpmfwfft.md_openmm import openmm_energy
+    from bpmfwfft.md_sander import sander_energy
+    import bpmfwfft.IO as IO
+except:
+    from md_openmm import openmm_energy
+    from md_sander import sander_energy
+    import IO
 
 KB = 0.001987204134799235       # kcal/mol/K
 
@@ -463,13 +467,13 @@ class PostProcess(object):
 
     def write_rececptor_pdb(self, file):
         rec_crd = self._nc_handle.variables["rec_positions"][:]
-        bpmfwfft.IO.write_pdb(self._rec_prmtop, rec_crd, file, "w")
+        IO.write_pdb(self._rec_prmtop, rec_crd, file, "w")
         return
 
     def write_resampled_ligand_pdb(self, file):
         open(file, "w")
         for conf in self._resampled_holo_lig_confs:
-            bpmfwfft.IO.write_pdb(self._lig_prmtop, conf, file, "a")
+            IO.write_pdb(self._lig_prmtop, conf, file, "a")
         return None
 
 
@@ -609,21 +613,21 @@ class PostProcess_PL(PostProcess):
 
 #-----
 if __name__ == "__main__":
-    rec_prmtop = "../examples/amber/t4_lysozyme/receptor_579.prmtop"
-    lig_prmtop = "../examples/amber/benzene/ligand.prmtop"
-    complex_prmtop = "../examples/amber/t4_benzene_complex/complex_579.prmtop"
-    sampling_nc_file = "../examples/fft_sampling/t4_benzene/fft_sampling.nc"
+    rec_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    lig_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    complex_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/complex.prmtop"
+    sampling_nc_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_test.nc"
     solvent_phases = ["OpenMM_OBC2"]
     nr_resampled_complexes = 100
     randomly_translate_complex = False
     temperature = 300
     sander_tmp_dir = "../examples/postprocessing"
 
-    rec_pdb_out = "../examples/postprocessing/receptor.pdb"
-    lig_pdb_out = "../examples/postprocessing/ligand.pdb"
-    bpmf_pkl_out = "../examples/postprocessing/results.pkl"
+    rec_pdb_out = "/media/jim/Research_TWO/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/receptor_trans.pdb"
+    lig_pdb_out = "/media/jim/Research_TWO/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/ligand_resampled.pdb"
+    bpmf_pkl_out = "/media/jim/Research_TWO/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/results.pkl"
 
-    post_pro = PostProcess_PL(rec_prmtop, lig_prmtop, complex_prmtop,
+    post_pro = PostProcess(rec_prmtop, lig_prmtop, complex_prmtop,
                                 sampling_nc_file,
                                 solvent_phases,
                                 nr_resampled_complexes, randomly_translate_complex,
