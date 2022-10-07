@@ -148,6 +148,10 @@ class Sampling(object):
         return nc_handle
 
     def _save_data_to_nc(self, step):
+        if step = 0:
+            self._nc_handle.variables["native_pose"]["energy"] = self._native_pose_energy
+            self._nc_handle.variables["native_pose"]["crd"] = self._lig_coord_ensemble[step]
+            self._nc_handle.variables["native_pose"]["trans_vector"] = self._native_translation
         self._nc_handle.variables["lig_positions"][step, :, :] = self._lig_grid.get_crd()
 
         self._nc_handle.variables["lig_com"][step, :] = self._lig_grid.get_initial_com()
@@ -187,7 +191,6 @@ class Sampling(object):
         # print out bottom 5 lowest energies
 
         self._log_of_divisor = exp_energies.max()
-        exp_energies[exp_energies < 0] = 0
         exp_energies = np.exp(exp_energies - self._log_of_divisor)
         self._exponential_sum = exp_energies.sum()
         exp_energies /= self._exponential_sum

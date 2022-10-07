@@ -883,6 +883,9 @@ class LigGrid(Grid):
     def get_initial_com(self):
         return self._initial_com
 
+    def get_initial_displacement(self):
+        return self._displacement
+
     def get_SASA_grids(self, radii_type="VDW_RADII", exclude_H=True):
         """
         Return the SASAi and SASAr grids for the Ligand
@@ -1061,6 +1064,7 @@ class RecGrid(Grid):
             raise RuntimeError("Number of atoms is wrong in %s %nc_file_name")
         self._crd = nc_handle.variables["trans_crd"][:]
         self._rho = nc_handle.variables["rho"][:]
+        self._displacement = nc_handle.variables["displacement"][:]
 
         for key in self._grid_func_names:
             self._set_grid_key_value(key, nc_handle.variables[key][:])
@@ -1492,6 +1496,9 @@ class RecGrid(Grid):
 
     def get_rho(self):
         return self._rho
+
+    def get_initial_displacement(self):
+        return self._displacement
 
     def write_box(self, file_name):
         IO.write_box(self, file_name)
