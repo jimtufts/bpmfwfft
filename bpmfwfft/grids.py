@@ -520,7 +520,7 @@ class LigGrid(Grid):
         exclude_H = True
         probe_size = 1.4
         n_sphere_points = 960
-        task_divisor = 20
+        task_divisor = 50
         print("calculating Ligand %s grid" % name)
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures_array = []
@@ -1329,7 +1329,7 @@ class RecGrid(Grid):
             else:
                 atom_list.append(i)
 
-        task_divisor = 22
+        task_divisor = 128
         for name in self._grid_func_names:
             print("calculating receptor %s grid" % name)
             with concurrent.futures.ProcessPoolExecutor() as executor:
