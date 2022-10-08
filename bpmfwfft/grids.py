@@ -457,6 +457,7 @@ class LigGrid(Grid):
         self._lig_surface_scaling = lig_surface_scaling
         self._lig_metal_scaling = lig_metal_scaling
         self._rho = receptor_grid.get_rho()
+        self._native_translation = ((receptor_grid._displacement - self._displacement)/self._spacing).astype(int)
 
 
     def _move_ligand_to_lower_corner(self):
@@ -713,6 +714,7 @@ class LigGrid(Grid):
             self._meaningful_energies += bsa_energy
             del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
+        self._native_pose_energy = self._meaningful_energies[self._native_translation[0], self._native_translation[1],self._native_translation[2]]
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j, 0:max_k] # exclude positions where ligand crosses border
         
         self._meaningful_energies = self._meaningful_energies[self._free_of_clash]         # exclude positions where ligand is in clash with receptor, become 1D array

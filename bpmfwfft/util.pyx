@@ -20,7 +20,7 @@ def cdistance(np.ndarray[np.float64_t, ndim=1] x, np.ndarray[np.float64_t, ndim=
         d += tmp*tmp
     return sqrt(d)
 
-@cython.boundscheck(True)
+@cython.boundscheck(False)
 def cmround(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t, ndim=1] m):
     cdef:
         int lmax = crd.shape[0]
@@ -31,7 +31,7 @@ def cmround(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t, ndim=
         aligned_crd[i] = m[i] * round(crd[i]/m[i])
     return aligned_crd
 
-@cython.boundscheck(True)
+@cython.boundscheck(False)
 def c_crd_to_grid(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t, ndim=1] spacing):
     cdef:
         int lmax = crd.shape[0]
@@ -39,7 +39,7 @@ def c_crd_to_grid(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t,
         np.ndarray[np.float64_t, ndim = 1] grid_crd = crd/spacing
     return grid_crd.astype(int)
 
-@cython.boundscheck(True)
+@cython.boundscheck(False)
 def c_points_to_grid(np.ndarray[np.float64_t, ndim=3] points,
                      np.ndarray[np.float64_t, ndim=1] spacing,
                      np.ndarray[np.int64_t, ndim=1] counts):
@@ -1047,7 +1047,7 @@ def c_cal_charge_grid_pp(  str name,
 
     return grid
 
-@cython.boundscheck(True)
+@cython.boundscheck(False)
 def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
                             np.ndarray[np.float64_t, ndim=1] atom_radii,
                             np.ndarray[np.float64_t, ndim=1] spacing,
@@ -1146,7 +1146,7 @@ def c_generate_sphere_points(int n_points):
     return sphere_points
 
 
-@cython.boundscheck(True)
+@cython.boundscheck(False)
 def c_sasa(         np.ndarray[np.float64_t, ndim=2] crd,
                     np.ndarray[np.float64_t, ndim=1] atom_radii,
                     np.ndarray[np.float64_t, ndim=1] spacing,
@@ -1165,7 +1165,7 @@ def c_sasa(         np.ndarray[np.float64_t, ndim=2] crd,
 
     return accessible_sphere_points
 
-@cython.boundscheck(True)
+@cython.boundscheck(False)
 def c_cal_charge_grid_pp_mp(  str name,
                         np.ndarray[np.float64_t, ndim=2] crd,
                         np.ndarray[np.float64_t, ndim=1] grid_x,
@@ -1230,7 +1230,7 @@ def c_cal_charge_grid_pp_mp(  str name,
                                               uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z,
                                               grid_counts)
-            grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
+            grid_tmp = np.zeros([i_max, j_max, k_max], dtype=float)
             dx2 = (atom_coordinate[0] - grid_x) ** 2
             dy2 = (atom_coordinate[1] - grid_y) ** 2
             dz2 = (atom_coordinate[2] - grid_z) ** 2

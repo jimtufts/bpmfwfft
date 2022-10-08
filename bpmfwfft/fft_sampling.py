@@ -6,7 +6,6 @@ from __future__ import print_function
 
 import numpy as np
 import netCDF4
-import gc
 
 try:
     from bpmfwfft.grids import RecGrid
@@ -87,7 +86,9 @@ class Sampling(object):
     def _initialize_nc(self, output_nc):
         nc_handle = netCDF4.Dataset(output_nc, mode="w", format="NETCDF4")
 
+
         nc_handle.createDimension("three", 3)
+        nc_handle.createDimension("one", 1)
         rec_natoms = self._rec_crd.shape[0]
         nc_handle.createDimension("rec_natoms", rec_natoms)
 
@@ -115,6 +116,12 @@ class Sampling(object):
 
         nc_handle.createVariable("resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
         nc_handle.createVariable("resampled_trans_vectors", "i8", ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
+
+        nc_handle.createVariable("native_pose_energy", "f8", ("one"))
+        nc_handle.createVariable("native_crd", "f8", ("lig_natoms", "three"))
+        nc_handle.createVariable("native_translation", "i8", ("three"))
+
+        nc_handle.set_auto_mask(False)
 
         nc_handle = self._write_grid_info(nc_handle)
         return nc_handle
@@ -148,10 +155,12 @@ class Sampling(object):
         return nc_handle
 
     def _save_data_to_nc(self, step):
-        if step = 0:
-            self._nc_handle.variables["native_pose"]["energy"] = self._native_pose_energy
-            self._nc_handle.variables["native_pose"]["crd"] = self._lig_coord_ensemble[step]
-            self._nc_handle.variables["native_pose"]["trans_vector"] = self._native_translation
+        if step == 0:
+            self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
+            print("Native pose energy", self._lig_grid._native_pose_energy)
+            self._nc_handle.variables["native_crd"][:,:] = self._lig_grid.get_crd()
+            self._nc_handle.variables["native_translation"][:] = self._lig_grid._native_translation
+            print("Native translation", self._lig_grid._native_translation)
         self._nc_handle.variables["lig_positions"][step, :, :] = self._lig_grid.get_crd()
 
         self._nc_handle.variables["lig_com"][step, :] = self._lig_grid.get_initial_com()
@@ -203,7 +212,6 @@ class Sampling(object):
             sel_ind = np.argsort(energies)[:self._energy_sample_size_per_ligand]
 
         del exp_energies
-
         self._resampled_energies = [energies[ind] for ind in sel_ind]
         del energies
         self._lig_grid.set_meaningful_energies_to_none()
@@ -237,7 +245,7 @@ class Sampling(object):
 
 #
 #TODO   the class above assumes that the resample size is smaller than number of meaningful energies
-#       in general, the number of meaningful energies can be very smaller or even zero (no energy)
+#       in general, the number of meaningful energies can be very small or even zero (no energy)
 #       when the number of meaningful energies is zero, that stratum contributes n_points zeros to the exponential mean
 #
 #       so when needs to consider separately 3 cases:
@@ -403,9 +411,9 @@ if __name__ == "__main__":
     lig_inpcrd = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
 
     energy_sample_size_per_ligand = 1000
-    output_nc = "/media/jim/Research_TWO/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_test.nc"
+    output_nc = "/media/jim/Research_TWO/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling.nc"
 
-    ligand_md_trj_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation_5000.nc"
+    ligand_md_trj_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
