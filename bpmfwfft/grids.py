@@ -1390,8 +1390,7 @@ class RecGrid(Grid):
                         partial_points = futures_array[i].result()
                         point_array.append(partial_points)
                     points = np.concatenate(tuple(point_array), axis=0)
-                    grid = np.zeros(self._grid["counts"], dtype=np.float64)
-                    grid = c_points_to_grid(points, self._spacing, grid)
+                    grid = c_points_to_grid(points, self._spacing, self._grid["counts"])
 
                 self._write_to_nc(nc_handle, name, grid)
                 self._set_grid_key_value(name, grid)
