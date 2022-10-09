@@ -19,6 +19,8 @@ dependencies:
   - netcdf4
   - cython
   - mdtraj
+  - pyfftw
+  - openmm
 
     # Pip-only installs
   #- pip:
