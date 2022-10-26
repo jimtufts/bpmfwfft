@@ -16,26 +16,26 @@ try:
     from bpmfwfft import IO
     try:        
         from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
-        from bpmfwfft.util import c_cal_charge_grid_new, c_cal_charge_grid_pp, c_cal_charge_grid_pp_mp
-        from bpmfwfft.util import c_cal_potential_grid, c_cal_potential_grid_pp
-        from bpmfwfft.util import c_cal_lig_sasa_grid
-        from bpmfwfft.util import c_cal_lig_sasa_grids
+        from bpmfwfft.util import c_cal_charge_grid_pp_mp
+        from bpmfwfft.util import c_cal_potential_grid_pp
+        # from bpmfwfft.util import c_cal_lig_sasa_grid
+        # from bpmfwfft.util import c_cal_lig_sasa_grids
         from bpmfwfft.util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
-        from util import c_cal_charge_grid_new, c_cal_charge_grid_pp, c_cal_charge_grid_pp_mp
-        from util import c_cal_potential_grid, c_cal_potential_grid_pp
-        from util import c_cal_lig_sasa_grid
-        from util import c_cal_lig_sasa_grids
+        from util import c_cal_charge_grid_pp_mp
+        from util import c_cal_potential_grid_pp
+        # from util import c_cal_lig_sasa_grid
+        # from util import c_cal_lig_sasa_grids
         from util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
 
 except:
     import IO
     from util import c_is_in_grid, cdistance, c_containing_cube
-    from util import c_cal_charge_grid_new, c_cal_charge_grid_pp, c_cal_charge_grid_pp_mp
-    from util import c_cal_potential_grid, c_cal_potential_grid_pp
-    from util import c_cal_lig_sasa_grid
-    from util import c_cal_lig_sasa_grids
+    from util import c_cal_charge_grid_pp_mp
+    from util import c_cal_potential_grid_pp
+    # from util import c_cal_lig_sasa_grid
+    # from util import c_cal_lig_sasa_grids
     from util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
 
 # Gamma taken from amber manual
@@ -206,7 +206,7 @@ class Grid(object):
     def __init__(self):
         self._grid = {}
         # self._grid_func_names   = ("occupancy", "water", "electrostatic", "LJr", "LJa", "sasa")  # calculate all grids
-        self._grid_func_names = ("occupancy", "water", "sasa")  # test new sasa grid
+        self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes  = ("x", "y", "z")
@@ -523,6 +523,7 @@ class LigGrid(Grid):
         n_sphere_points = 960
         task_divisor = 22
         print("calculating Ligand %s grid" % name)
+        start_time = time.time()
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures_array = []
             if name == "sasa":
@@ -593,6 +594,7 @@ class LigGrid(Grid):
                     partial_grid = futures_array[i].result()
                     grid = np.add(grid,partial_grid)
                     futures_array[i].done()
+        print("--- %s calculated in %s seconds ---" % (name, time.time() - start_time))
         return grid
 
 
@@ -628,6 +630,7 @@ class LigGrid(Grid):
         grid[grid>0.] = 1.
         self._set_grid_key_value("water", grid)
         lwater_fft = np.fft.fftn(self._grid["water"])
+        print(self._grid["water"].sum())
         self._set_grid_key_value("water", None)
         del grid
 
@@ -704,6 +707,7 @@ class LigGrid(Grid):
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
         if np.any(self._free_of_clash):
             grid_names = [name for name in self._grid_func_names if name not in ["occupancy", "water", "sasa"]]
+            print(grid_names)
             for name in grid_names:
                 grid_func_energy = self._cal_corr_func(name)
                 self._meaningful_energies += grid_func_energy
@@ -1526,40 +1530,67 @@ if __name__ == "__main__":
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
     rec_prmtop_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
     rec_inpcrd_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
-    grid_nc_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/sasa1.nc"
+    lig_prmtop_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    lig_inpcrd_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
+    grid_nc_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid_test.nc"
     lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
     spacing = 0.5
-
-    rec_grid = RecGrid(rec_prmtop_file, lj_sigma_scaling_factor, rec_inpcrd_file, 
+    rec_core_scaling = 0.760000
+    rec_surface_scaling = 0.530000
+    rec_metal_scaling = 0.550000
+    rho = 9.0
+    buffer = 1.0
+    crd = IO.InpcrdLoad(lig_inpcrd_file).get_coordinates()
+    dx = crd[:, 0].max() - crd[:, 0].min()
+    dy = crd[:, 1].max() - crd[:, 1].min()
+    dz = crd[:, 2].max() - crd[:, 2].min()
+    ligand_max_box_edge = max([dx, dy, dz])
+    total_buffer = np.ceil(ligand_max_box_edge + buffer)
+    start_time = time.time()
+    rec_grid = RecGrid(rec_prmtop_file,
+                        lj_sigma_scaling_factor,
+                        rec_core_scaling,
+                        rec_surface_scaling,
+                        rec_metal_scaling,
+                        rho,
+                        rec_inpcrd_file,
                         bsite_file,
                         grid_nc_file,
                         new_calculation=True,
-                        spacing=spacing, radii_type="VDW_RADII")
-    print("get_grid_func_names", rec_grid.get_grid_func_names())
-    print("get_grids", rec_grid.get_grids())
-    print("get_crd", rec_grid.get_crd())
-    print("get_prmtop", rec_grid.get_prmtop())
-    print("get_prmtop", rec_grid.get_charges())
-    print("get_natoms", rec_grid.get_natoms())
-    print("get_natoms", rec_grid.get_allowed_keys())
+                        spacing=spacing,
+                        extra_buffer=total_buffer,
+                        radii_type="VDW_RADII")
+    # print("get_grid_func_names", rec_grid.get_grid_func_names())
+    # print("get_grids", rec_grid.get_grids())
+    # print("get_crd", rec_grid.get_crd())
+    # print("get_prmtop", rec_grid.get_prmtop())
+    # print("get_prmtop", rec_grid.get_charges())
+    # print("get_natoms", rec_grid.get_natoms())
+    # print("get_natoms", rec_grid.get_allowed_keys())
 
     rec_grid.write_box("../examples/grid/ubiquitin_ligase/box.pdb")
     rec_grid.write_pdb("../examples/grid/ubiquitin_ligase/test.pdb", "w")
+    print("--- RecGrid calculated in %s seconds ---" % (time.time() - start_time))
 
-    lig_prmtop_file = "../examples/amber/ubiquitin/ligand.prmtop"
-    lig_inpcrd_file = "../examples/amber/ubiquitin/ligand.inpcrd"
-    lig_grid = LigGrid(lig_prmtop_file, lj_sigma_scaling_factor, lig_inpcrd_file, rec_grid)
+    lig_core_scaling = 0.810000
+    lig_surface_scaling = 0.500000
+    lig_metal_scaling = 0.540000
+    start_time = time.time()
+    lig_grid = LigGrid(lig_prmtop_file, lj_sigma_scaling_factor,
+                       lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
+                       lig_inpcrd_file, rec_grid)
     lig_grid.cal_grids()
-    print("get_bpmf", lig_grid.get_bpmf())
-    print("get_number_translations", lig_grid.get_number_translations())
-    print("get_box_volume", lig_grid.get_box_volume())
-    print("get_meaningful_energies", lig_grid.get_meaningful_energies())
-    print("get_meaningful_corners", lig_grid.get_meaningful_corners())
-    print("set_meaningful_energies_to_none", lig_grid.set_meaningful_energies_to_none())
-    print("get_initial_com", lig_grid.get_initial_com())
-    print("Receptor SASA", rec_grid._get_molecule_sasa(0.14, 960))
-    print("Ligand SASA", lig_grid._get_molecule_sasa(0.14, 960))
+    print("--- LigGrid calculated in %s seconds ---" % (time.time() - start_time))
+    # print("get_bpmf", lig_grid.get_bpmf())
+    # print("get_number_translations", lig_grid.get_number_translations())
+    # print("get_box_volume", lig_grid.get_box_volume())
+    # print("get_meaningful_energies", lig_grid.get_meaningful_energies())
+    # print("get_meaningful_corners", lig_grid.get_meaningful_corners())
+    # print("set_meaningful_energies_to_none", lig_grid.set_meaningful_energies_to_none())
+    # print("get_initial_com", lig_grid.get_initial_com())
+    # print("Receptor SASA", rec_grid._get_molecule_sasa(0.14, 960))
+    # print("Ligand SASA", lig_grid._get_molecule_sasa(0.14, 960))
 
 
