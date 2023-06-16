@@ -96,11 +96,13 @@ class PrmtopLoad(object):
         Create a new entry "PDB_TEMPLATE" for self._parameters.
         "PDB_TEMPLATE" stores atom names, residue names and residue ordering indices for all atoms.
         """
-        names  = []
+        names = []
         order = [] 
         NATOM = self._parameters["POINTERS"]["NATOM"]
         res_pointers = self._parameters["RESIDUE_POINTER"]
-        res_lables    = self._parameters["RESIDUE_LABEL"]
+        res_lables   = self._parameters["RESIDUE_LABEL"]
+        print(res_pointers)
+        print(res_lables)
         if len(res_pointers) != len(res_lables):
             raise RuntimeError("len(res_pointers) != len(res_names)")
         nr_residues = len(res_lables)

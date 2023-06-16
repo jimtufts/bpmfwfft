@@ -205,9 +205,13 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        # self._grid_func_names   = ("occupancy", "water", "electrostatic", "LJr", "LJa", "sasa")  # calculate all grids
-        self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
+        # self._grid_func_names   = ("occupancy", "sasa", "water", "electrostatic", "LJr", "LJa")  # calculate all grids
+        # self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
+        # self._grid_func_names = ("occupancy", "LJa")  # uncomment to calculate LJa and occupancy
+        # self._grid_func_names = ("occupancy", "LJr")  # uncomment to calculate LJr and occupancy
+        # self._grid_func_names = ("occupancy", "LJr", "LJa")  # uncomment to calculate Lennard-Jones and occupancy
+        self._grid_func_names = ("occupancy", "sasa", "water", "electrostatic")  # uncomment to calculate bsa, electrostatic, and occupancy
         # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes  = ("x", "y", "z")
         box_dim_names   = ("d0", "d1", "d2")
@@ -713,11 +717,12 @@ class LigGrid(Grid):
                 self._meaningful_energies += grid_func_energy
                 del grid_func_energy
             # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
-            bsa_energy = self._cal_delta_sasa_func(corr_func)
-            print("max dSASA:", bsa_energy.max())
-            bsa_energy = bsa_energy * -GAMMA
-            self._meaningful_energies += bsa_energy
-            del bsa_energy
+            if "sasa" in self._grid_func_names:
+                bsa_energy = self._cal_delta_sasa_func(corr_func)
+                print("max dSASA:", bsa_energy.max())
+                bsa_energy = bsa_energy * -GAMMA
+                self._meaningful_energies += bsa_energy
+                del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
         self._native_pose_energy = self._meaningful_energies[self._native_translation[0], self._native_translation[1],self._native_translation[2]]
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j, 0:max_k] # exclude positions where ligand crosses border
@@ -731,7 +736,7 @@ class LigGrid(Grid):
         """
         calculate ligand grids on demand for debugging
         takes a list of grid names and calculates the grid for current translation
-        grid_names: list of strings ["SASA", "electrostatic", "LJr", "LJa"]
+        grid_names: list of strings ["occupancy", "sasa", "water" "electrostatic", "LJr", "LJa"]
         return: dictionary of grids {"grid_name": grid}
         """
         grids = {}
@@ -1001,6 +1006,7 @@ class RecGrid(Grid):
         :param extra_buffer: float
         """
         Grid.__init__(self)
+
         self._load_prmtop(prmtop_file_name, lj_sigma_scaling_factor)
         self._FFTs = {}
 
@@ -1073,10 +1079,12 @@ class RecGrid(Grid):
         self._rho = nc_handle.variables["rho"][:]
         self._displacement = nc_handle.variables["displacement"][:]
 
+        # for key in self._grid_func_names:
         for key in self._grid_func_names:
-            self._set_grid_key_value(key, nc_handle.variables[key][:])
-            self._FFTs[key] = self._cal_FFT(key)
-            self._set_grid_key_value(key, None)     # to save memory
+            if key in list(nc_handle.variables.keys()): #FIXME: This is for debugging partial grid builds
+                self._set_grid_key_value(key, nc_handle.variables[key][:])
+                self._FFTs[key] = self._cal_FFT(key)
+                self._set_grid_key_value(key, None)  # to save memory
         nc_handle.close()
         return None
 
@@ -1309,7 +1317,7 @@ class RecGrid(Grid):
         else:
             raise RuntimeError("%s is unknown"%name)
 
-    def _cal_potential_grids(self, nc_handle, radii_type, exclude_H):
+    def _cal_potential_grids(self, nc_handle, radii_type, exclude_H, platform='CPU'):
         """
         Divides each grid calculation into a separate process (electrostatic, LJr, LJa,
         SASAr, SASAi) and then divides the grid into slices along the x-axis determined by
@@ -1333,73 +1341,73 @@ class RecGrid(Grid):
                     atom_list.append(i)
             else:
                 atom_list.append(i)
+        if platform == 'CPU':
+            task_divisor = 22
+            for name in self._grid_func_names:
+                print("calculating receptor %s grid" % name)
+                with concurrent.futures.ProcessPoolExecutor() as executor:
+                    futures_array = []
+                    if name != "sasa":
+                        for i in range(task_divisor):
+                            counts = np.copy(self._grid["counts"])
+                            counts_x = counts[0] // task_divisor
+                            if i == task_divisor-1:
+                                counts_x += counts[0] % task_divisor
+                            counts[0] = counts_x
+                            grid_start_x = i * (self._grid["counts"][0] // task_divisor)
+                            origin = np.copy(self._origin_crd)
+                            origin[0] = grid_start_x * self._grid["spacing"][0]
+                            futures_array.append(executor.submit(
+                                process_potential_grid_function,
+                                name,
+                                self._crd,
+                                origin,
+                                self._grid["spacing"],
+                                counts,
+                                self._get_charges(name),
+                                self._prmtop["LJ_SIGMA"],
+                                clash_radii,
+                                atom_list,
+                                self._molecule_sasa,
+                                self._sasa_cutoffs,
+                                self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
+                                self._rec_core_scaling,
+                                self._rec_surface_scaling,
+                                self._rec_metal_scaling,
+                            ))
+                        grid_array = []
+                        for i in range(task_divisor):
+                            partial_grid = futures_array[i].result()
+                            grid_array.append(partial_grid)
+                        grid = np.concatenate(tuple(grid_array), axis=0)
+                    else:
+                        for i in range(task_divisor):
+                            natoms_i = self._crd.shape[0]
+                            natoms_slice = natoms_i // task_divisor
+                            if i == task_divisor - 1:
+                                natoms_slice += natoms_i % task_divisor
+                            natoms_i = natoms_slice
+                            atomind = i * (self._crd.shape[0] // task_divisor)
+                            futures_array.append(executor.submit(
+                                process_sasa_grid_function,
+                                self._crd,
+                                self._prmtop["VDW_RADII"],
+                                self._spacing,
+                                probe_size,
+                                n_sphere_points,
+                                natoms_i,
+                                atomind,
+                            ))
+                        point_array = []
+                        for i in range(task_divisor):
+                            partial_points = futures_array[i].result()
+                            point_array.append(partial_points)
+                        points = np.concatenate(tuple(point_array), axis=0)
+                        grid = c_points_to_grid(points, self._spacing, self._grid["counts"])
 
-        task_divisor = 22
-        for name in self._grid_func_names:
-            print("calculating receptor %s grid" % name)
-            with concurrent.futures.ProcessPoolExecutor() as executor:
-                futures_array = []
-                if name != "sasa":
-                    for i in range(task_divisor):
-                        counts = np.copy(self._grid["counts"])
-                        counts_x = counts[0] // task_divisor
-                        if i == task_divisor-1:
-                            counts_x += counts[0] % task_divisor
-                        counts[0] = counts_x
-                        grid_start_x = i * (self._grid["counts"][0] // task_divisor)
-                        origin = np.copy(self._origin_crd)
-                        origin[0] = grid_start_x * self._grid["spacing"][0]
-                        futures_array.append(executor.submit(
-                            process_potential_grid_function,
-                            name,
-                            self._crd,
-                            origin,
-                            self._grid["spacing"],
-                            counts,
-                            self._get_charges(name),
-                            self._prmtop["LJ_SIGMA"],
-                            clash_radii,
-                            atom_list,
-                            self._molecule_sasa,
-                            self._sasa_cutoffs,
-                            self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
-                            self._rec_core_scaling,
-                            self._rec_surface_scaling,
-                            self._rec_metal_scaling,
-                        ))
-                    grid_array = []
-                    for i in range(task_divisor):
-                        partial_grid = futures_array[i].result()
-                        grid_array.append(partial_grid)
-                    grid = np.concatenate(tuple(grid_array), axis=0)
-                else:
-                    for i in range(task_divisor):
-                        natoms_i = self._crd.shape[0]
-                        natoms_slice = natoms_i // task_divisor
-                        if i == task_divisor - 1:
-                            natoms_slice += natoms_i % task_divisor
-                        natoms_i = natoms_slice
-                        atomind = i * (self._crd.shape[0] // task_divisor)
-                        futures_array.append(executor.submit(
-                            process_sasa_grid_function,
-                            self._crd,
-                            self._prmtop["VDW_RADII"],
-                            self._spacing,
-                            probe_size,
-                            n_sphere_points,
-                            natoms_i,
-                            atomind,
-                        ))
-                    point_array = []
-                    for i in range(task_divisor):
-                        partial_points = futures_array[i].result()
-                        point_array.append(partial_points)
-                    points = np.concatenate(tuple(point_array), axis=0)
-                    grid = c_points_to_grid(points, self._spacing, self._grid["counts"])
-
-                self._write_to_nc(nc_handle, name, grid)
-                self._set_grid_key_value(name, grid)
-                # self._set_grid_key_value(name, None)     # to save memory
+                    self._write_to_nc(nc_handle, name, grid)
+                    self._set_grid_key_value(name, grid)
+                    # self._set_grid_key_value(name, None)     # to save memory
 
         return None
     
@@ -1528,12 +1536,14 @@ if __name__ == "__main__":
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
-    rec_prmtop_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
-    rec_inpcrd_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
-    lig_prmtop_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
-    lig_inpcrd_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
-    grid_nc_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid_test.nc"
-    lj_sigma_scaling_factor = 1.0
+    rec_prmtop_file = "/media/jim/fft_data/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    rec_inpcrd_file = "/media/jim/fft_data/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
+    # lig_prmtop_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    # lig_inpcrd_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
+    lig_prmtop_file = "/home/jim/Desktop/fahtest/carbon.prmtop"
+    lig_inpcrd_file = "/home/jim/Desktop/fahtest/carbon.inpcrd"
+    grid_nc_file = "/media/jim/fft_data/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/carbon_test.nc"
+    lj_sigma_scaling_factor = 0.8
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
     spacing = 0.5

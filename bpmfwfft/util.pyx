@@ -75,6 +75,17 @@ def c_list_to_array(list value_list):
     return value_array
 
 @cython.boundscheck(False)
+def c_list_to_array_long(list value_list):
+    cdef:
+        int lmax = len(value_list)
+        int i,j
+        value_array = view.array(shape=(lmax,3), itemsize=sizeof(long), format="l")
+    for i in range(lmax):
+        for j in range(3):
+            value_array[i,j] = value_list[i][j]
+    return value_array
+
+@cython.boundscheck(False)
 def c_crd_to_grid(np.ndarray[np.float64_t, ndim=1] crd, np.ndarray[np.float64_t, ndim=1] spacing):
     cdef:
         int lmax = crd.shape[0]
@@ -610,6 +621,11 @@ def c_cal_potential_grid_pp(   str name,
                             d = dx_tmp + dy_tmp + dz2[k]
                             d = d**exponent
                             grid_tmp_view[i,j,k] = charge / d
+                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                                    uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+
+                for i, j, k in corners:
+                    grid_tmp[i,j,k] = 0
 
             # corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
             #                                     uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
@@ -819,7 +835,7 @@ def c_cal_charge_grid_pp_mp(  str name,
 
     if name in ["LJa", "LJr", "electrostatic"]:
         for atom_ind in range(atomind,atomind+natoms_i):
-            atom_coordinate = crd_view[atom_ind]
+            atom_coordinate = crd[atom_ind]
             charge = charges[atom_ind]
             ten_corners, distributed_charges = c_distr_charge_one_atom( atom_coordinate, charge,
                                                                     origin_crd, uper_most_corner_crd,
@@ -827,7 +843,7 @@ def c_cal_charge_grid_pp_mp(  str name,
                                                                     eight_corner_shifts, six_corner_shifts,
                                                                     grid_x, grid_y, grid_z)
 
-            ten_corners_view = c_list_to_array(ten_corners)
+            ten_corners_view = c_list_to_array_long(ten_corners)
             for i in range(10):
                 l = ten_corners_view[i][0]
                 m = ten_corners_view[i][1]
@@ -835,7 +851,7 @@ def c_cal_charge_grid_pp_mp(  str name,
                 grid_view[l, m, n] += distributed_charges[i]
     elif name == "water":
         for atom_ind in range(atomind,atomind+natoms_i):
-            atom_coordinate = crd_view[atom_ind]
+            atom_coordinate = crd[atom_ind]
             charge = molecule_sasa_view[0][atom_ind]
             lj_diameter = clash_radii[atom_ind]
 

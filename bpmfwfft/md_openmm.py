@@ -256,7 +256,7 @@ class OpenMM_TREMD(object):
         return nc_handle
 
 
-def openmm_energy(prmtop_file, crd, phase):
+def openmm_energy(prmtop_file, crd, phase, getComponents=False):
     """
     crd in angstroms
     crd can be an inpcrd file name, a array with shape (natom, 3) or shape (nframe, natom, 3)
