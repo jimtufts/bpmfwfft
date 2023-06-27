@@ -848,7 +848,7 @@ def c_cal_charge_grid_pp_mp(  str name,
                 l = ten_corners_view[i][0]
                 m = ten_corners_view[i][1]
                 n = ten_corners_view[i][2]
-                grid_view[l, m, n] += distributed_charges[i]
+                grid[l, m, n] += distributed_charges[i]
     elif name == "water":
         for atom_ind in range(atomind,atomind+natoms_i):
             atom_coordinate = crd[atom_ind]

@@ -31,7 +31,8 @@ parser.add_argument("--buffer",      type=float, default=1.0)
 
 parser.add_argument("--exclude_H",    type=bool, default=True)
 
-parser.add_argument("--submit",   action="store_true", default=False)
+parser.add_argument("--pbs",   action="store_true", default=False)
+parser.add_argument("--slurm",   action="store_true", default=False)
 
 args = parser.parse_args()
 
@@ -52,7 +53,7 @@ def is_running(qsub_file, log_file, nc_file):
         return True
     return False
 
-if args.submit:
+if args.pbs:
     this_script = os.path.abspath(sys.argv[0])
     amber_dir = os.path.abspath(args.amber_dir)
     coord_dir = os.path.abspath(args.coord_dir)
@@ -118,7 +119,95 @@ python ''' + this_script + \
                 break
         else:
             print("Calculation for %s is done"%complex)
+elif args.slurm:
+    this_script = os.path.abspath(sys.argv[0])
+    amber_dir = os.path.abspath(args.amber_dir)
+    coord_dir = os.path.abspath(args.coord_dir)
 
+    amber_sub_dirs = glob.glob(os.path.join(amber_dir, "*"))
+    amber_sub_dirs = [dir for dir in amber_sub_dirs if os.path.isdir(dir)]
+    complex_names = [os.path.basename(dir) for dir in amber_sub_dirs]
+
+    box_sizes = {}
+    for complex in complex_names:
+        rec_inpcrd = os.path.join(coord_dir, complex, RECEPTOR_INPCRD)
+        lig_inpcrd = os.path.join(coord_dir, complex, LIGAND_INPCRD)
+        box_sizes[complex] = get_grid_size_from_lig_rec_crd(rec_inpcrd, lig_inpcrd, args.buffer)
+    complex_names.sort(key=lambda name: box_sizes[name])
+    print("Complex    box size")
+    for c in complex_names:
+        print(c, box_sizes[c])
+
+    if args.max_jobs > 0:
+        max_jobs = args.max_jobs
+    else:
+        max_jobs = len(complex_names)
+    print("max_jobs = %d"%max_jobs)
+
+    job_count = 0
+    for complex in complex_names:
+
+        if not os.path.isdir(complex):
+            os.makedirs(complex)
+
+        id = complex[:4].lower()
+        amber_sub_dir = os.path.join(amber_dir, complex)
+        coor_sub_dir = os.path.join(coord_dir, complex)
+
+        out_dir = os.path.abspath(complex)
+
+        sbatch_file = os.path.join(out_dir, id+"_grid.job")
+        log_file = os.path.join(out_dir, id+"_grid.log")
+        sbatch_script = f'''#!/bin/bash
+#SBATCH --job-name={id}
+#SBATCH --output={log_file}
+#SBATCH --partition=compute
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=128
+#SBATCH --mem=249325M
+#SBATCH --account=iit103
+#SBATCH --export=ALL
+#SBATCH -t 48:00:00
+#SBATCH --constraint="lustre"
+module purge 
+module load cpu
+module load slurm
+module load gcc
+module load openmpi
+source /cm/shared/apps/spack/cpu/opt/spack/linux-centos8-zen/gcc-8.3.1/anaconda3-2020.11-da3i7hmt6bdqbmuzq6pyt7kbm47wyrjp/etc/profile.d/conda.sh
+conda activate fft
+date
+
+#SET the number of openmp threads
+export OMP_NUM_THREADS=128
+
+#Run the job
+python {this_script} \
+        --amber_dir {amber_sub_dir} \
+        --coord_dir {coor_sub_dir} \
+        --out_dir {out_dir} \
+        --lj_scale {args.lj_scale:.6f} \
+        --rc_scale {args.rc_scale:.6f} \
+        --rs_scale {args.rs_scale:.6f} \
+        --rm_scale {args.rm_scale:.6f} \
+        --spacing {args.spacing:.6f} \
+        --buffer {args.buffer:.6f} \
+        --radii_type {args.radii_type} \
+        --exclude_H \
+        \n'''
+
+        if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(qsub_file, log_file,
+                                                                os.path.join(out_dir, GRID_NC)):
+            print("Submitting %s"%complex)
+            open(sbatch_file, "w").write(sbatch_script)
+            os.system("sbatch %s" %sbatch_file)
+            job_count += 1
+            if job_count == max_jobs:
+                print("Max number of jobs %d reached."%job_count)
+                break
+        else:
+            print("Calculation for %s is done"%complex)
 else:
     prmtop = os.path.join(args.amber_dir, RECEPTOR_PRMTOP)
     lj_scale = args.lj_scale
