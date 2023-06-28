@@ -104,12 +104,17 @@ python ''' + this_script + \
         ''' --amber_dir ''' + amber_sub_dir + \
         ''' --coord_dir ''' + coor_sub_dir + \
         ''' --out_dir '''   + out_dir + \
+        ''' --grid_file_name ''' + args.grid_file_name + \
         ''' --lj_scale %f'''%args.lj_scale + \
+        ''' --rc_scale %f''' % args.rc_scale + \
+        ''' --rs_scale %f''' % args.rs_scale + \
+        ''' --rm_scale %f''' % args.rm_scale + \
         ''' --spacing %f'''%args.spacing + \
-        ''' --buffer %f'''%args.buffer + '''\n'''
+        ''' --buffer %f'''%args.buffer + \
+        ''' --exclude_H %f''' % args.buffer + '''\n'''
 
-        if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(qsub_file, log_file, 
-                                                                os.path.join(out_dir, GRID_NC)): 
+        if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(qsub_file, log_file,
+                                                                os.path.join(out_dir, GRID_NC)):
             print("Submitting %s"%complex)
             open(qsub_file, "w").write(qsub_script)
             os.system("qsub %s" %qsub_file)
@@ -187,6 +192,7 @@ python {this_script} \
         --amber_dir {amber_sub_dir} \
         --coord_dir {coor_sub_dir} \
         --out_dir {out_dir} \
+        --grid_file_name {args.grid_file_name}
         --lj_scale {args.lj_scale:.6f} \
         --rc_scale {args.rc_scale:.6f} \
         --rs_scale {args.rs_scale:.6f} \
@@ -197,7 +203,7 @@ python {this_script} \
         --exclude_H \
         \n'''
 
-        if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(qsub_file, log_file,
+        if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(sbatch_file, log_file,
                                                                 os.path.join(out_dir, GRID_NC)):
             print("Submitting %s"%complex)
             open(sbatch_file, "w").write(sbatch_script)
@@ -229,5 +235,4 @@ else:
     print()
     rec_grid_cal(prmtop, lj_scale, rc_scale, rs_scale, rm_scale, rho,
                  rec_inpcrd, lig_inpcrd, spacing, buffer, grid_out, pdb_out, box_out, radii_type, exclude_H)
-
 

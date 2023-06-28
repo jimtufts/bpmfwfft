@@ -35,7 +35,8 @@ parser.add_argument("--lc_scale",                      type=float, default=0.81)
 parser.add_argument("--ls_scale",                      type=float, default=0.50)
 parser.add_argument("--lm_scale",                      type=float, default=0.54)
 parser.add_argument("--rho",                           type=float, default=9.0)
-parser.add_argument("--submit",   action="store_true", default=False)
+parser.add_argument("--pbs",   action="store_true", default=False)
+parser.add_argument("--slurm",   action="store_true", default=False)
 args = parser.parse_args()
 
 RECEPTOR_INPCRD = "receptor.inpcrd"
@@ -58,8 +59,7 @@ def is_running(qsub_file, log_file, nc_file):
         return True
     return False
 
-
-if args.submit:
+if args.pbs:
     this_script = os.path.abspath(sys.argv[0])
     amber_dir = os.path.abspath(args.amber_dir)
     coord_dir = os.path.abspath(args.coord_dir)
@@ -84,7 +84,99 @@ if args.submit:
     pwd = os.getcwd()
     complex_names = [c for c in complex_names if not is_sampling_nc_good(
         os.path.join(pwd, c, FFT_SAMPLING_NC), args.nr_lig_conf)]
-    
+
+    if args.max_jobs > 0:
+        max_jobs = args.max_jobs
+    else:
+        max_jobs = len(complex_names)
+    print("max_jobs = %d" % max_jobs)
+
+    job_count = 0
+    for complex_name in complex_names:
+
+        if not os.path.isdir(complex_name):
+            os.makedirs(complex_name)
+
+        idx = complex_name[:4].lower()
+        amber_sub_dir = os.path.join(amber_dir, complex_name)
+        coor_sub_dir = os.path.join(coord_dir, complex_name)
+        grid_sub_dir = os.path.join(grid_dir, complex_name)
+        lig_ensemble_sub_dir = os.path.join(lig_ensemble_dir, complex_name)
+
+        out_dir = os.path.abspath(complex_name)
+        qsub_file = os.path.join(out_dir, idx + "_fft.job")
+        log_file = os.path.join(out_dir, idx + "_fft.log")
+        qsub_script = f'''#!/bin/bash
+#PBS -S /bin/bash
+#PBS -o %s {log_file}
+#PBS -j oe
+#PBS -l nodes=1:ppn=4,walltime=300:00:00
+
+source /home/jtufts/opt/module/anaconda.sh
+date
+python {this_script}  \
+        --amber_dir {amber_sub_dir} \
+        --coord_dir {coor_sub_dir} \
+        --grid_dir {grid_sub_dir} \
+        --grid_name {args.grid_name} \
+        --grid_name {args.grid_name} \
+        --result_name {lig_ensemble_sub_dir} \
+        --out_dir {out_dir} \
+        --lj_scale {args.lj_scale:.6f} \
+        --rc_scale {args.rc_scale:.6f} \
+        --rs_scale {args.rs_scale:.6f} \
+        --rm_scale {args.rm_scale:.6f} \
+        --lc_scale {args.lc_scale:.6f} \
+        --ls_scale {args.ls_scale:.6f} \
+        --lm_scale {args.lm_scale:.6f} \
+        --nr_lig_conf {args.nr_lig_conf} \
+        --start_index {args.start_index} \
+        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
+
+        fft_sampling_nc_file = os.path.join(out_dir, FFT_SAMPLING_NC)
+        if not is_running(qsub_file, log_file, fft_sampling_nc_file):
+
+            if os.path.exists(fft_sampling_nc_file):
+                print("remove file " + fft_sampling_nc_file)
+                os.system("rm " + fft_sampling_nc_file)
+
+            if os.path.exists(log_file):
+                print("remove file " + log_file)
+                os.system("rm " + log_file)
+
+            print("Submitting %s" % complex_name)
+            open(qsub_file, "w").write(qsub_script)
+            os.system("qsub %s" % qsub_file)
+            job_count += 1
+            if job_count == max_jobs:
+                print("Max number of jobs %d reached." % job_count)
+                break
+elif args.slurm:
+    this_script = os.path.abspath(sys.argv[0])
+    amber_dir = os.path.abspath(args.amber_dir)
+    coord_dir = os.path.abspath(args.coord_dir)
+    grid_dir = os.path.abspath(args.grid_dir)
+    lig_ensemble_dir = os.path.abspath(args.lig_ensemble_dir)
+
+    complex_names = glob.glob(os.path.join(grid_dir, "*"))
+    complex_names = [os.path.basename(d) for d in complex_names if os.path.isdir(d)]
+
+    complex_names = [c for c in complex_names if is_nc_grid_good(os.path.join(grid_dir, c, GRID_NC))]
+
+    grid_sizes = {}
+
+    for complex_name in complex_names:
+        grid_sizes[complex_name] = get_grid_size_from_nc(os.path.join(grid_dir, complex_name, GRID_NC))
+    complex_names.sort(key=lambda name: grid_sizes[name])
+    print("Complex   grid size")
+
+    for complex_name in complex_names:
+        print(complex_name, grid_sizes[complex_name])
+
+    pwd = os.getcwd()
+    complex_names = [c for c in complex_names if not is_sampling_nc_good(
+        os.path.join(pwd, c, FFT_SAMPLING_NC), args.nr_lig_conf)]
+
     if args.max_jobs > 0:
         max_jobs = args.max_jobs
     else:
@@ -106,24 +198,49 @@ if args.submit:
         out_dir = os.path.abspath(complex_name)
         qsub_file = os.path.join(out_dir, idx+"_fft.job")
         log_file = os.path.join(out_dir, idx+"_fft.log")
-        qsub_script = '''#!/bin/bash
-#PBS -S /bin/bash
-#PBS -o %s '''%log_file + '''
-#PBS -j oe
-#PBS -l nodes=1:ppn=4,walltime=300:00:00
-
-source /home/tnguye46/opt/module/anaconda.sh
+        qsub_script = f'''#!/bin/bash
+#SBATCH --job-name={id}
+#SBATCH --output={log_file}
+#SBATCH --partition=compute
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=128
+#SBATCH --mem=249325M
+#SBATCH --account=iit103
+#SBATCH --export=ALL
+#SBATCH -t 48:00:00
+#SBATCH --constraint="lustre"
+module purge 
+module load cpu
+module load slurm
+module load gcc
+module load openmpi
+source /cm/shared/apps/spack/cpu/opt/spack/linux-centos8-zen/gcc-8.3.1/anaconda3-2020.11-da3i7hmt6bdqbmuzq6pyt7kbm47wyrjp/etc/profile.d/conda.sh
+conda activate fft
 date
-python ''' + this_script + \
-        ''' --amber_dir ''' + amber_sub_dir + \
-        ''' --coord_dir ''' + coor_sub_dir + \
-        ''' --grid_dir ''' + grid_sub_dir + \
-        ''' --lig_ensemble_dir ''' + lig_ensemble_sub_dir + \
-        ''' --out_dir '''   + out_dir + \
-        ''' --lj_scale %f'''%args.lj_scale + \
-        ''' --nr_lig_conf %d '''%args.nr_lig_conf + \
-        ''' --start_index %d'''%args.start_index + \
-        ''' --energy_sample_size_per_ligand %d '''%args.energy_sample_size_per_ligand + '''\n'''
+
+#SET the number of openmp threads
+export OMP_NUM_THREADS=128
+
+#Run the job
+python {this_script}  \
+        --amber_dir {amber_sub_dir} \
+        --coord_dir {coor_sub_dir} \
+        --grid_dir {grid_sub_dir} \
+        --grid_name {args.grid_name} \
+        --grid_name {args.grid_name} \
+        --result_name {lig_ensemble_sub_dir} \
+        --out_dir {out_dir} \
+        --lj_scale {args.lj_scale:.6f} \
+        --rc_scale {args.rc_scale:.6f} \
+        --rs_scale {args.rs_scale:.6f} \
+        --rm_scale {args.rm_scale:.6f} \
+        --lc_scale {args.lc_scale:.6f} \
+        --ls_scale {args.ls_scale:.6f} \
+        --lm_scale {args.lm_scale:.6f} \
+        --nr_lig_conf {args.nr_lig_conf} \
+        --start_index {args.start_index} \
+        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
 
         fft_sampling_nc_file = os.path.join(out_dir, FFT_SAMPLING_NC)
         if not is_running(qsub_file, log_file, fft_sampling_nc_file):
@@ -143,6 +260,7 @@ python ''' + this_script + \
             if job_count == max_jobs:
                 print("Max number of jobs %d reached." % job_count)
                 break
+
 else:
     rec_prmtop = os.path.join(args.amber_dir, RECEPTOR_PRMTOP)
     lj_sigma_scal_fact = args.lj_scale
@@ -176,4 +294,3 @@ else:
              lig_coor_nc, nr_lig_conf, start_index,
              energy_sample_size_per_ligand,
              output_nc)
-
