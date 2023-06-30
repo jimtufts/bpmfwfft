@@ -19,7 +19,6 @@ class PrmtopLoad(object):
         """
         :param prmtop_file_name: str, file name of the AMBER promtop file.
         """
-        print(os.getcwd())
         assert os.path.exists(prmtop_file_name), "%s does not exist" %prmtop_file_name
         
         self._parameters = dict()
@@ -101,8 +100,6 @@ class PrmtopLoad(object):
         NATOM = self._parameters["POINTERS"]["NATOM"]
         res_pointers = self._parameters["RESIDUE_POINTER"]
         res_lables   = self._parameters["RESIDUE_LABEL"]
-        print(res_pointers)
-        print(res_lables)
         if len(res_pointers) != len(res_lables):
             raise RuntimeError("len(res_pointers) != len(res_names)")
         nr_residues = len(res_lables)
