@@ -160,8 +160,10 @@ elif args.slurm:
         coor_sub_dir = os.path.join(coord_dir, complex)
 
         out_dir = os.path.abspath(complex)
-
-        sbatch_file = os.path.join(out_dir, id+"_grid.job")
+        if args.slurm:
+            sbatch_file = os.path.join(out_dir, id+"_grid_slurm.job")
+        else:
+            sbatch_file = os.path.join(out_dir, id + "_grid_pbs.job")
         log_file = os.path.join(out_dir, id+"_grid.log")
         sbatch_script = f'''#!/bin/bash
 #SBATCH --job-name={id}
@@ -169,8 +171,8 @@ elif args.slurm:
 #SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=128
-#SBATCH --mem=249325M
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=31125M
 #SBATCH --account=iit103
 #SBATCH --export=ALL
 #SBATCH -t 48:00:00
@@ -185,7 +187,7 @@ conda activate fft
 date
 
 #SET the number of openmp threads
-export OMP_NUM_THREADS=128
+export OMP_NUM_THREADS=16
 
 #Run the job
 python {this_script} \
@@ -202,7 +204,6 @@ python {this_script} \
         --radii_type {args.radii_type} \
         --exclude_H \
         \n'''
-
         if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(sbatch_file, log_file,
                                                                 os.path.join(out_dir, GRID_NC)):
             print("Submitting %s"%complex)
