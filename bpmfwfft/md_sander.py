@@ -116,7 +116,7 @@ def _extract_component_energies(file):
         e = 0.
         for i in range(len(entries)):
             if (entries[i] in terms) and (entries[i] not in exclude_terms):
-                e += np.float(entries[i+2])
+                e += float(entries[i+2])
         energies.append(e)
     return np.array(energies, dtype=float)
 
@@ -127,7 +127,7 @@ def _extract_total_energies(file):
         line = out_file_lines[i]
         if ("ENERGY" in line) and (line.strip().startswith("NSTEP")):
             e = out_file_lines[i+1].split()[1]
-            e = np.float(e)
+            e = float(e)
             energies.append(e)
     return np.array(energies, dtype=float)
 
@@ -167,9 +167,12 @@ def sander_energy(prmtop_file, crd, phase, tmp_dir, no_bonded=True):
     #os.system(run_sanser)
 
     import subprocess
+    env = os.environ.copy()
+    env['OMP_NUM_THREADS'] = '22'
     args_list = ["sander", "-O", "-i", SANDER_SCRIPT, "-o", SANDER_OUT, "-p", prmtop_file, "-c", INPCRD, "-y", MDCRD_FILE, "-r", RESTART]
     print(' '.join(args_list))
-    p = subprocess.Popen(args_list)
+
+    p = subprocess.Popen(args_list, env=env)
     p.wait()
 
     #remove_tmp_files = "rm " + " ".join([SANDER_SCRIPT, SANDER_OUT, INPCRD, MDCRD_FILE, RESTART])

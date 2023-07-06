@@ -9,7 +9,7 @@ from bpmfwfft.postprocess import PostProcess
 
 #SOLVENT_PHASES = ["OpenMM_GBn", "OpenMM_GBn2", "OpenMM_HCT", "OpenMM_OBC1", "OpenMM_OBC2"]
 SOLVENT_PHASES = ["OpenMM_GBn", "OpenMM_GBn2", "OpenMM_OBC1", "OpenMM_OBC2"]
-#SOLVENT_PHASES.extend(["sander_PBSA", "sander_OBC2"])
+SOLVENT_PHASES.extend(["sander_PBSA", "sander_OBC2"])
 
 TEMPERATURE = 300.
 
@@ -23,4 +23,3 @@ def post_process(rec_prmtop, lig_prmtop, complex_prmtop, sampling_nc_file,
     post_pro.write_resampled_ligand_pdb(lig_pdb_out)
     post_pro.pickle_bpmf(bpmf_pkl_out)
     return None
-
