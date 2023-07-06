@@ -57,6 +57,7 @@ if args.pbs:
     this_script = os.path.abspath(sys.argv[0])
     amber_dir = os.path.abspath(args.amber_dir)
     coord_dir = os.path.abspath(args.coord_dir)
+    out_dir = os.path.abspath(args.out_dir)
 
     amber_sub_dirs = glob.glob(os.path.join(amber_dir, "*"))
     amber_sub_dirs = [dir for dir in amber_sub_dirs if os.path.isdir(dir)]
@@ -127,6 +128,7 @@ elif args.slurm:
     this_script = os.path.abspath(sys.argv[0])
     amber_dir = os.path.abspath(args.amber_dir)
     coord_dir = os.path.abspath(args.coord_dir)
+    out_dir = os.path.abspath(args.out_dir)
 
     amber_sub_dirs = glob.glob(os.path.join(amber_dir, "*"))
     amber_sub_dirs = [dir for dir in amber_sub_dirs if os.path.isdir(dir)]
