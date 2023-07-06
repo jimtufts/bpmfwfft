@@ -82,16 +82,16 @@ if args.pbs:
     job_count = 0
     for complex in complex_names:
 
-        out_dir = os.path.join(out_dir, complex)
-        if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
+        com_dir = os.path.join(out_dir, complex)
+        if not os.path.isdir(com_dir):
+            os.makedirs(com_dir)
 
         id = complex[:4].lower()
         amber_sub_dir = os.path.join(amber_dir, complex)
         coor_sub_dir = os.path.join(coord_dir, complex)
 
-        qsub_file = os.path.join(out_dir, id+"_grid.job")
-        log_file = os.path.join(out_dir, id+"_grid.log")
+        qsub_file = os.path.join(com_dir, id + "_grid_pbs.job")
+        log_file = os.path.join(com_dir, id+"_grid.log")
         qsub_script = '''#!/bin/bash
 #PBS -S /bin/bash
 #PBS -o %s '''%log_file + '''
@@ -153,20 +153,17 @@ elif args.slurm:
     job_count = 0
     for complex in complex_names:
 
-        out_dir = os.path.join(out_dir, complex)
-        if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
+        com_dir = os.path.join(out_dir, complex)
+        if not os.path.isdir(com_dir):
+            os.makedirs(com_dir)
 
         id = complex[:4].lower()
         amber_sub_dir = os.path.join(amber_dir, complex)
         coor_sub_dir = os.path.join(coord_dir, complex)
 
         # out_dir = os.path.abspath(complex)
-        if args.slurm:
-            sbatch_file = os.path.join(out_dir, id+"_grid_slurm.job")
-        else:
-            sbatch_file = os.path.join(out_dir, id + "_grid_pbs.job")
-        log_file = os.path.join(out_dir, id+"_grid.log")
+        sbatch_file = os.path.join(com_dir, id+"_grid_slurm.job")
+        log_file = os.path.join(com_dir, id+"_grid.log")
         sbatch_script = f'''#!/bin/bash
 #SBATCH --job-name={id}
 #SBATCH --output={log_file}
