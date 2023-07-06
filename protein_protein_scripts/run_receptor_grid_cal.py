@@ -103,7 +103,7 @@ date
 python ''' + this_script + \
         ''' --amber_dir ''' + amber_sub_dir + \
         ''' --coord_dir ''' + coor_sub_dir + \
-        ''' --out_dir '''   + out_dir + \
+        ''' --out_dir '''   + com_dir + \
         ''' --grid_file_name ''' + args.grid_file_name + \
         ''' --lj_scale %f'''%args.lj_scale + \
         ''' --rc_scale %f''' % args.rc_scale + \
@@ -113,8 +113,8 @@ python ''' + this_script + \
         ''' --buffer %f'''%args.buffer + \
         ''' --exclude_H %f''' % args.buffer + '''\n'''
 
-        if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(qsub_file, log_file,
-                                                                os.path.join(out_dir, GRID_NC)):
+        if not is_nc_grid_good(os.path.join(com_dir, GRID_NC)) and not is_running(qsub_file, log_file,
+                                                                os.path.join(com_dir, GRID_NC)):
             print("Submitting %s"%complex)
             open(qsub_file, "w").write(qsub_script)
             os.system("qsub %s" %qsub_file)
@@ -192,7 +192,7 @@ export OMP_NUM_THREADS=16
 python {this_script} \
         --amber_dir {amber_sub_dir} \
         --coord_dir {coor_sub_dir} \
-        --out_dir {out_dir} \
+        --out_dir {com_dir} \
         --grid_file_name {args.grid_file_name}
         --lj_scale {args.lj_scale:.6f} \
         --rc_scale {args.rc_scale:.6f} \
@@ -203,8 +203,8 @@ python {this_script} \
         --radii_type {args.radii_type} \
         --exclude_H \
         \n'''
-        if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(sbatch_file, log_file,
-                                                                os.path.join(out_dir, GRID_NC)):
+        if not is_nc_grid_good(os.path.join(com_dir, GRID_NC)) and not is_running(sbatch_file, log_file,
+                                                                os.path.join(com_dir, GRID_NC)):
             print("Submitting %s"%complex)
             open(sbatch_file, "w").write(sbatch_script)
             os.system("sbatch %s" %sbatch_file)
