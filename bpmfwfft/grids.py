@@ -525,7 +525,7 @@ class LigGrid(Grid):
         exclude_H = True
         probe_size = 1.4
         n_sphere_points = 960
-        task_divisor = 22
+        task_divisor = 16
         print("calculating Ligand %s grid" % name)
         start_time = time.time()
         with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -758,7 +758,7 @@ class LigGrid(Grid):
         multiprocessing functionality to the grid generation.
         """
 
-        task_divisor = 22
+        task_divisor = 16
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures_array = []
             for i in range(task_divisor):
@@ -1342,7 +1342,7 @@ class RecGrid(Grid):
             else:
                 atom_list.append(i)
         if platform == 'CPU':
-            task_divisor = 22
+            task_divisor = 16
             for name in self._grid_func_names:
                 print("calculating receptor %s grid" % name)
                 with concurrent.futures.ProcessPoolExecutor() as executor:
