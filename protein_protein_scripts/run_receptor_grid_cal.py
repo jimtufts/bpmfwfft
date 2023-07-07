@@ -174,7 +174,7 @@ elif args.slurm:
 #SBATCH --mem=31125M
 #SBATCH --account=iit103
 #SBATCH --export=ALL
-#SBATCH -t 48:00:00
+#SBATCH -t 10:00:00
 #SBATCH --constraint="lustre"
 module purge 
 module load cpu
@@ -193,7 +193,7 @@ python {this_script} \
         --amber_dir {amber_sub_dir} \
         --coord_dir {coor_sub_dir} \
         --out_dir {com_dir} \
-        --grid_file_name {args.grid_file_name}
+        --grid_file_name {args.grid_file_name} \
         --lj_scale {args.lj_scale:.6f} \
         --rc_scale {args.rc_scale:.6f} \
         --rs_scale {args.rs_scale:.6f} \
