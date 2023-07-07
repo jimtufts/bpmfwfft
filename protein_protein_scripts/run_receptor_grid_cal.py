@@ -111,7 +111,7 @@ python ''' + this_script + \
         ''' --rm_scale %f''' % args.rm_scale + \
         ''' --spacing %f'''%args.spacing + \
         ''' --buffer %f'''%args.buffer + \
-        ''' --exclude_H %f''' % args.buffer + '''\n'''
+        ''' --exclude_H %f''' % args.exclude_H + '''\n'''
 
         if not is_nc_grid_good(os.path.join(com_dir, GRID_NC)) and not is_running(qsub_file, log_file,
                                                                 os.path.join(com_dir, GRID_NC)):
@@ -201,7 +201,6 @@ python {this_script} \
         --spacing {args.spacing:.6f} \
         --buffer {args.buffer:.6f} \
         --radii_type {args.radii_type} \
-        --exclude_H \
         \n'''
         if not is_nc_grid_good(os.path.join(com_dir, GRID_NC)) and not is_running(sbatch_file, log_file,
                                                                 os.path.join(com_dir, GRID_NC)):
