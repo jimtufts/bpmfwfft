@@ -8,9 +8,10 @@ import sys
 import os
 import glob
 import argparse
+import netCDF4
 
 from _fft_sampling import is_sampling_nc_good, parse_nr_ligand_confs 
-from _postprocess import post_process
+from _postprocess import post_process, rotation_convergence
 
 
 parser = argparse.ArgumentParser()
@@ -103,10 +104,17 @@ else:
     lig_pdb_out = os.path.join(args.out_dir, LIG_PDB_OUT)
     bpmf_pkl_out = os.path.join(args.out_dir, BPMF_OUT )
 
-    check_convergence = args.check_convergence
-
-    post_process(rec_prmtop, lig_prmtop, complex_prmtop, sampling_nc_file, 
-            nr_resampled_complexes, 
-            sander_tmp_dir,
-            rec_pdb_out, lig_pdb_out, bpmf_pkl_out, check_convergence)
+    if args.check_convergence:
+        n_rotations = netCDF4.Dataset(sampling_nc_file).variables["resampled_energies"].shape[0]
+        M = 100 # bootstrap iterations
+        N_step = 100 # resolution of convergence test
+        rotation_convergence(rec_prmtop, lig_prmtop, complex_prmtop, sampling_nc_file,
+                     nr_resampled_complexes,
+                     sander_tmp_dir,
+                     rec_pdb_out, lig_pdb_out, bpmf_pkl_out, n_rotations, M, N_step)
+    else:
+        post_process(rec_prmtop, lig_prmtop, complex_prmtop, sampling_nc_file,
+                nr_resampled_complexes,
+                sander_tmp_dir,
+                rec_pdb_out, lig_pdb_out, bpmf_pkl_out)
 
