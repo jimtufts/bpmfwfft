@@ -49,7 +49,7 @@ def is_running(qsub_file, log_file, nc_file):
     if os.path.exists(qsub_file) and os.path.exists(nc_file) and (not os.path.exists(log_file)):
         return True
 
-    if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (not os.path.exists(log_file)):
+    if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (os.path.exists(log_file)):
         return True
     return False
 

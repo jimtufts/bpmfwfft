@@ -39,7 +39,7 @@ def bootstrapping(data, nrepetitions):
     :param data:  1d ndarray of float
     :param nrepetitions: int, number of repetitions
     :return: 1d ndarray of float of shape (repetitions)
-    sums of ramdom samples drawn from data with replacement
+    sums of random samples drawn from data with replacement
     """
     assert len(data.shape) == 1, "data must be 1D array"
     data = np.array(data, dtype=float)
@@ -50,6 +50,17 @@ def bootstrapping(data, nrepetitions):
         sums.append(data[sel_ind].sum())
     return np.array(sums, dtype=float)
 
+def select_rotation_ind(data, nrepetitions):
+    """
+        :param data:  1d ndarray of float
+        :param nrepetitions: int, number of repetitions
+        :return: 1d ndarray of float of shape (repetitions)
+        sums of random samples drawn from data with replacement
+        """
+    assert len(data.shape) == 1, "data must be 1D array"
+    data = np.array(data, dtype=float)
+    sample_size = data.shape[0]
+
 
 class PostProcess(object):
     def __init__(self, rec_prmtop, lig_prmtop, complex_prmtop,
@@ -58,7 +69,7 @@ class PostProcess(object):
                         nr_resampled_complexes,
                         randomly_translate_complex,
                         temperature,
-                        sander_tmp_dir, n_rotations=None):
+                        sander_tmp_dir, check_convergence=False):
         """
         :param rec_prmtop: str, name of receptor prmtop file
         :param lig_prmtop: str, name of ligand prmtop file
@@ -69,12 +80,13 @@ class PostProcess(object):
         :param randomly_translate_complex:  bool      # TODO may be removed, not useful
         :param temperature: float
         :param sander_tmp_dir: str, output dir, needed to put temp files to run sander
+        :param check_convergence: bool, collect data for running exp avg wrt num rotations
         """
         self._rec_prmtop = rec_prmtop
         self._lig_prmtop = lig_prmtop
         self._complex_prmtop = complex_prmtop
         self._sander_tmp_dir = sander_tmp_dir
-        self._n_rotations = n_rotations
+        self._check_convergence = check_convergence
 
         self._solvent_phases = solvent_phases
         # get gas phases corresponding to the solvent phases
@@ -87,18 +99,32 @@ class PostProcess(object):
 
         self._nc_handle = netCDF4.Dataset(sampling_nc_file, "r")
         self._check_number_resampled_energy(nr_resampled_complexes)
+        self._resampled_energy_shape = self._nc_handle.variables["resampled_energies"].shape
+        if check_convergence:
+            self._rotation_indices = self._nc_handle.variables["resampled_energies"].shape
+            self._estimate_gas_bpmf()
+            if self._no_sample:
+                self._cal_rec_desolv_no_sample()
+                self._cal_lig_desolv_no_sample()
+                self._cal_complex_solv_no_sample()
+            else:
+                self._cal_rec_desolv()
+                self._cal_lig_desolv()
+                self._cal_complex_solv(nr_resampled_complexes, randomly_translate_complex)
 
-        self._estimate_gas_bpmf()
-        if self._no_sample:
-            self._cal_rec_desolv_no_sample()
-            self._cal_lig_desolv_no_sample(n_rotations)
-            self._cal_complex_solv_no_sample()
+            self._estimate_solvent_bpmf()
         else:
-            self._cal_rec_desolv()
-            self._cal_lig_desolv(n_rotations)
-            self._cal_complex_solv(nr_resampled_complexes, randomly_translate_complex)
+            self._estimate_gas_bpmf()
+            if self._no_sample:
+                self._cal_rec_desolv_no_sample()
+                self._cal_lig_desolv_no_sample()
+                self._cal_complex_solv_no_sample()
+            else:
+                self._cal_rec_desolv()
+                self._cal_lig_desolv()
+                self._cal_complex_solv(nr_resampled_complexes, randomly_translate_complex)
 
-        self._estimate_solvent_bpmf()
+            self._estimate_solvent_bpmf()
 
     def _corresponding_gas_phase(self, solvent_phase):
         return solvent_phase.split("_")[0] + "_Gas"

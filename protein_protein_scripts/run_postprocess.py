@@ -18,10 +18,9 @@ parser.add_argument("--amber_dir", type=str, default="amber")
 parser.add_argument("--sampling_dir", type=str, default="fft_sampling")
 
 parser.add_argument("--nr_resample", type=int, default=100)
-parser.add_argument("--n_rotations", type=int, default=None)
-
 
 parser.add_argument("--out_dir", type=str, default="out")
+parser.add_argument("--check_convergence", action="store_true", default=False)
 parser.add_argument("--submit", action="store_true", default=False)
 args = parser.parse_args()
 
@@ -33,10 +32,10 @@ FFT_SAMPLING_NC = "fft_sample.nc"
 
 REC_PDB_OUT = "receptor_trans.pdb"
 LIG_PDB_OUT = "ligand_resampled.pdb"
-if args.n_rotations == None:
-    BPMF_OUT = f"bpmf.pkl"
+if args.check_convergence:
+    BPMF_OUT = f"convergence_test.pkl"
 else:
-    BPMF_OUT = f"bpmf_{args.n_rotations:04d}.pkl"
+    BPMF_OUT = f"bpmf.pkl"
 
 
 def is_sampling_good(sampling_dir):
@@ -83,8 +82,7 @@ python {this_script} \
         --amber_dir {amber_sub_dir} \
         --sampling_dir {sampling_sub_dir} \
         --out_dir {out_dir} \
-        --nr_resample {args.nr_resample} 
-        --n_rotations {args.n_rotations}\n'''
+        --nr_resample {args.nr_resample} \n'''
 
         bpmf_out = os.path.join(out_dir, BPMF_OUT)
         if not os.path.exists(bpmf_out):
@@ -98,7 +96,6 @@ else:
 
     sampling_nc_file = os.path.join(args.sampling_dir, FFT_SAMPLING_NC)
     nr_resampled_complexes = args.nr_resample
-    n_rotations = args.n_rotations
 
     sander_tmp_dir = args.out_dir
 
@@ -106,8 +103,10 @@ else:
     lig_pdb_out = os.path.join(args.out_dir, LIG_PDB_OUT)
     bpmf_pkl_out = os.path.join(args.out_dir, BPMF_OUT )
 
+    check_convergence = args.check_convergence
+
     post_process(rec_prmtop, lig_prmtop, complex_prmtop, sampling_nc_file, 
             nr_resampled_complexes, 
             sander_tmp_dir,
-            rec_pdb_out, lig_pdb_out, bpmf_pkl_out, n_rotations)
+            rec_pdb_out, lig_pdb_out, bpmf_pkl_out, check_convergence)
 
