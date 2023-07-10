@@ -106,8 +106,8 @@ else:
 
     if args.check_convergence:
         n_rotations = netCDF4.Dataset(sampling_nc_file).variables["resampled_energies"].shape[0]
-        M = 100 # bootstrap iterations
-        N_step = 100 # resolution of convergence test
+        M = 500 # bootstrap iterations
+        N_step = 500 # resolution of convergence test
         rotation_convergence(rec_prmtop, lig_prmtop, complex_prmtop, sampling_nc_file,
                      nr_resampled_complexes,
                      sander_tmp_dir,
