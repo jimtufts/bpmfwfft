@@ -273,8 +273,6 @@ class Sampling(object):
                 del trans_vectors
                 self._save_sub_data_to_nc(name, step)
 
-    from memory_profiler import profile
-    @profile
     def _do_fft(self, step):
         print("Doing FFT for step %d"%step, "test")
         lig_conf = self._lig_coord_ensemble[step]
@@ -315,7 +313,6 @@ class Sampling(object):
         self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[
             self._lig_grid._native_translation[0], self._lig_grid._native_translation[1], self._lig_grid._native_translation[2]]
         self._lig_grid.set_meaningful_energies_to_none()
-        print("debug")
         self._resampled_energies = np.array(self._resampled_energies, dtype=float)
         self._resampled_trans_vectors = np.array(self._resampled_trans_vectors, dtype=int)
 
