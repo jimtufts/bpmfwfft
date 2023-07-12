@@ -273,7 +273,8 @@ class Sampling(object):
                 del trans_vectors
                 self._save_sub_data_to_nc(name, step)
 
-
+    from memory_profiler import profile
+    @profile
     def _do_fft(self, step):
         print("Doing FFT for step %d"%step, "test")
         lig_conf = self._lig_coord_ensemble[step]
@@ -535,7 +536,6 @@ class Sampling_PL(Sampling):
 
         self._save_data_to_nc(step)
         return None
-
 
 if __name__ == "__main__":
     # test
