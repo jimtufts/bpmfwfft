@@ -351,7 +351,7 @@ def c_distr_charge_one_atom( np.ndarray[np.float64_t, ndim=1] atom_coordinate,
         np.ndarray[np.float64_t, ndim=1] b_vector = np.zeros([10], dtype=float)
         np.ndarray[np.float64_t, ndim=2] a_matrix = np.zeros([10,10], dtype=float)
         np.ndarray[np.float64_t, ndim=1] corner_crd
-        np.ndarray[np.float64_t, ndim=1] distributed_charges
+        np.ndarray[np.float64_t, ndim=1] distributed_charges = np.zeros([10], dtype=float)
 
     ten_corners = c_ten_corners(atom_coordinate, origin_crd, uper_most_corner_crd, uper_most_corner,
                                 spacing, eight_corner_shifts, six_corner_shifts, grid_x, grid_y, grid_z)
@@ -848,6 +848,7 @@ def c_cal_charge_grid_pp_mp(  str name,
                 l = ten_corners_view[i][0]
                 m = ten_corners_view[i][1]
                 n = ten_corners_view[i][2]
+                if distributed_charges[i] < -124:
                 grid[l, m, n] += distributed_charges[i]
     elif name == "water":
         for atom_ind in range(atomind,atomind+natoms_i):

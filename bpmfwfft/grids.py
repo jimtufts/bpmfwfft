@@ -205,7 +205,7 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        self._grid_func_names   = ("occupancy", "sasa", "water", "electrostatic", "LJr", "LJa")  # calculate all grids
+        self._grid_func_names   = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
         # self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ("occupancy", "LJa")  # uncomment to calculate LJa and occupancy
@@ -608,10 +608,8 @@ class LigGrid(Grid):
         :return: fft correlation function
         """
         assert grid_name in self._grid_func_names, "%s is not an allowed grid name"%grid_name
-
-        grid = self._cal_charge_grid(grid_name)
-
-        self._set_grid_key_value(grid_name, grid)
+        corr_func = self._cal_charge_grid(grid_name)
+        self._set_grid_key_value(grid_name, corr_func)
         corr_func = np.fft.fftn(self._grid[grid_name])
         self._set_grid_key_value(grid_name, None)           # to save memory
 
@@ -620,7 +618,7 @@ class LigGrid(Grid):
         corr_func = np.real(corr_func)
         return corr_func
 
-    def _cal_delta_sasa_func(self, occupancy_fft):
+    def _cal_delta_sasa_func(self, free_of_clash):
         """
         :param grid_name: str
         :return: fft correlation function
@@ -634,14 +632,16 @@ class LigGrid(Grid):
         grid[grid>0.] = 1.
         self._set_grid_key_value("water", grid)
         lwater_fft = np.fft.fftn(self._grid["water"])
-        print(self._grid["water"].sum())
+        # print(self._grid["water"].sum())
         self._set_grid_key_value("water", None)
         del grid
-
         lsasa_fft = lsasa_fft.conjugate()
         lwater_fft = lwater_fft.conjugate()
         dsasa_score = np.fft.ifftn(self._rec_FFTs["sasa"] * lwater_fft).real + np.fft.ifftn(self._rec_FFTs["water"] * lsasa_fft).real
-        dsasa_score[occupancy_fft > 0.001] = 0.
+        max_i, max_j, max_k = self._max_grid_indices
+        # dsasa_score = dsasa_score[0:max_i,0:max_j,0:max_k]
+        # dsasa_score = dsasa_score[free_of_clash]
+        # dsasa_score[~free_of_clash] = 0.
         return dsasa_score
 
     def _cal_shape_complementarity(self):
@@ -706,7 +706,8 @@ class LigGrid(Grid):
         max_i, max_j, max_k = self._max_grid_indices
         corr_func = self._cal_corr_func("occupancy")
         self._free_of_clash = (corr_func < 0.001)
-        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
+        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j,
+                              0:max_k]  # exclude positions where ligand crosses border
         print("Ligand positions excluding border crossers", self._free_of_clash.shape)
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
         if np.any(self._free_of_clash):
@@ -724,12 +725,55 @@ class LigGrid(Grid):
                 self._meaningful_energies += bsa_energy
                 del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
-        self._native_pose_energy = self._meaningful_energies[self._native_translation[0], self._native_translation[1],self._native_translation[2]]
-        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j, 0:max_k] # exclude positions where ligand crosses border
-        
-        self._meaningful_energies = self._meaningful_energies[self._free_of_clash]         # exclude positions where ligand is in clash with receptor, become 1D array
+        self._native_pose_energy = self._meaningful_energies[
+            self._native_translation[0], self._native_translation[1], self._native_translation[2]]
+        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
+                                    0:max_k]  # exclude positions where ligand crosses border
+
+        self._meaningful_energies = self._meaningful_energies[
+            self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
         self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
-        
+
+        return None
+
+    def _cal_energies_old(self):
+        """
+        calculate interaction energies
+        store self._meaningful_energies (1-array) and self._meaningful_corners (2-array)
+        meaningful means no border-crossing and no clashing
+        TODO
+        """
+        max_i, max_j, max_k = self._max_grid_indices
+        corr_func = self._cal_corr_func("occupancy")
+        self._free_of_clash = (corr_func < 0.001)
+        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j,
+                              0:max_k]  # exclude positions where ligand crosses border
+        print("Ligand positions excluding border crossers", self._free_of_clash.shape)
+        self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
+        if np.any(self._free_of_clash):
+            grid_names = [name for name in self._grid_func_names if name not in ["occupancy", "water", "sasa"]]
+            print(grid_names)
+            for name in grid_names:
+                grid_func_energy = self._cal_corr_func(name)
+                self._meaningful_energies += grid_func_energy
+                del grid_func_energy
+            # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
+            if "sasa" in self._grid_func_names:
+                bsa_energy = self._cal_delta_sasa_func(corr_func)
+                print("max dSASA:", bsa_energy.max())
+                bsa_energy = bsa_energy * -GAMMA
+                self._meaningful_energies += bsa_energy
+                del bsa_energy
+        # get crystal pose here, use i,j,k of crystal pose
+        self._native_pose_energy = self._meaningful_energies[
+            self._native_translation[0], self._native_translation[1], self._native_translation[2]]
+        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
+                                    0:max_k]  # exclude positions where ligand crosses border
+
+        self._meaningful_energies = self._meaningful_energies[
+            self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
+        self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
+
         return None
 
     def _cal_ligand_grids(self, grid_names):
@@ -884,8 +928,14 @@ class LigGrid(Grid):
     
     def get_meaningful_corners(self):
         meaningful_corners = self._cal_meaningful_corners()
-        if meaningful_corners.shape[0] != self._number_of_meaningful_energies:
-            raise RuntimeError("meaningful_corners does not have the same len as self._number_of_meaningful_energies")
+        # if meaningful_corners.shape[0] != self._number_of_meaningful_energies:
+        #     raise RuntimeError("meaningful_corners does not have the same len as self._number_of_meaningful_energies")
+        return meaningful_corners
+
+    def get_meaningful_corners_comp(self):
+        meaningful_corners = self._cal_meaningful_corners()
+        # if meaningful_corners.shape[0] != self._number_of_meaningful_energies:
+        #     raise RuntimeError("meaningful_corners does not have the same len as self._number_of_meaningful_energies")
         return meaningful_corners
 
     def set_meaningful_energies_to_none(self):
@@ -974,6 +1024,12 @@ class LigGrid(Grid):
         for atom_ind in range(len(self._crd)):
             self._crd[atom_ind] += displacement
         return None
+
+    def get_gamma(self):
+        """
+        returns value of GAMMA for use outside of class
+        """
+        return GAMMA
 
     def write_pdb(self, file_name, mode):
         IO.write_pdb(self._prmtop, self._crd, file_name, mode)

@@ -61,6 +61,10 @@ class Sampling(object):
 
         self._nc_handle = self._initialize_nc(output_nc)
 
+        self._resampled_energies_components = {}
+        self._resampled_trans_vectors_components = {}
+
+
     def _create_rec_grid(self, rec_prmtop, lj_sigma_scal_fact,
                          rc_scale, rs_scale, rm_scale, rho,
                          rec_inpcrd, bsite_file, grid_nc_file):
@@ -120,6 +124,22 @@ class Sampling(object):
         nc_handle.createVariable("native_pose_energy", "f8", ("one"))
         nc_handle.createVariable("native_crd", "f8", ("lig_natoms", "three"))
         nc_handle.createVariable("native_translation", "i8", ("three"))
+
+
+        nc_handle.createVariable(f"LJ_resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
+        nc_handle.createVariable(f"LJ_resampled_trans_vectors", "i8",
+                                 ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
+        nc_handle.createVariable(f"LJ_native_pose_energy", "f8", ("one"))
+
+        nc_handle.createVariable(f"no_sasa_resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
+        nc_handle.createVariable(f"no_sasa_resampled_trans_vectors", "i8",
+                                 ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
+        nc_handle.createVariable(f"no_sasa_native_pose_energy", "f8", ("one"))
+
+        nc_handle.createVariable(f"sasa_resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
+        nc_handle.createVariable(f"sasa_resampled_trans_vectors", "i8",
+                                 ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
+        nc_handle.createVariable(f"sasa_native_pose_energy", "f8", ("one"))
 
         nc_handle.set_auto_mask(False)
 
@@ -182,7 +202,127 @@ class Sampling(object):
         self._nc_handle.variables["resampled_trans_vectors"][step,:,:] = self._resampled_trans_vectors
         return None
 
+    def _save_sub_data_to_nc(self, name, step):
+        # if step == 0:
+        #     self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
+        #     print("Native pose energy", self._lig_grid._native_pose_energy)
+        if name == "sasa":
+            self._nc_handle.variables[f"{name}_resampled_energies"][step,:] = self._resampled_energies_components[name]
+            self._nc_handle.variables[f"{name}_resampled_trans_vectors"][step,:,:] = self._resampled_trans_vectors_components[name]
+        else:
+            self._nc_handle.variables[f"{name}_resampled_energies"][step, :] = self._resampled_energies_components[name]
+            self._nc_handle.variables[f"{name}_resampled_trans_vectors"][step, :, :] = self._resampled_trans_vectors_components[name]
+        return None
+
+
+    def _cal_free_of_clash(self):
+        self._lig_grid._max_i, self._lig_grid._max_j, self._lig_grid._max_k = self._lig_grid._max_grid_indices
+        corr_func = self._lig_grid._cal_corr_func("occupancy")
+        self._lig_grid._free_of_clash = (corr_func < 0.001)
+        # self._lig_grid._free_of_clash = self._lig_grid._free_of_clash[0:self._lig_grid._max_i, 0:self._lig_grid._max_i,
+        #                                 0:self._lig_grid._max_i]  # exclude positions where ligand crosses border
+        del corr_func
+        print("Ligand positions excluding border crossers", self._lig_grid._free_of_clash.shape)
+
+        return None
+
+    def _remove_nonphysical_energies(self, grid):
+        max_i, max_j, max_k = self._lig_grid._max_grid_indices
+        grid = grid[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
+        grid = grid[self._lig_grid._free_of_clash[0:max_i, 0:max_j, 0:max_k]]  # only include positions with no clash
+        return grid
+
+
+    def _cal_energies(self, name, step):
+        max_i, max_j, max_k = self._lig_grid._max_grid_indices
+        if np.any(self._lig_grid._free_of_clash[0:max_i, 0:max_j, 0:max_k]):
+            grid_energy = np.zeros((self._lig_grid._max_grid_indices))
+            if name in ["electrostatic", "LJa", "LJr"]:
+                grid_energy = self._lig_grid._cal_corr_func(name)
+                # grid_energy = self._remove_nonphysical_energies(grid_energy)
+                self._lig_grid._meaningful_energies += grid_energy
+            elif name == "sasa":
+                grid_energy = self._lig_grid._cal_delta_sasa_func(self._lig_grid._free_of_clash)
+                grid_energy = grid_energy * -self._lig_grid.get_gamma()
+                # grid_energy = self._remove_nonphysical_energies(grid_energy)
+                self._lig_grid._meaningful_energies += grid_energy
+
+            # self._native_pose_energy_components[name] = self._lig_grid._meaningful_energies[
+            #     self._lig_grid._native_translation[0], self._lig_grid._native_translation[1], self._lig_grid._native_translation[2]]
+            if name == "sasa":
+                grid_energy = self._remove_nonphysical_energies(grid_energy)
+                sel_ind = np.argsort(grid_energy)[:self._energy_sample_size_per_ligand]
+                self._resampled_energies_components[name] = [grid_energy[ind] for ind in sel_ind]
+                del grid_energy
+                trans_vectors = self._lig_grid.get_meaningful_corners_comp()
+                self._resampled_trans_vectors_components[name] = [trans_vectors[ind] for ind in sel_ind]
+                del trans_vectors
+                self._save_sub_data_to_nc(name, step)
+            elif name in ["LJa", "electrostatic"]:
+                grid_energy = self._lig_grid._meaningful_energies.copy()
+                grid_energy = self._remove_nonphysical_energies(grid_energy)
+                sel_ind = np.argsort(grid_energy)[:self._energy_sample_size_per_ligand]
+                if name == "LJa":
+                    name = "LJ"
+                elif name == "electrostatic":
+                    name = "no_sasa"
+                self._resampled_energies_components[name] = [grid_energy[ind] for ind in sel_ind]
+                del grid_energy
+                trans_vectors = self._lig_grid.get_meaningful_corners_comp()
+                self._resampled_trans_vectors_components[name] = [trans_vectors[ind] for ind in sel_ind]
+                del trans_vectors
+                self._save_sub_data_to_nc(name, step)
+
+
     def _do_fft(self, step):
+        print("Doing FFT for step %d"%step, "test")
+        lig_conf = self._lig_coord_ensemble[step]
+        self._lig_grid._place_ligand_crd_in_grid(molecular_coord=lig_conf)
+        self._cal_free_of_clash()
+        self._lig_grid._meaningful_energies = np.zeros(self._lig_grid._grid["counts"], dtype=float)
+        names = [name for name in self._lig_grid._grid_func_names if name not in ["occupancy", "water"]]
+        for name in names:
+            self._cal_energies(name, step)
+
+        energies = self._lig_grid.get_meaningful_energies()
+        energies = self._remove_nonphysical_energies(energies)
+        print("Energies shape:", energies.shape)
+
+        self._mean_energy = energies.mean()
+        self._min_energy = energies.min()
+        self._energy_std = energies.std()
+        print("Number of finite energy samples", energies.shape[0])
+
+        exp_energies = -self._beta * energies
+        print(f"Max exp energy {exp_energies.max()}, Min exp energy {exp_energies.min()}")
+        # print out bottom 5 lowest energies
+        self._log_of_divisor = exp_energies.max()
+        exp_energies = np.exp(exp_energies - self._log_of_divisor)
+        self._exponential_sum = exp_energies.sum()
+        exp_energies /= self._exponential_sum
+        print("Number of exponential energy samples", exp_energies.sum())
+        self._lig_grid._number_of_meaningful_energies = energies.flatten().shape[0]
+        sel_ind = np.argsort(energies)[:self._energy_sample_size_per_ligand]
+        del exp_energies
+        self._resampled_energies = [energies[ind] for ind in sel_ind]
+        del energies
+
+        trans_vectors = self._lig_grid.get_meaningful_corners()
+        self._resampled_trans_vectors = [trans_vectors[ind] for ind in sel_ind]
+        del trans_vectors
+        # get crystal pose here, use i,j,k of crystal pose
+        self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[
+            self._lig_grid._native_translation[0], self._lig_grid._native_translation[1], self._lig_grid._native_translation[2]]
+        self._lig_grid.set_meaningful_energies_to_none()
+        print("debug")
+        self._resampled_energies = np.array(self._resampled_energies, dtype=float)
+        self._resampled_trans_vectors = np.array(self._resampled_trans_vectors, dtype=int)
+
+        self._save_data_to_nc(step)
+
+        return None
+
+    def _do_fft_old(self, step):
         print("Doing FFT for step %d"%step, "test")
         lig_conf = self._lig_coord_ensemble[step]
         self._lig_grid.cal_grids(molecular_coord = lig_conf)
@@ -205,11 +345,11 @@ class Sampling(object):
         exp_energies /= self._exponential_sum
         print("Number of exponential energy samples", exp_energies.sum())
         # sel_ind = np.random.choice(exp_energies.shape[0], size=self._energy_sample_size_per_ligand, p=exp_energies, replace=True)
-        try:
-            sel_ind = np.random.choice(exp_energies.shape[0], size=self._energy_sample_size_per_ligand, p=exp_energies, replace=False)
-        except:
-            print(f"Only {np.count_nonzero(exp_energies)} non-zero entries in p, falling back to {self._energy_sample_size_per_ligand} lowest energies")
-            sel_ind = np.argsort(energies)[:self._energy_sample_size_per_ligand]
+        # try:
+        #     sel_ind = np.random.choice(exp_energies.shape[0], size=self._energy_sample_size_per_ligand, p=exp_energies, replace=False)
+        # except:
+        # print(f"Only {np.count_nonzero(exp_energies)} non-zero entries in p, falling back to {self._energy_sample_size_per_ligand} lowest energies")
+        sel_ind = np.argsort(energies)[:self._energy_sample_size_per_ligand]
 
         del exp_energies
         self._resampled_energies = [energies[ind] for ind in sel_ind]
@@ -399,21 +539,22 @@ class Sampling_PL(Sampling):
 
 if __name__ == "__main__":
     # test
-    rec_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    test_dir = f"/media/jim/fft_data"
+    rec_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
     lj_sigma_scal_fact = 1.0
-    rec_inpcrd = "./media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
+    rec_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
 
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
-    grid_nc_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/sasa1.nc"
+    grid_nc_file = f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid.nc"
 
-    lig_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
-    lig_inpcrd = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
+    lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
 
     energy_sample_size_per_ligand = 1000
-    output_nc = "/media/jim/Research_TWO/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling.nc"
+    output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
 
-    ligand_md_trj_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
+    ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
