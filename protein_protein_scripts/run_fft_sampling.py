@@ -24,7 +24,7 @@ parser.add_argument("--result_name",                      type=str, default="fft
 parser.add_argument("--lig_ensemble_dir",              type=str, default="rotation")
 
 parser.add_argument("--energy_sample_size_per_ligand", type=int, default=1000)
-parser.add_argument("--nr_lig_conf",                   type=int, default=500)
+parser.add_argument("--nr_lig_conf",                   type=int, default=5000)
 parser.add_argument("--start_index",                    type=int, default=0)
 
 parser.add_argument("--out_dir",                       type=str, default="out")
@@ -159,6 +159,7 @@ elif args.slurm:
     coord_dir = os.path.abspath(args.coord_dir)
     grid_dir = os.path.abspath(args.grid_dir)
     lig_ensemble_dir = os.path.abspath(args.lig_ensemble_dir)
+    out_dir = os.path.abspath(args.out_dir)
 
     complex_names = glob.glob(os.path.join(grid_dir, "*"))
     complex_names = [os.path.basename(d) for d in complex_names if os.path.isdir(d)]
@@ -190,8 +191,9 @@ elif args.slurm:
     job_count = 0
     for complex_name in complex_names:
 
-        if not os.path.isdir(complex_name):
-            os.makedirs(complex_name)
+        com_dir = os.path.join(out_dir, complex_name)
+        if not os.path.isdir(com_dir):
+            os.makedirs(com_dir)
 
         idx = complex_name[:4].lower()
         amber_sub_dir = os.path.join(amber_dir, complex_name)
@@ -199,9 +201,9 @@ elif args.slurm:
         grid_sub_dir = os.path.join(grid_dir, complex_name)
         lig_ensemble_sub_dir = os.path.join(lig_ensemble_dir, complex_name)
 
-        out_dir = os.path.abspath(complex_name)
-        qsub_file = os.path.join(out_dir, idx+"_fft.job")
-        log_file = os.path.join(out_dir, idx+"_fft.log")
+        # out_dir = os.path.abspath(complex_name)
+        qsub_file = os.path.join(com_dir, idx+"_fft.job")
+        log_file = os.path.join(com_dir, idx+"_fft.log")
         qsub_script = f'''#!/bin/bash
 #SBATCH --job-name={id}
 #SBATCH --output={log_file}
@@ -234,7 +236,7 @@ python {this_script}  \
         --grid_name {args.grid_name} \
         --grid_name {args.grid_name} \
         --result_name {lig_ensemble_sub_dir} \
-        --out_dir {out_dir} \
+        --out_dir {com_dir} \
         --lj_scale {args.lj_scale:.6f} \
         --rc_scale {args.rc_scale:.6f} \
         --rs_scale {args.rs_scale:.6f} \
@@ -246,7 +248,7 @@ python {this_script}  \
         --start_index {args.start_index} \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
 
-        fft_sampling_nc_file = os.path.join(out_dir, FFT_SAMPLING_NC)
+        fft_sampling_nc_file = os.path.join(com_dir, FFT_SAMPLING_NC)
         if not is_running(qsub_file, log_file, fft_sampling_nc_file):
 
             if os.path.exists(fft_sampling_nc_file):
