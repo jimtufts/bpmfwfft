@@ -205,7 +205,7 @@ elif args.slurm:
         qsub_file = os.path.join(com_dir, idx+"_fft.job")
         log_file = os.path.join(com_dir, idx+"_fft.log")
         qsub_script = f'''#!/bin/bash
-#SBATCH --job-name={id}
+#SBATCH --job-name={idx}
 #SBATCH --output={log_file}
 #SBATCH --partition=shared
 #SBATCH --nodes=1
