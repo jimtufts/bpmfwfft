@@ -10,8 +10,9 @@ from bpmfwfft.postprocess import PostProcess
 
 
 #SOLVENT_PHASES = ["OpenMM_GBn", "OpenMM_GBn2", "OpenMM_HCT", "OpenMM_OBC1", "OpenMM_OBC2"]
-SOLVENT_PHASES = ["OpenMM_GBn", "OpenMM_GBn2", "OpenMM_OBC1", "OpenMM_OBC2"]
+# SOLVENT_PHASES = ["OpenMM_GBn", "OpenMM_GBn2", "OpenMM_OBC1", "OpenMM_OBC2"]
 # SOLVENT_PHASES.extend(["sander_PBSA", "sander_OBC2"])
+SOLVENT_PHASES = ["OpenMM_OBC2"]
 
 TEMPERATURE = 300.
 

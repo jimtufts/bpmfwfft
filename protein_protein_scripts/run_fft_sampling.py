@@ -8,6 +8,8 @@ import os
 import glob
 import argparse
 
+import numpy as np
+
 from _receptor_grid_cal import is_nc_grid_good
 from _fft_sampling import sampling, is_sampling_nc_good
 from _receptor_grid_cal import get_grid_size_from_nc
@@ -53,9 +55,9 @@ FFT_SAMPLING_NC = args.result_name
 
 
 def is_running(qsub_file, log_file, nc_file):
-    if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (not os.path.exists(log_file)):
-        return True
     if os.path.exists(qsub_file) and os.path.exists(nc_file) and (not os.path.exists(log_file)):
+        return True
+    if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (os.path.exists(log_file)):
         return True
     return False
 
@@ -168,10 +170,12 @@ elif args.slurm:
     for complex_name in complex_names:
         grid_sizes[complex_name] = get_grid_size_from_nc(os.path.join(grid_dir, complex_name, GRID_NC))
     complex_names.sort(key=lambda name: grid_sizes[name])
-    print("Complex   grid size")
+    print("Complex   grid size   n_cpu   memory")
 
     for complex_name in complex_names:
-        print(complex_name, grid_sizes[complex_name])
+        cpu_count = np.ceil(((0.00045279032 * grid_sizes[complex_name] ** 3) / 128000) * 128)
+        memory_amt = np.ceil((0.00045279032 * grid_sizes[complex_name] ** 3))
+        print(complex_name, grid_sizes[complex_name], cpu_count, memory_amt)
 
     pwd = os.getcwd()
     complex_names = [c for c in complex_names if not is_sampling_nc_good(
@@ -201,11 +205,11 @@ elif args.slurm:
         qsub_script = f'''#!/bin/bash
 #SBATCH --job-name={id}
 #SBATCH --output={log_file}
-#SBATCH --partition=compute
+#SBATCH --partition=shared
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=128
-#SBATCH --mem=249325M
+#SBATCH --cpus-per-task={int(cpu_count)}
+#SBATCH --mem={int(memory_amt)}M
 #SBATCH --account=iit103
 #SBATCH --export=ALL
 #SBATCH -t 48:00:00
@@ -220,7 +224,7 @@ conda activate fft
 date
 
 #SET the number of openmp threads
-export OMP_NUM_THREADS=128
+export OMP_NUM_THREADS={int(cpu_count)}
 
 #Run the job
 python {this_script}  \
@@ -255,7 +259,7 @@ python {this_script}  \
 
             print("Submitting %s" % complex_name)
             open(qsub_file, "w").write(qsub_script)
-            os.system("qsub %s" % qsub_file)
+            os.system("sbatch %s" % qsub_file)
             job_count += 1
             if job_count == max_jobs:
                 print("Max number of jobs %d reached." % job_count)

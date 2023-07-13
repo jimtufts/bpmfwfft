@@ -318,6 +318,7 @@ class PostProcess(object):
         """
         complex_confs = self._construct_complexes(nr_resampled_complexes, randomly_translate_complex)
         fft_energies = np.array(self._nc_handle.variables['resampled_energies'][self._rotation_indexes])
+        self._bootstrapping_data = fft_energies
         fft_min_energies = np.sort(fft_energies.flatten())[:nr_resampled_complexes]
         fft_trans_ind = np.argsort(fft_energies.flatten())[:nr_resampled_complexes]
         fft_trans_ind = np.unravel_index(fft_trans_ind, fft_energies.shape)
