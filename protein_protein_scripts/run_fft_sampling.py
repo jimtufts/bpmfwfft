@@ -190,7 +190,8 @@ elif args.slurm:
 
     job_count = 0
     for complex_name in complex_names:
-
+        cpu_count = np.ceil(((0.00045279032 * grid_sizes[complex_name] ** 3) / 128000) * 128)
+        memory_amt = np.ceil((0.00045279032 * grid_sizes[complex_name] ** 3))
         com_dir = os.path.join(out_dir, complex_name)
         if not os.path.isdir(com_dir):
             os.makedirs(com_dir)
@@ -234,8 +235,8 @@ python {this_script}  \
         --coord_dir {coor_sub_dir} \
         --grid_dir {grid_sub_dir} \
         --grid_name {args.grid_name} \
-        --grid_name {args.grid_name} \
-        --result_name {lig_ensemble_sub_dir} \
+        --result_name {args.result_name} \
+        --lig_ensemble_dir {lig_ensemble_sub_dir} \
         --out_dir {com_dir} \
         --lj_scale {args.lj_scale:.6f} \
         --rc_scale {args.rc_scale:.6f} \
