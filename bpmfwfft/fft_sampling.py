@@ -253,9 +253,10 @@ class Sampling(object):
                 grid_energy = self._remove_nonphysical_energies(grid_energy)
                 sel_ind = np.argsort(grid_energy)[:self._energy_sample_size_per_ligand]
                 self._resampled_energies_components[name] = [grid_energy[ind] for ind in sel_ind]
-                del grid_energy
                 trans_vectors = self._lig_grid.get_meaningful_corners_comp()
                 self._resampled_trans_vectors_components[name] = [trans_vectors[ind] for ind in sel_ind]
+                print(self._resampled_trans_vectors_components[name])
+                del grid_energy
                 del trans_vectors
                 self._save_sub_data_to_nc(name, step)
             elif name in ["LJa", "electrostatic"]:
@@ -267,9 +268,9 @@ class Sampling(object):
                 elif name == "electrostatic":
                     name = "no_sasa"
                 self._resampled_energies_components[name] = [grid_energy[ind] for ind in sel_ind]
-                del grid_energy
                 trans_vectors = self._lig_grid.get_meaningful_corners_comp()
                 self._resampled_trans_vectors_components[name] = [trans_vectors[ind] for ind in sel_ind]
+                del grid_energy
                 del trans_vectors
                 self._save_sub_data_to_nc(name, step)
 
