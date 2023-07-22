@@ -20,6 +20,8 @@ except:
 
 KB = 0.001987204134799235       # kcal/mol/K
 
+t_string = "resampled_trans_vectors"
+e_string = "resampled_energies"
 
 def cal_pot_energy(prmtop_file, crd, phase, tmp_dir):
     """
@@ -100,7 +102,7 @@ class PostProcess(object):
 
         self._nc_handle = netCDF4.Dataset(sampling_nc_file, "r")
         self._check_number_resampled_energy(nr_resampled_complexes)
-        self._resampled_energy_shape = self._nc_handle.variables["resampled_energies"].shape
+        self._resampled_energy_shape = self._nc_handle.variables[e_string].shape
         self._estimate_gas_bpmf()
         if self._no_sample:
             self._cal_rec_desolv_no_sample()
@@ -124,7 +126,7 @@ class PostProcess(object):
         """
         To make sure the provided nr_resampled_complexes is consistent with the one in the nc file
         """
-        nr_resampled_complexes_in_nc_file = self._nc_handle.variables["resampled_energies"].shape[1]
+        nr_resampled_complexes_in_nc_file = self._nc_handle.variables[e_string].shape[1]
 
         if nr_resampled_complexes > nr_resampled_complexes_in_nc_file:
             raise RuntimeError("nr_resampled_complexes is larger than size of resampled_energies (%d) in nc file"%(
@@ -180,8 +182,7 @@ class PostProcess(object):
         set self._lig_energies[phase] -> 1D np.array of len(lig_confs)
         and self._lig_desol_fe[phase] -> float
         """
-        lig_confs = self._nc_handle.variables["lig_positions"][self._rotation_indexes]
-
+        lig_confs = self._nc_handle.variables["lig_positions"][:]#[self._rotation_indexes]
         self._lig_energies = {}
         for p in self._gas_phases + self._solvent_phases:
             self._lig_energies[p] = cal_pot_energy(self._lig_prmtop, lig_confs, p, self._sander_tmp_dir)
@@ -215,7 +216,7 @@ class PostProcess(object):
         set self._lig_energies[phase] -> 1D np.array of len(lig_confs)
         and self._lig_desol_fe[phase] -> float
         """
-        nr_lig_confs = self._nc_handle.variables["lig_positions"][self._rotation_indexes].shape[0]
+        nr_lig_confs = self._nc_handle.variables["lig_positions"][:].shape[0]
 
         self._lig_energies = {}
         for p in self._gas_phases + self._solvent_phases:
@@ -237,8 +238,8 @@ class PostProcess(object):
     def _resample_bound_state(self, nr_resampled_complexes):
         beta = 1./ KB/ self._temperature
 
-        strata_weights  = self._nc_handle.variables["exponential_sums"][self._rotation_indexes]
-        log_of_divisors = self._nc_handle.variables["log_of_divisors"][self._rotation_indexes]
+        strata_weights  = self._nc_handle.variables["exponential_sums"][:]
+        log_of_divisors = self._nc_handle.variables["log_of_divisors"][:]
         common_divisor  = log_of_divisors.max()
         strata_weights *= np.exp(log_of_divisors - common_divisor)
         strata_weights /= strata_weights.sum()
@@ -257,8 +258,8 @@ class PostProcess(object):
         #         selected_trans_ind =
         #         for trans_ind in selected_trans_ind:
         #             conf_trans_inds.append((conf_ind, trans_ind))
-        lowest_energy_confs = np.argsort(np.array(self._nc_handle.variables['resampled_energies'][self._rotation_indexes,:]).flatten())[:nr_resampled_complexes]
-        lowest_energy_confs = np.unravel_index(lowest_energy_confs, self._nc_handle.variables['resampled_energies'][self._rotation_indexes].shape)
+        lowest_energy_confs = np.argsort(np.array(self._nc_handle.variables['resampled_energies']).flatten())[:nr_resampled_complexes]
+        lowest_energy_confs = np.unravel_index(lowest_energy_confs, self._nc_handle.variables['resampled_energies'].shape)
         lowest_energy_confs = np.array(lowest_energy_confs).transpose()
         for conf in lowest_energy_confs:
             conf_trans_inds.append((conf[0], conf[1]))
@@ -270,7 +271,7 @@ class PostProcess(object):
         move ligand originally at lig_com to trans_corner
         """
         lig_conf     = self._nc_handle.variables["lig_positions"][conf_ind]
-        trans_corner = self._nc_handle.variables["resampled_trans_vectors"][conf_ind, trans_ind]
+        trans_corner = self._nc_handle.variables[t_string][conf_ind, trans_ind]
 
         i, j, k = trans_corner
         x = self._nc_handle.variables["x"][i]
@@ -317,7 +318,7 @@ class PostProcess(object):
         and self._complex_sol_fe
         """
         complex_confs = self._construct_complexes(nr_resampled_complexes, randomly_translate_complex)
-        fft_energies = np.array(self._nc_handle.variables['resampled_energies'][self._rotation_indexes])
+        fft_energies = np.array(self._nc_handle.variables['resampled_energies'])
         self._bootstrapping_data = fft_energies
         fft_min_energies = np.sort(fft_energies.flatten())[:nr_resampled_complexes]
         fft_trans_ind = np.argsort(fft_energies.flatten())[:nr_resampled_complexes]
@@ -415,16 +416,16 @@ class PostProcess(object):
         """
         v_0 = 1661.
         beta = 1./ KB/ self._temperature
-        v_binding = self._nc_handle.variables["volume"][self._rotation_indexes].mean()
+        v_binding = self._nc_handle.variables["volume"][:].mean()
         print("v_binding %f"%v_binding)
         correction = -KB * self._temperature * np.log(v_binding / v_0 / 8 / np.pi**2)
         print("Volume correction %f"%correction)
 
-        nr_grid_points = np.array(self._nc_handle.variables["nr_grid_points"][self._rotation_indexes], dtype=float)
+        nr_grid_points = np.array(self._nc_handle.variables["nr_grid_points"][:], dtype=float)
         number_of_samples = nr_grid_points.sum()
 
-        exponential_sums = self._nc_handle.variables["exponential_sums"][self._rotation_indexes]
-        log_of_divisors  = self._nc_handle.variables["log_of_divisors"][self._rotation_indexes]
+        exponential_sums = self._nc_handle.variables["exponential_sums"][:]
+        log_of_divisors  = self._nc_handle.variables["log_of_divisors"][:]
         common_divisor  = log_of_divisors.max()
 
         exponential_sums *= np.exp(log_of_divisors - common_divisor)
@@ -432,7 +433,6 @@ class PostProcess(object):
 
         gas_bpmf = -KB * self._temperature * (np.log(exp_mean) + common_divisor)
         gas_bpmf += correction
-
         # TODO check number_of_samples
         exp_means = bootstrapping(exponential_sums, self._bootstrapping_nrepetitions) / number_of_samples
         self._gas_bpmf_std = (-KB * self._temperature * (np.log(exp_means) + common_divisor)).std()

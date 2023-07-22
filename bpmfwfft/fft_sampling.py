@@ -310,8 +310,10 @@ class Sampling(object):
         self._resampled_trans_vectors = [trans_vectors[ind] for ind in sel_ind]
         del trans_vectors
         # get crystal pose here, use i,j,k of crystal pose
-        self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[
+        max_i, max_j, max_k = self._lig_grid._max_grid_indices
+        self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:max_i, 0:max_j, 0:max_k][
             self._lig_grid._native_translation[0], self._lig_grid._native_translation[1], self._lig_grid._native_translation[2]]
+        print(self._lig_grid._native_translation, self._lig_grid._native_pose_energy)
         self._lig_grid.set_meaningful_energies_to_none()
         self._resampled_energies = np.array(self._resampled_energies, dtype=float)
         self._resampled_trans_vectors = np.array(self._resampled_trans_vectors, dtype=int)

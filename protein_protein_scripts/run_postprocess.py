@@ -17,6 +17,7 @@ from _postprocess import post_process, rotation_convergence
 parser = argparse.ArgumentParser()
 parser.add_argument("--amber_dir", type=str, default="amber")
 parser.add_argument("--sampling_dir", type=str, default="fft_sampling")
+parser.add_argument("--sampling_nc", type=str, default="fft_sample.nc")
 
 parser.add_argument("--nr_resample", type=int, default=100)
 
@@ -29,7 +30,7 @@ RECEPTOR_PRMTOP = "receptor.prmtop"
 LIGAND_PRMTOP = "ligand.prmtop"
 COMPLEX_PRMTOP = "complex.prmtop"
 
-FFT_SAMPLING_NC = "fft_sample.nc"
+FFT_SAMPLING_NC = args.sampling_nc
 
 REC_PDB_OUT = "receptor_trans.pdb"
 LIG_PDB_OUT = "ligand_resampled.pdb"

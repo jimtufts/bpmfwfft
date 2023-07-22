@@ -4,6 +4,7 @@ import numpy as np
 cimport numpy as np
 import math
 from cython cimport view
+from scipy.optimize import nnls
 
 
 cdef extern from "math.h":
@@ -333,7 +334,8 @@ def c_ten_corners(  np.ndarray[np.float64_t, ndim=1] atom_coordinate,
     
 
 @cython.boundscheck(False)
-def c_distr_charge_one_atom( np.ndarray[np.float64_t, ndim=1] atom_coordinate, 
+def c_distr_charge_one_atom( str name,
+                             np.ndarray[np.float64_t, ndim=1] atom_coordinate,
                              double charge,
                              np.ndarray[np.float64_t, ndim=1] origin_crd,
                              np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
@@ -374,8 +376,12 @@ def c_distr_charge_one_atom( np.ndarray[np.float64_t, ndim=1] atom_coordinate,
             row += 1
             for k in range(10):
                 a_matrix[row][k] = delta_vectors[k][i] * delta_vectors[k][j]
+    if name == "electrostatic":
+        distributed_charges = np.linalg.solve(a_matrix, b_vector)
+    else:
+        distributed_charges = nnls(a_matrix, b_vector)[0]
+    # distributed_charges = np.linalg.solve(a_matrix, b_vector)
 
-    distributed_charges = np.linalg.solve(a_matrix, b_vector)
     return ten_corners, distributed_charges
 
 
@@ -837,7 +843,7 @@ def c_cal_charge_grid_pp_mp(  str name,
         for atom_ind in range(atomind,atomind+natoms_i):
             atom_coordinate = crd[atom_ind]
             charge = charges[atom_ind]
-            ten_corners, distributed_charges = c_distr_charge_one_atom( atom_coordinate, charge,
+            ten_corners, distributed_charges = c_distr_charge_one_atom(name, atom_coordinate, charge,
                                                                     origin_crd, uper_most_corner_crd,
                                                                     uper_most_corner, spacing,
                                                                     eight_corner_shifts, six_corner_shifts,
@@ -943,7 +949,7 @@ def c_cal_charge_grid_pp(  str name,
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
             charge = charges[atom_ind]
-            ten_corners, distributed_charges = c_distr_charge_one_atom( atom_coordinate, charge,
+            ten_corners, distributed_charges = c_distr_charge_one_atom(name, atom_coordinate, charge,
                                                                     origin_crd, uper_most_corner_crd,
                                                                     uper_most_corner, spacing,
                                                                     eight_corner_shifts, six_corner_shifts,
