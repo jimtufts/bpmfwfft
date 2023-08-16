@@ -417,6 +417,8 @@ def get_min_dists(
         dict indR = {}
         dict indL = {}
         dict dist = {}
+        dict nameR = {}
+        dict nameL = {}
         str rad_type, diameter
         list metal_ions = ["ZN", "CA", "MG", "SR"]
         list key_types = ["ss", "sc", "cs", "cc", "ms", "sm", "mc", "cm"]
@@ -441,6 +443,8 @@ def get_min_dists(
         indR[key] = 0
         indL[key] = 0
         dist[key] = math.inf
+        nameR[key] = "None"
+        nameL[key] = "None"
     # Set either LJ_sigma or VDW diameter for atom size
     if use_vdw:
         diameter = "vdw_dia"
@@ -449,13 +453,13 @@ def get_min_dists(
     # Build index list without hydrogen if desired
     for i in range(rec_natoms):
         if exclude_H:
-            if rec["atom_names"][i][0] != 'H':
+            if "H" not in rec["atom_names"][i]:
                 rec_inds.append(i)
         else:
             rec_inds.append(i)
     for i in range(lig_natoms):
         if exclude_H:
-            if lig["atom_names"][i][0] != 'H':
+            if "H" not in lig["atom_names"][i]:
                 lig_inds.append(i)
         else:
             lig_inds.append(i)
@@ -474,6 +478,8 @@ def get_min_dists(
                                 indL["cc"] = lig_ind
                                 sigmaR["cc"] = rec[diameter][rec_ind]
                                 sigmaL["cc"] = lig[diameter][lig_ind]
+                                nameR["cc"] = rec_atom_names[rec_ind]
+                                nameL["cc"] = lig_atom_names[lig_ind]
                         else:
                             if dist["cs"] > distance:
                                 dist["cs"] = distance
@@ -481,6 +487,8 @@ def get_min_dists(
                                 indL["cs"] = lig_ind
                                 sigmaR["cs"] = rec[diameter][rec_ind]
                                 sigmaL["cs"] = lig[diameter][lig_ind]
+                                nameR["cs"] = rec_atom_names[rec_ind]
+                                nameL["cs"] = lig_atom_names[lig_ind]
                     else:
                         if dist["cm"] > distance:
                                 dist["cm"] = distance
@@ -488,6 +496,8 @@ def get_min_dists(
                                 indL["cm"] = lig_ind
                                 sigmaR["cm"] = rec[diameter][rec_ind]
                                 sigmaL["cm"] = lig[diameter][lig_ind]
+                                nameR["cm"] = rec_atom_names[rec_ind]
+                                nameL["cm"] = lig_atom_names[lig_ind]
             else:
                 for lig_ind in lig_inds:
                     distance = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
@@ -499,6 +509,8 @@ def get_min_dists(
                                 indL["sc"] = lig_ind
                                 sigmaR["sc"] = rec[diameter][rec_ind]
                                 sigmaL["sc"] = lig[diameter][lig_ind]
+                                nameR["sc"] = rec_atom_names[rec_ind]
+                                nameL["sc"] = lig_atom_names[lig_ind]
                         else:
                             if dist["ss"] > distance:
                                 dist["ss"] = distance
@@ -506,6 +518,8 @@ def get_min_dists(
                                 indL["ss"] = lig_ind
                                 sigmaR["ss"] = rec[diameter][rec_ind]
                                 sigmaL["ss"] = lig[diameter][lig_ind]
+                                nameR["ss"] = rec_atom_names[rec_ind]
+                                nameL["ss"] = lig_atom_names[lig_ind]
                     else:
                         if dist["sm"] > distance:
                                 dist["sm"] = distance
@@ -513,6 +527,8 @@ def get_min_dists(
                                 indL["sm"] = lig_ind
                                 sigmaR["sm"] = rec[diameter][rec_ind]
                                 sigmaL["sm"] = lig[diameter][lig_ind]
+                                nameR["sm"] = rec_atom_names[rec_ind]
+                                nameL["sm"] = lig_atom_names[lig_ind]
         else:
             for lig_ind in lig_inds:
                 distance = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
@@ -524,6 +540,8 @@ def get_min_dists(
                             indL["mc"] = lig_ind
                             sigmaR["mc"] = rec[diameter][rec_ind]
                             sigmaL["mc"] = lig[diameter][lig_ind]
+                            nameR["mc"] = rec_atom_names[rec_ind]
+                            nameL["mc"] = lig_atom_names[lig_ind]
                     else:
                         if dist["ms"] > distance:
                             dist["ms"] = distance
@@ -531,14 +549,67 @@ def get_min_dists(
                             indL["ms"] = lig_ind
                             sigmaR["ms"] = rec[diameter][rec_ind]
                             sigmaL["ms"] = lig[diameter][lig_ind]
+                            nameR["ms"] = rec_atom_names[rec_ind]
+                            nameL["ms"] = lig_atom_names[lig_ind]
 
     # result = (sigmaR_ss, sigmaL_ss, sigmaR_sc, sigmaL_sc,
     #           sigmaR_cs, sigmaL_cs, sigmaR_cc, sigmaL_cc,
     #           sigmaR_ms, sigmaL_ms, sigmaR_sm, sigmaL,sm,
     #           sigmaR_mc, sigmaL_mc, sigmaR_cm, sigmaL_cm,
     #           dmin_ss, dmin_sc, dmin_cs, dmin_cc, ind_list)
-    result = {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": dist, "indR": indR, "indL": indL}
+    result = {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": dist, "indR": indR, "indL": indL, "nameR": nameR, "nameL": nameL}
     return result
+
+@cython.boundscheck(False)
+# Custom function to create a unique key for label pairs
+def get_pair_key(label1, label2):
+    return label1 < label2 and f"{label1}:{label2}" or f"{label2}:{label1}"
+
+# Function to calculate distances
+def calculate_distances(np.ndarray[double, ndim=2] array1, np.ndarray[double, ndim=2] array2, list array1_labels, list array2_labels, np.ndarray[double, ndim=1] r_sigmas, np.ndarray[double, ndim=1] l_sigmas):
+    cdef:
+        dict distances = {}
+        dict indR = {}
+        dict indL = {}
+        dict sigmaR = {}
+        dict sigmaL = {}
+    cdef double current_distance
+    cdef double previous_distance
+    cdef int i, j
+    cdef list rec_inds = []
+    cdef list lig_inds = []
+    cdef rec_natoms = array1.shape[0]
+    cdef lig_natoms = array2.shape[0]
+
+    for i in range(rec_natoms):
+        if "H" not in array1_labels[i]:
+            rec_inds.append(i)
+    for i in range(lig_natoms):
+        if "H" not in array2_labels[i]:
+                lig_inds.append(i)
+
+    for i in rec_inds:
+        for j in lig_inds:
+            current_distance = cdistance(array1[i], array2[j])
+            array1_label = array1_labels[i]
+            array2_label = array2_labels[j]
+            pair_key = get_pair_key(array1_label, array2_label)
+
+            if pair_key not in distances:
+                distances[pair_key] = current_distance
+                indR[pair_key] = i
+                indL[pair_key] = j
+                sigmaR[pair_key] = r_sigmas[i]
+                sigmaL[pair_key] = l_sigmas[j]
+            elif current_distance < distances[pair_key]:
+                distances[pair_key] = current_distance
+                indR[pair_key] = i
+                indL[pair_key] = j
+                sigmaR[pair_key] = r_sigmas[i]
+                sigmaL[pair_key] = l_sigmas[j]
+
+    return {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": distances, "indR": indR, "indL": indL}
+
 
 @cython.boundscheck(False)
 def c_cal_potential_grid_pp(   str name,
