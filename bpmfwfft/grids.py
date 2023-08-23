@@ -205,14 +205,14 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        # self._grid_func_names   = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
+        self._grid_func_names   = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
         # self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ("occupancy", "LJa")  # uncomment to calculate LJa and occupancy
         # self._grid_func_names = ("occupancy", "LJr")  # uncomment to calculate LJr and occupancy
         # self._grid_func_names = ("occupancy", "LJr", "LJa")  # uncomment to calculate Lennard-Jones and occupancy
         # self._grid_func_names = ("occupancy", "sasa", "water", "electrostatic")  # uncomment to calculate bsa, electrostatic, and occupancy
-        self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
+        # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes  = ("x", "y", "z")
         box_dim_names   = ("d0", "d1", "d2")
         others          = ("spacing", "counts", "origin", "lj_sigma_scaling_factor", "rec_core_scaling",
