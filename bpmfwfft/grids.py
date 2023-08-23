@@ -205,14 +205,14 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        self._grid_func_names   = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
+        # self._grid_func_names   = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
         # self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ("occupancy", "LJa")  # uncomment to calculate LJa and occupancy
         # self._grid_func_names = ("occupancy", "LJr")  # uncomment to calculate LJr and occupancy
         # self._grid_func_names = ("occupancy", "LJr", "LJa")  # uncomment to calculate Lennard-Jones and occupancy
         # self._grid_func_names = ("occupancy", "sasa", "water", "electrostatic")  # uncomment to calculate bsa, electrostatic, and occupancy
-        # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
+        self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes  = ("x", "y", "z")
         box_dim_names   = ("d0", "d1", "d2")
         others          = ("spacing", "counts", "origin", "lj_sigma_scaling_factor", "rec_core_scaling",
@@ -518,7 +518,29 @@ class LigGrid(Grid):
             raise RuntimeError("%s is unknown"%name)
 
     def _cal_charge_grid(self, name):
+
         clash_radii = np.copy(self._prmtop["VDW_RADII"])
+
+        clash_scale = {"C": 0.75, "CA++": 0.48, "CD": 0.75, "CD1": 0.73,
+                       "CD2": 0.73, "CE": 0.76, "CE1": 0.77, "CE2": 0.76,
+                       "CG": 0.73, "CZ": 0.79, "MG": 0.68, "N": 0.71,
+                       "ND1": 0.72, "ND2": 0.77, "NE": 0.78, "NE2": 0.79,
+                       "NZ": 0.74, "O": 0.63, "O1G": 0.74, "OD1": 0.64,
+                       "OD2": 0.63, "OE1": 0.63, "OE2": 0.59, "OG": 0.67,
+                       "OG1": 0.70, "OXT": 0.61, "SD": 0.78, "SG": 0.75,
+                       "ZN": 0.46
+                       }
+        # apply scaling factors to clash radii
+        clash_scale_keys = list(clash_scale.keys())
+        for i in range(len(clash_radii)):
+            name = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"][i]
+            if name == "CA" and self._prmtop["MASS"] == 40.08:
+                name = "CA++"
+            if name in clash_scale_keys:
+                clash_radii[i] = clash_radii[i] * clash_scale[name]
+            else:
+                clash_radii[i] = clash_radii[i] * 0.8
+
         grid_counts = np.copy(self._grid["counts"])
         origin = np.copy(self._origin_crd)
         atom_names = np.copy(self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"])
@@ -1386,6 +1408,26 @@ class RecGrid(Grid):
             clash_radii = self._prmtop["LJ_SIGMA"]/2
         else:
             clash_radii = self._prmtop["VDW_RADII"]
+
+        clash_scale = { "C": 0.75, "CA++": 0.48, "CD": 0.75, "CD1": 0.73,
+                        "CD2": 0.73, "CE": 0.76, "CE1": 0.77, "CE2": 0.76,
+                        "CG": 0.73, "CZ": 0.79, "MG": 0.68, "N": 0.71,
+                        "ND1": 0.72, "ND2": 0.77, "NE": 0.78, "NE2": 0.79,
+                        "NZ": 0.74, "O": 0.63, "O1G": 0.74, "OD1": 0.64,
+                        "OD2": 0.63, "OE1": 0.63, "OE2": 0.59, "OG": 0.67,
+                        "OG1": 0.70, "OXT": 0.61, "SD": 0.78, "SG": 0.75,
+                        "ZN": 0.46
+                    }
+        # apply scaling factors to clash radii
+        clash_scale_keys = list(clash_scale.keys())
+        for i in range(len(clash_radii)):
+            name = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"][i]
+            if name == "CA" and self._prmtop["MASS"] == 40.08:
+                name = "CA++"
+            if name in clash_scale_keys:
+                clash_radii[i] = clash_radii[i]*clash_scale[name]
+            else:
+                clash_radii[i] = clash_radii[i]*0.8
 
         probe_size = 1.4
         n_sphere_points = 960

@@ -566,50 +566,69 @@ def get_pair_key(label1, label2):
     return label1 < label2 and f"{label1}:{label2}" or f"{label2}:{label1}"
 
 # Function to calculate distances
-def calculate_distances(np.ndarray[double, ndim=2] array1, np.ndarray[double, ndim=2] array2, list array1_labels, list array2_labels, np.ndarray[double, ndim=1] r_sigmas, np.ndarray[double, ndim=1] l_sigmas):
+def calculate_distances(np.ndarray[double, ndim=2] array1,
+                        np.ndarray[double, ndim=2] array2,
+                        list array1_labels,
+                        list array2_labels,
+                        np.ndarray[double, ndim=1] r_sigmas,
+                        np.ndarray[double, ndim=1] l_sigmas,
+                        np.ndarray[double, ndim=1] r_radii,
+                        np.ndarray[double, ndim=1] l_radii,
+                        np.ndarray[double, ndim=1] r_mass,
+                        np.ndarray[double, ndim=1] l_mass,
+                        double cutoff_distance,
+                        str system_name,
+                        bint use_vdw,
+                        bint exclude_H
+                        ):
     cdef:
         dict distances = {}
         dict indR = {}
         dict indL = {}
         dict sigmaR = {}
         dict sigmaL = {}
-    cdef double current_distance
     cdef double previous_distance
+    cdef double current_distance
     cdef int i, j
     cdef list rec_inds = []
     cdef list lig_inds = []
+    cdef list row
+    cdef list rows = []
     cdef rec_natoms = array1.shape[0]
     cdef lig_natoms = array2.shape[0]
 
     for i in range(rec_natoms):
-        if "H" not in array1_labels[i]:
+        if exclude_H:
+            if "H" not in array1_labels[i]:
+                rec_inds.append(i)
+        else:
             rec_inds.append(i)
     for i in range(lig_natoms):
-        if "H" not in array2_labels[i]:
-                lig_inds.append(i)
+        if exclude_H:
+            if "H" not in array2_labels[i]:
+                    lig_inds.append(i)
+        else:
+            lig_inds.append(i)
 
     for i in rec_inds:
         for j in lig_inds:
+            # Select which atom size source
+            if use_vdw:
+                rs = r_radii[i]*2.
+                ls = l_radii[j]*2.
+            else:
+                rs = r_sigmas[i]
+                ls = l_sigmas[j]
+            rm = r_mass[i]
+            lm = l_mass[j]
             current_distance = cdistance(array1[i], array2[j])
             array1_label = array1_labels[i]
             array2_label = array2_labels[j]
             pair_key = get_pair_key(array1_label, array2_label)
-
-            if pair_key not in distances:
-                distances[pair_key] = current_distance
-                indR[pair_key] = i
-                indL[pair_key] = j
-                sigmaR[pair_key] = r_sigmas[i]
-                sigmaL[pair_key] = l_sigmas[j]
-            elif current_distance < distances[pair_key]:
-                distances[pair_key] = current_distance
-                indR[pair_key] = i
-                indL[pair_key] = j
-                sigmaR[pair_key] = r_sigmas[i]
-                sigmaL[pair_key] = l_sigmas[j]
-
-    return {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": distances, "indR": indR, "indL": indL}
-
+            if current_distance <= cutoff_distance:
+                row = [rs,ls,current_distance,i,j,array1_label,array2_label,rm,lm,system_name]
+                rows.append(row)
+    return rows
 
 @cython.boundscheck(False)
 def c_cal_potential_grid_pp(   str name,
@@ -714,14 +733,7 @@ def c_cal_potential_grid_pp(   str name,
     else:
         for atom_ind in atom_list:
             atom_coordinate = crd[atom_ind]
-            if rec_res_names[atom_ind] in metal_ions:
-                scale = rec_metal_scaling
-            else:
-                if sasa_cutoffs[0][atom_ind] > 0.:
-                    scale = rec_surface_scaling
-                else:
-                    scale = rec_core_scaling
-            lj_diameter = clash_radii[atom_ind]*scale
+            lj_diameter = clash_radii[atom_ind]
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
@@ -960,14 +972,7 @@ def c_cal_charge_grid_pp_mp(  str name,
     else:
         for atom_ind in atom_list:
             atom_coordinate = crd[atom_ind]
-            if lig_res_names[atom_ind] in metal_ions:
-                scale = lig_metal_scaling
-            else:
-                if sasa_cutoffs[0][atom_ind] > 0.:
-                    scale = lig_surface_scaling
-                else:
-                    scale = lig_core_scaling
-            lj_diameter = clash_radii[atom_ind] * scale
+            lj_diameter = clash_radii[atom_ind]
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
