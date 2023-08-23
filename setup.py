@@ -42,7 +42,7 @@ metadata = \
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     license='MIT',
-    ext_modules = cythonize("bpmfwfft/util.pyx"),
+    ext_modules = cythonize("bpmfwfft/util.pyx", compiler_directives={'language_level' : "2"}),
     include_dirs=[numpy.get_include()],
     packages=find_packages(),
     include_package_data=True,
