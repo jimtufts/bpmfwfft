@@ -399,6 +399,30 @@ class Grid(object):
                 return True
         return False
 
+    def get_grid_func_names(self):
+        return self._grid_func_names
+    
+    def get_grids(self):
+        return self._grid
+    
+    def get_crd(self):
+        return self._crd
+    
+    def get_prmtop(self):
+        return self._prmtop
+    
+    def get_charges(self):
+        charges = dict()
+        for key in ["CHARGE_E_UNIT", "R_LJ_CHARGE", "A_LJ_CHARGE"]:
+            charges[key] = self._prmtop[key]
+        return charges
+
+    def get_natoms(self):
+        return self._prmtop["POINTERS"]["NATOM"]
+
+    def get_allowed_keys(self):
+        return self._grid_allowed_keys
+
     def _get_bond_list(self):
         # Ugliest function award 2023
         bonds = {}
@@ -433,30 +457,6 @@ class Grid(object):
         for b_s in b:
             bond_list.append(midpoint(crd[int(b_s[0])], crd[int(b_s[1])]))
         return bond_list
-
-    def get_grid_func_names(self):
-        return self._grid_func_names
-    
-    def get_grids(self):
-        return self._grid
-    
-    def get_crd(self):
-        return self._crd
-    
-    def get_prmtop(self):
-        return self._prmtop
-    
-    def get_charges(self):
-        charges = dict()
-        for key in ["CHARGE_E_UNIT", "R_LJ_CHARGE", "A_LJ_CHARGE"]:
-            charges[key] = self._prmtop[key]
-        return charges
-
-    def get_natoms(self):
-        return self._prmtop["POINTERS"]["NATOM"]
-
-    def get_allowed_keys(self):
-        return self._grid_allowed_keys
 
 
 class LigGrid(Grid):
