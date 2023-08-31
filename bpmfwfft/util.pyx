@@ -748,7 +748,7 @@ def c_cal_potential_grid_pp(   str name,
             corners = c_corners_within_radius(bond_crd, lj_diameter, origin_crd, uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
-                grid[i, j, k] = 1
+                grid[i, j, k] = 1.
 
     return grid
 
@@ -903,6 +903,7 @@ def c_cal_charge_grid_pp_mp(  str name,
                         np.ndarray[np.float64_t, ndim=1] vdw_radii,
                         np.ndarray[np.float64_t, ndim=1] clash_radii,
                         list atom_list,
+                        list bond_list,
                         int natoms_i,
                         int atomind,
                         np.ndarray[float, ndim=2] molecule_sasa,
@@ -915,7 +916,7 @@ def c_cal_charge_grid_pp_mp(  str name,
     cdef:
         list corners
         list metal_ions = ["ZN", "CA", "MG", "SR"]
-        int atom_ind, i, j, k, l, m, n
+        int atom_ind, bond_ind, i, j, k, l, m, n
         int ind, num_corners
         int natoms = crd.shape[0]
         int i_max = grid_x.shape[0]
@@ -987,6 +988,13 @@ def c_cal_charge_grid_pp_mp(  str name,
             atom_coordinate = crd[atom_ind]
             lj_diameter = clash_radii[atom_ind]
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                              uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+            for i, j, k in corners:
+                grid[i, j, k] = 1.
+
+        for bond_crd in bond_list:
+            lj_diameter = 1.
+            corners = c_corners_within_radius(bond_crd, lj_diameter, origin_crd, uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
                 grid[i, j, k] = 1.
