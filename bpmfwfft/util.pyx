@@ -648,6 +648,7 @@ def c_cal_potential_grid_pp(   str name,
                             np.ndarray[np.float64_t, ndim=1] lj_sigma,
                             np.ndarray[np.float64_t, ndim=1] vdw_radii,
                             np.ndarray[np.float64_t, ndim=1] clash_radii,
+                            list bond_list,
                             list atom_list,
                             np.ndarray[float, ndim=2] molecule_sasa,
                             np.ndarray[float, ndim=2] sasa_cutoffs,
@@ -664,7 +665,7 @@ def c_cal_potential_grid_pp(   str name,
         int j_max = grid_y.shape[0]
         int k_max = grid_z.shape[0]
         int i, j, k
-        int atom_ind
+        int atom_ind, bond_ind
         double charge, lj_diameter
         double d, exponent
         double dx_tmp, dy_tmp
@@ -742,6 +743,13 @@ def c_cal_potential_grid_pp(   str name,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
                 grid[i, j, k] = 1.
+        for bond_crd in bond_list:
+            lj_diameter = 1.
+            corners = c_corners_within_radius(bond_crd, lj_diameter, origin_crd, uper_most_corner_crd,
+                                              uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+            for i, j, k in corners:
+                grid[i, j, k] = 1
+
     return grid
 
 @cython.boundscheck(False)

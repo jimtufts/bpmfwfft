@@ -1399,6 +1399,41 @@ class RecGrid(Grid):
         else:
             raise RuntimeError("%s is unknown"%name)
 
+    def _get_bond_list(self):
+        bonds = {}
+        prmtop_parms = self.get_prmtop()
+        for key, value in prmtop_parms.items():
+            if key == "BONDS_WITHOUT_HYDROGEN":
+                for i in range(len(value), step=3):
+                    if "H" in prmtop_parms["PDB_TEMPLATE"]["ATOM_NAME"][int(value[i] / 3)]:
+                        print(f"index {i} is an H bond")
+                    if i not in list(bonds.keys()):
+                        bonds[(value[i] / 3)] = []
+                        bonds[(value[i] / 3)].append((value[i + 1] / 3))
+                    else:
+                        bonds[(value[i] / 3)].append((value[i + 1] / 3))
+        b = []
+        for key, value in bonds.items():
+            a = [key]
+            for v in value:
+                a.append(v)
+            a.sort()
+            b.append(a)
+        b.sort()
+
+        def midpoint(a1, a2):
+            import numpy as np
+            a3 = np.zeros((3))
+            for i in range(a3.shape[0]):
+                a3[i] = (a2[i] - a1[i]) / 2.
+            return a3
+
+        # c = np.unique(np.array(b), return_counts=True)
+        bond_list = []
+        for b_s in b:
+            bond_list.append(midpoint(crd[int(b_s[0])], crd[int(b_s[1])]))
+        return bond_list
+
     def _cal_potential_grids(self, nc_handle, radii_type, exclude_H, platform='CPU'):
         """
         Divides each grid calculation into a separate process (electrostatic, LJr, LJa,
@@ -1443,6 +1478,7 @@ class RecGrid(Grid):
                     atom_list.append(i)
             else:
                 atom_list.append(i)
+        bond_list = self._get_bond_list()
         if platform == 'CPU':
             task_divisor = 16
             for name in self._grid_func_names:
@@ -1471,6 +1507,7 @@ class RecGrid(Grid):
                                 self._prmtop["VDW_RADII"],
                                 clash_radii,
                                 atom_list,
+                                bond_list,
                                 self._molecule_sasa,
                                 self._sasa_cutoffs,
                                 self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
