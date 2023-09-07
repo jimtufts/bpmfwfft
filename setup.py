@@ -4,8 +4,11 @@
 BPMFwFFT
 Calculate the binding potential of mean force (BPMF) using the FFT.
 """
+
+#!/usr/bin/env python
+
 import sys
-from setuptools import setup, find_packages
+from setuptools import setup, Extension, find_packages
 import versioneer
 
 short_description = __doc__.split("\n")
@@ -34,7 +37,7 @@ import numpy
 
 metadata = \
     dict(name='bpmfwfft',
-    author='Hai Nguyen, Jim Tufts',
+    author='Trung Hai Nguyen, Jim Tufts',
     author_email='jtufts@hawk.iit.edu',
     description=short_description[0],
     long_description=long_description,
@@ -82,3 +85,12 @@ if __name__ == '__main__':
         metadata['ext_modules'] = cythonize(extensions, language_level=sys.version_info[0])
 
     setup(**metadata)
+# from setuptools import find_packages, setup
+# from Cython.Build import cythonize
+# import numpy as np
+
+# with open("README.md", 'r') as f:
+#     long_description = f.read()
+
+# if __name__ == "__main__":
+#     setuptools.setup()
