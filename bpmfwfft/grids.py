@@ -51,6 +51,7 @@ def process_potential_grid_function(
         prmtop_ljsigma,
         prmtop_vdwradii,
         clash_radii,
+        bond_list,
         atom_list,
         molecule_sasa,
         sasa_cutoffs,
@@ -86,7 +87,7 @@ def process_potential_grid_function(
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, grid_counts, charges, prmtop_ljsigma, prmtop_vdwradii,
-                                clash_radii, atom_list, molecule_sasa, sasa_cutoffs,
+                                clash_radii, bond_list, atom_list, molecule_sasa, sasa_cutoffs,
                                 rec_res_names, rec_core_scaling, rec_surface_scaling,
                                 rec_metal_scaling)
     return grid
@@ -103,6 +104,7 @@ def process_charge_grid_function(
         prmtop_ljsigma,
         prmtop_vdwradii,
         clash_radii,
+        bond_list,
         atom_list,
         natoms_i,
         atomind,
@@ -140,7 +142,8 @@ def process_charge_grid_function(
                                 grid_x, grid_y, grid_z,
                                 origin_crd, uper_most_corner_crd, uper_most_corner,
                                 grid_spacing, eight_corner_shifts, six_corner_shifts,
-                                grid_counts, charges, prmtop_ljsigma, prmtop_vdwradii, clash_radii, atom_list,
+                                grid_counts, charges, prmtop_ljsigma, prmtop_vdwradii, clash_radii,
+                                bond_list, atom_list,
                                 natoms_i, atomind, molecule_sasa, sasa_cutoffs, lig_res_names,
                                 lig_core_scaling, lig_surface_scaling, lig_metal_scaling)
 
@@ -429,7 +432,7 @@ class Grid(object):
         prmtop_parms = self.get_prmtop()
         for key, value in prmtop_parms.items():
             if key == "BONDS_WITHOUT_HYDROGEN":
-                for i in range(len(value), step=3):
+                for i in range(len(value), 3):
                     if "H" in prmtop_parms["PDB_TEMPLATE"]["ATOM_NAME"][int(value[i] / 3)]:
                         print(f"index {i} is an H bond")
                     if i not in list(bonds.keys()):
@@ -570,11 +573,11 @@ class LigGrid(Grid):
         # apply scaling factors to clash radii
         clash_scale_keys = list(clash_scale.keys())
         for i in range(len(clash_radii)):
-            name = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"][i]
-            if name == "CA" and self._prmtop["MASS"] == 40.08:
-                name = "CA++"
-            if name in clash_scale_keys:
-                clash_radii[i] = clash_radii[i] * clash_scale[name]
+            atom_label = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"][i]
+            if atom_label == "CA" and self._prmtop["MASS"][i] == 40.08:
+                atom_label = "CA++"
+            if atom_label in clash_scale_keys:
+                clash_radii[i] = clash_radii[i] * clash_scale[atom_label]
             else:
                 clash_radii[i] = clash_radii[i] * 0.8
 
@@ -644,8 +647,8 @@ class LigGrid(Grid):
                         self._prmtop["LJ_SIGMA"],
                         self._prmtop["VDW_RADII"],
                         clash_radii,
-                        atom_list,
                         bond_list,
+                        atom_list,
                         natoms_i,
                         atomind,
                         self._molecule_sasa,
@@ -1461,11 +1464,11 @@ class RecGrid(Grid):
         # apply scaling factors to clash radii
         clash_scale_keys = list(clash_scale.keys())
         for i in range(len(clash_radii)):
-            name = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"][i]
-            if name == "CA" and self._prmtop["MASS"] == 40.08:
-                name = "CA++"
-            if name in clash_scale_keys:
-                clash_radii[i] = clash_radii[i]*clash_scale[name]
+            atom_label = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"][i]
+            if atom_label == "CA" and self._prmtop["MASS"][i] == 40.08:
+                atom_label = "CA++"
+            if atom_label in clash_scale_keys:
+                clash_radii[i] = clash_radii[i]*clash_scale[atom_label]
             else:
                 clash_radii[i] = clash_radii[i]*0.8
 
@@ -1508,8 +1511,8 @@ class RecGrid(Grid):
                                 self._prmtop["LJ_SIGMA"],
                                 self._prmtop["VDW_RADII"],
                                 clash_radii,
-                                atom_list,
                                 bond_list,
+                                atom_list,
                                 self._molecule_sasa,
                                 self._sasa_cutoffs,
                                 self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
@@ -1678,14 +1681,14 @@ if __name__ == "__main__":
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
-    rec_prmtop_file = "/media/jim/fft_data/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
-    rec_inpcrd_file = "/media/jim/fft_data/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
+    rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
+    rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # lig_prmtop_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
     # lig_inpcrd_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
-    lig_prmtop_file = "/home/jim/Desktop/fahtest/carbon.prmtop"
-    lig_inpcrd_file = "/home/jim/Desktop/fahtest/carbon.inpcrd"
-    grid_nc_file = "/media/jim/fft_data/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/carbon_test.nc"
-    lj_sigma_scaling_factor = 0.8
+    lig_prmtop_file = "../examples/amber/ubiquitin/ligand.prmtop"
+    lig_inpcrd_file = "../examples/amber/ubiquitin/ligand.inpcrd"
+    grid_nc_file = "/home/jtufts/Desktop/test_results/grid.nc"
+    lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
     spacing = 0.5
@@ -1733,6 +1736,7 @@ if __name__ == "__main__":
     lig_grid = LigGrid(lig_prmtop_file, lj_sigma_scaling_factor,
                        lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
                        lig_inpcrd_file, rec_grid)
+    print(lig_grid._grid_func_names)
     lig_grid.cal_grids()
     print("--- LigGrid calculated in %s seconds ---" % (time.time() - start_time))
     # print("get_bpmf", lig_grid.get_bpmf())

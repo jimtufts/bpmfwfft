@@ -902,8 +902,8 @@ def c_cal_charge_grid_pp_mp(  str name,
                         np.ndarray[np.float64_t, ndim=1] lj_sigma,
                         np.ndarray[np.float64_t, ndim=1] vdw_radii,
                         np.ndarray[np.float64_t, ndim=1] clash_radii,
-                        list atom_list,
                         list bond_list,
+                        list atom_list,
                         int natoms_i,
                         int atomind,
                         np.ndarray[float, ndim=2] molecule_sasa,
@@ -935,7 +935,6 @@ def c_cal_charge_grid_pp_mp(  str name,
         float[:,:] molecule_sasa_view = molecule_sasa
 
     assert name in ["occupancy", "sasa", "water", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
-
     if name in ["LJa", "LJr", "electrostatic"]:
         for atom_ind in range(atomind,atomind+natoms_i):
             atom_coordinate = crd[atom_ind]
