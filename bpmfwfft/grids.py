@@ -785,7 +785,8 @@ class LigGrid(Grid):
             # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
             if "sasa" in self._grid_func_names:
                 bsa_energy = self._cal_delta_sasa_func(corr_func)
-                print("max dSASA:", bsa_energy.max())
+                print("max dSASA:", bsa_energy.max(), bsa_energy[0:max_i, 0:max_j,
+                              0:max_k][self._free_of_clash].max())
                 bsa_energy = bsa_energy * -GAMMA
                 self._meaningful_energies += bsa_energy
                 del bsa_energy
@@ -1681,13 +1682,13 @@ if __name__ == "__main__":
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
-    rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
-    rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
-    # lig_prmtop_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
-    # lig_inpcrd_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
-    lig_prmtop_file = "../examples/amber/ubiquitin/ligand.prmtop"
-    lig_inpcrd_file = "../examples/amber/ubiquitin/ligand.inpcrd"
-    grid_nc_file = "/home/jtufts/Desktop/test_results/grid.nc"
+    rec_prmtop_file = "/mnt/sasa/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    rec_inpcrd_file = "/mnt/sasa/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
+    lig_prmtop_file = "/mnt/sasa/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    lig_inpcrd_file = "/mnt/sasa/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
+    # lig_prmtop_file = "../examples/amber/ubiquitin/ligand.prmtop"
+    # lig_inpcrd_file = "../examples/amber/ubiquitin/ligand.inpcrd"
+    grid_nc_file = "/home/jim/Desktop/test_results/grid_2oob.nc"
     lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None

@@ -289,6 +289,7 @@ class Sampling(object):
 
         self._mean_energy = energies.mean()
         self._min_energy = energies.min()
+        self._min_energy_ind = np.argmax(self._min_energy)
         self._energy_std = energies.std()
         print("Number of finite energy samples", energies.shape[0])
 
@@ -332,6 +333,7 @@ class Sampling(object):
 
         self._mean_energy = energies.mean()
         self._min_energy  = energies.min()
+        self._min_energy_ind = np.argmax(self._min_energy)
         self._energy_std  = energies.std()
         print("Number of finite energy samples", energies.shape[0])
 
@@ -372,7 +374,7 @@ class Sampling(object):
         for step in range(self._lig_coord_ensemble.shape[0]):
             self._do_fft(step)
 
-            print("Min energy", self._min_energy)
+            print("Min energy", self._min_energy, "Index", self._min_energy_ind)
             print("Mean energy", self._mean_energy)
             print("STD energy", self._energy_std)
             print("Initial center of mass", self._lig_grid.get_initial_com())
@@ -538,20 +540,22 @@ class Sampling_PL(Sampling):
 
 if __name__ == "__main__":
     # test
-    test_dir = f"/media/jim/fft_data"
+    test_dir = f"/mnt/sasa"
     rec_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
     lj_sigma_scal_fact = 1.0
     rec_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
 
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
-    grid_nc_file = f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid.nc"
+    # grid_nc_file = f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid.nc"
+    grid_nc_file = "/home/jim/Desktop/test_results/grid_2oob.nc"
 
     lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
     lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
 
     energy_sample_size_per_ligand = 1000
-    output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
+    # output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
+    output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
     ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"]

@@ -686,7 +686,7 @@ def c_cal_potential_grid_pp(   str name,
             exponent = 1.
         else:
             raise RuntimeError("Wrong grid name %s"%name)
-        grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
+        grid_tmp = np.zeros([i_max, j_max, k_max], dtype=float)
         grid_tmp_view = grid_tmp
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
@@ -710,7 +710,7 @@ def c_cal_potential_grid_pp(   str name,
                                                   grid_counts)
 
                 for i, j, k in corners:
-                    grid_tmp_view[i, j, k] = 1.
+                    grid_tmp[i, j, k] = 1.
             else:
                 charge = charges[atom_ind]
                 lj_diameter = lj_sigma[atom_ind]
@@ -733,7 +733,6 @@ def c_cal_potential_grid_pp(   str name,
             #
             # for i, j, k in corners:
             #     grid_tmp[i,j,k] = 0
-
             grid += grid_tmp
     else:
         for atom_ind in atom_list:
