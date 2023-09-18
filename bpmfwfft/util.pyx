@@ -722,17 +722,15 @@ def c_cal_potential_grid_pp(   str name,
                             d = dx_tmp + dy_tmp + dz2[k]
                             d = d**exponent
                             grid_tmp_view[i,j,k] = charge / d
-                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                if name == "LJa":
+                    corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                                     uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-
+                else:
+                    corners = c_corners_within_radius(atom_coordinate, lj_diameter/2, origin_crd, uper_most_corner_crd,
+                                                      uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                 for i, j, k in corners:
                     grid_tmp[i,j,k] = 0
 
-            # corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-            #                                     uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-            #
-            # for i, j, k in corners:
-            #     grid_tmp[i,j,k] = 0
             grid += grid_tmp
     else:
         for atom_ind in atom_list:
