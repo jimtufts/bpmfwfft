@@ -714,6 +714,7 @@ def c_cal_potential_grid_pp(   str name,
             else:
                 charge = charges[atom_ind]
                 lj_diameter = lj_sigma[atom_ind]
+                clash_radius = clash_radii[atom_ind]
                 for i in range(i_max):
                     dx_tmp = dx2[i]
                     for j in range(j_max):
@@ -723,10 +724,10 @@ def c_cal_potential_grid_pp(   str name,
                             d = d**exponent
                             grid_tmp_view[i,j,k] = charge / d
 
-                # corners = c_corners_within_radius(atom_coordinate, lj_diameter/2, origin_crd, uper_most_corner_crd,
-                #                                       uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-                # for i, j, k in corners:
-                #     grid_tmp[i,j,k] = 0
+                corners = c_corners_within_radius(atom_coordinate, clash_radius, origin_crd, uper_most_corner_crd,
+                                                      uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+                for i, j, k in corners:
+                    grid_tmp[i,j,k] = 0
 
             grid += grid_tmp
     else:
