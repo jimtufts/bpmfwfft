@@ -726,8 +726,8 @@ def c_cal_potential_grid_pp(   str name,
 
                 corners = c_corners_within_radius(atom_coordinate, clash_radius, origin_crd, uper_most_corner_crd,
                                                       uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-                # for i, j, k in corners:
-                #     grid_tmp[i,j,k] = 0
+                for i, j, k in corners:
+                    grid_tmp[i,j,k] = 0
 
             grid += grid_tmp
     else:
