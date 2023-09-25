@@ -1336,42 +1336,41 @@ class RecGrid(Grid):
         """
         use this when making box encompassing the whole receptor
         """
-        spacing = self._grid["spacing"]        
-        lower_receptor_corner = np.array([self._crd[:,i].min() for i in range(3)], dtype=float)
-        upper_receptor_corner = np.array([self._crd[:,i].max() for i in range(3)], dtype=float)
-        
-        lower_receptor_corner_grid_aligned = lower_receptor_corner - (spacing + lower_receptor_corner % spacing)
-        upper_receptor_corner_grid_aligned = upper_receptor_corner + (spacing - upper_receptor_corner % spacing)
+        # Extract grid spacing
+        spacing = rec_grid._grid["spacing"]
 
-        receptor_box_center_grid_aligned = (upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.
+        # Calculate the lower and upper corners of the receptor box
+        lower_receptor_corner = np.min(rec_grid._crd, axis=0)
+        upper_receptor_corner = np.max(rec_grid._crd, axis=0)
 
-        receptor_box_center = (upper_receptor_corner + lower_receptor_corner) / 2.
-        
-        total_grid_count = (self._uper_most_corner_crd+spacing)/spacing
-        print(total_grid_count)             
-        grid_center = (self._origin_crd + self._uper_most_corner_crd) / 2.       
+        # Align lower and upper corners with the grid
+        lower_receptor_corner_grid_aligned = np.floor((lower_receptor_corner - spacing) / spacing) * spacing
+        upper_receptor_corner_grid_aligned = np.ceil((upper_receptor_corner + spacing) / spacing) * spacing
+
+        # Calculate the grid-aligned receptor box center
+        receptor_box_center_grid_aligned = (upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.0
+
+        # Calculate the receptor box center without grid alignment
+        receptor_box_center = (upper_receptor_corner + lower_receptor_corner) / 2.0
+
+        # Calculate the total grid count
+        total_grid_count = np.ceil((rec_grid._uper_most_corner_crd + spacing) / spacing)
+        print(total_grid_count)
+
+        # Calculate the grid center
+        grid_center = (rec_grid._origin_crd + rec_grid._uper_most_corner_crd) / 2.0
+
+        # Calculate the dimensions of the receptor box
         receptor_box_length = upper_receptor_corner - lower_receptor_corner
         receptor_box_length_grid_aligned = upper_receptor_corner_grid_aligned - lower_receptor_corner_grid_aligned
 
-        #test redefs of variables
-#        receptor_box_center = ([upper_receptor_corner_grid_aligned[0], 
-#            upper_receptor_corner_grid_aligned[1]+0.5,
-#            upper_receptor_corner_grid_aligned[2]+0.5] + lower_receptor_corner_grid_aligned) / 2.
-        for index, coord in enumerate(upper_receptor_corner_grid_aligned):
-            corner_to_corner_1D_distance = (coord - lower_receptor_corner_grid_aligned[index])/spacing[index]
-            lower_corner_coord = lower_receptor_corner_grid_aligned[index]
-            half_spacing = spacing[index]/2.
-            print(corner_to_corner_1D_distance)            
-            if corner_to_corner_1D_distance%2 == 0:
-                shifted_upper_coord = coord + half_spacing
-                shifted_lower_coord = lower_corner_coord - half_spacing
-                upper_receptor_corner_grid_aligned[index] = shifted_upper_coord
-                lower_receptor_corner_grid_aligned[index] = shifted_lower_coord
+        # Adjust the receptor box center for grid alignment
+        receptor_box_center = (upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.0
 
-        receptor_box_center = (upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.
+        # Check if the receptor box center is not aligned with the grid
         grid_snap = np.mod(receptor_box_center, spacing)
-        if np.any(np.where(grid_snap != 0)):
-            receptor_box_center = np.add(receptor_box_center, np.subtract(spacing, grid_snap))
+        if np.any(grid_snap != 0):
+            receptor_box_center += spacing - grid_snap
 
         print('receptor_box_center', receptor_box_center)        
         displacement = grid_center - receptor_box_center
