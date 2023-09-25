@@ -510,33 +510,54 @@ class LigGrid(Grid):
         move ligand to near the grid lower corner 
         store self._max_grid_indices and self._initial_com
         """
+        import numpy as np
+
+        # Extract grid spacing
         spacing = self._grid["spacing"]
-        min_edge_ind = np.array([self._crd[:,i].argmin() for i in range(3)], dtype=int)
-        min_edge_radii = np.array([self._prmtop["VDW_RADII"][i] for i in min_edge_ind], dtype=float)
-        lower_ligand_corner = np.array([self._crd[:,i].min()-min_edge_radii[i] for i in range(3)], dtype=float) - 2.8*spacing
-        lower_ligand_corner_grid_aligned = lower_ligand_corner - (spacing + lower_ligand_corner % spacing) #new grid aligned variable
+
+        # Find the minimum and maximum edge indices for x, y, and z coordinates
+        min_edge_ind = np.array([self._crd[:, i].argmin() for i in range(3)], dtype=int)
         max_edge_ind = np.array([self._crd[:, i].argmax() for i in range(3)], dtype=int)
-        max_edge_radii = np.array([self._prmtop["VDW_RADII"][i] for i in max_edge_ind], dtype=float)
-        upper_ligand_corner = np.array([self._crd[:,i].max()+max_edge_radii[i] for i in range(3)], dtype=float) + 2.8*spacing
-        upper_ligand_corner_grid_aligned = upper_ligand_corner + (spacing - upper_ligand_corner % spacing) #new grid aligned variable
+
+        # Get the minimum and maximum radii based on the edge indices
+        min_edge_radii = self._prmtop["VDW_RADII"][min_edge_ind].astype(float)
+        max_edge_radii = self._prmtop["VDW_RADII"][max_edge_ind].astype(float)
+
+        # Calculate lower and upper ligand corners
+        lower_ligand_corner = (self._crd.min(axis=0) - min_edge_radii - 2.8 * spacing).astype(float)
+        upper_ligand_corner = (self._crd.max(axis=0) + max_edge_radii + 2.8 * spacing).astype(float)
+
+        # Align lower and upper ligand corners with the grid
+        lower_ligand_corner_grid_aligned = (np.floor((lower_ligand_corner - spacing) / spacing) * spacing).astype(float)
+        upper_ligand_corner_grid_aligned = (np.ceil((upper_ligand_corner + spacing) / spacing) * spacing).astype(float)
+
+        # Calculate ligand box lengths
         ligand_box_lengths = upper_ligand_corner_grid_aligned - lower_ligand_corner_grid_aligned
 
+        # Check if any ligand box lengths are negative
         if np.any(ligand_box_lengths < 0):
-            raise RuntimeError("One of the ligand box lengths are negative")
+            raise RuntimeError("One of the ligand box lengths is negative")
 
-        max_grid_indices = np.ceil(ligand_box_lengths / spacing)
-        self._max_grid_indices = self._grid["counts"] - np.array(max_grid_indices, dtype=int)
+        # Calculate max grid indices
+        max_grid_indices = np.ceil(ligand_box_lengths / spacing).astype(int)
+        self._max_grid_indices = self._grid["counts"] - max_grid_indices
+
+        # Check if any max grid indices are less than or equal to 1
         if np.any(self._max_grid_indices <= 1):
             raise RuntimeError("At least one of the max grid indices is <= one")
 
-        displacement = self._origin_crd - lower_ligand_corner_grid_aligned #formerly lower_ligand_corner
-        for atom_ind in range(len(self._crd)):
-            self._crd[atom_ind] += displacement
+        # Calculate displacement
+        displacement = self._origin_crd - lower_ligand_corner_grid_aligned
+
+        # Translate ligand coordinates
+        self._crd += displacement
         print(f"Ligand translated by {displacement}")
         self._new_displacement = displacement
-        lower_corner_origin = np.array([self._crd[:,i].min() for i in range(3)], dtype=float) - 1.5*spacing
-        print(lower_corner_origin)
+
+        # Calculate the initial center of mass
+        lower_corner_origin = (self._crd.min(axis=0) - 1.5 * spacing).astype(float)
         self._initial_com = self._get_molecule_center_of_mass()
+
         return None
     
     def _get_charges(self, name):
