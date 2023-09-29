@@ -540,7 +540,9 @@ class LigGrid(Grid):
 
         # Calculate max grid indices
         max_grid_indices = np.ceil(ligand_box_lengths / spacing).astype(int)
+        print(f"max grid indicies calc: {max_grid_indices} = np.ceil({(ligand_box_lengths/spacing).astype(int)} = {np.ceil(ligand_box_lengths / spacing).astype(int)}")
         self._max_grid_indices = self._grid["counts"] - max_grid_indices
+        print("Max Grid Indicies:", self._max_grid_indices)
 
         # Check if any max grid indices are less than or equal to 1
         if np.any(self._max_grid_indices <= 1):
@@ -811,15 +813,15 @@ class LigGrid(Grid):
                 bsa_energy = bsa_energy * -GAMMA
                 self._meaningful_energies += bsa_energy
                 del bsa_energy
-        # get crystal pose here, use i,j,k of crystal pose
-        self._native_pose_energy = self._meaningful_energies[
-            self._native_translation[0], self._native_translation[1], self._native_translation[2]]
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
                                     0:max_k]  # exclude positions where ligand crosses border
 
         self._meaningful_energies = self._meaningful_energies[
             self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
         self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
+        # get crystal pose here, use i,j,k of crystal pose
+        self._native_pose_energy = self._meaningful_energies[
+            self._native_translation[0], self._native_translation[1], self._native_translation[2]]
 
         return None
 
@@ -1703,13 +1705,13 @@ if __name__ == "__main__":
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
-    rec_prmtop_file = "/mnt/sasa/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
-    rec_inpcrd_file = "/mnt/sasa/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
-    lig_prmtop_file = "/mnt/sasa/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
-    lig_inpcrd_file = "/mnt/sasa/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
+    rec_prmtop_file = "/mnt/sasa/FFT_PPI/2.redock/1.amber/1AY7_A:B/receptor.prmtop"
+    rec_inpcrd_file = "/mnt/sasa/FFT_PPI/2.redock/2.minimize/1AY7_A:B/receptor.inpcrd"
+    lig_prmtop_file = "/mnt/sasa/FFT_PPI/2.redock/1.amber/1AY7_A:B/ligand.prmtop"
+    lig_inpcrd_file = "/mnt/sasa/FFT_PPI/2.redock/2.minimize/1AY7_A:B/ligand.inpcrd"
     # lig_prmtop_file = "../examples/amber/ubiquitin/ligand.prmtop"
     # lig_inpcrd_file = "../examples/amber/ubiquitin/ligand.inpcrd"
-    grid_nc_file = "/home/jim/Desktop/test_results/grid_2oob.nc"
+    grid_nc_file = "/home/jim/Desktop/test_results/grid_1ay7.nc"
     lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None

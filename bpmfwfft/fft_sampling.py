@@ -219,16 +219,19 @@ class Sampling(object):
         self._lig_grid._max_i, self._lig_grid._max_j, self._lig_grid._max_k = self._lig_grid._max_grid_indices
         corr_func = self._lig_grid._cal_corr_func("occupancy")
         self._lig_grid._free_of_clash = (corr_func < 0.001)
-        # self._lig_grid._free_of_clash = self._lig_grid._free_of_clash[0:self._lig_grid._max_i, 0:self._lig_grid._max_i,
-        #                                 0:self._lig_grid._max_i]  # exclude positions where ligand crosses border
+        self._lig_grid._free_of_clash = self._lig_grid._free_of_clash[0:self._lig_grid._max_i, 0:self._lig_grid._max_j,
+                                        0:self._lig_grid._max_k]  # exclude positions where ligand crosses border
         del corr_func
         print("Ligand positions excluding border crossers", self._lig_grid._free_of_clash.shape)
 
         return None
 
     def _remove_nonphysical_energies(self, grid):
-        max_i, max_j, max_k = self._lig_grid._max_grid_indices
+        max_i, max_j, max_k = self._lig_grid._max_i, self._lig_grid._max_j, self._lig_grid._max_k #self._lig_grid._max_grid_indices
+        print("max indices in remove nonphysical",max_i,max_j,max_k)
         grid = grid[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
+        print(self._lig_grid._free_of_clash.shape)
+        print(self._lig_grid._free_of_clash[0:max_i, 0:max_j, 0:max_k].shape, max_i, max_j, max_k)
         grid = grid[self._lig_grid._free_of_clash[0:max_i, 0:max_j, 0:max_k]]  # only include positions with no clash
         return grid
 
@@ -541,23 +544,23 @@ class Sampling_PL(Sampling):
 if __name__ == "__main__":
     # test
     test_dir = f"/mnt/sasa"
-    rec_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    rec_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/1AY7_A:B/receptor.prmtop"
     lj_sigma_scal_fact = 1.0
-    rec_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
+    rec_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/1AY7_A:B/receptor.inpcrd"
 
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
     # grid_nc_file = f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid.nc"
-    grid_nc_file = "/home/jim/Desktop/test_results/grid_2oob.nc"
+    grid_nc_file = "/home/jim/Desktop/test_results/grid_1ay7.nc"
 
-    lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
-    lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
+    lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/1AY7_A:B/ligand.prmtop"
+    lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/1AY7_A:B/ligand.inpcrd"
 
     energy_sample_size_per_ligand = 1000
     # output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
-    output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
+    output_nc = "/home/jim/Desktop/test_results/fft_1ay7.nc"
 
-    ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
+    ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/1AY7_A:B/rotation.nc"
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
