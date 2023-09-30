@@ -287,8 +287,9 @@ class Sampling(object):
             self._cal_energies(name, step)
 
         energies = self._lig_grid.get_meaningful_energies()
-        # energies = self._remove_nonphysical_energies(energies)
-        energies = energies[0:self.lig_grid._i_max,0:self.lig_grid._j_max,0:self.lig_grid._k_max]
+        # energies = self._remove_nonphysical_energies
+        i_max, j_max, k_max = self._lig_grid._max_grid_indices
+        energies = energies[0:i_max,0:j_max,0:self.k_max]
         energies = energies[self.lig_grid._free_of_clash]
         print("Energies shape:", energies.shape)
 
@@ -316,8 +317,7 @@ class Sampling(object):
         self._resampled_trans_vectors = [trans_vectors[ind] for ind in sel_ind]
         del trans_vectors
         # get crystal pose here, use i,j,k of crystal pose
-        max_i, max_j, max_k = self._lig_grid._max_grid_indices
-        self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:max_i, 0:max_j, 0:max_k][
+        self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
             self._lig_grid._native_translation[0], self._lig_grid._native_translation[1], self._lig_grid._native_translation[2]]
         print(self._lig_grid._native_translation, self._lig_grid._native_pose_energy)
         self._lig_grid.set_meaningful_energies_to_none()
