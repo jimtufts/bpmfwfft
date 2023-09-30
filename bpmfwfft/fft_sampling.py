@@ -289,7 +289,7 @@ class Sampling(object):
         energies = self._lig_grid.get_meaningful_energies()
         # energies = self._remove_nonphysical_energies
         i_max, j_max, k_max = self._lig_grid._max_grid_indices
-        energies = energies[0:i_max,0:j_max,0:self.k_max]
+        energies = energies[0:i_max,0:j_max,0:k_max]
         energies = energies[self.lig_grid._free_of_clash]
         print("Energies shape:", energies.shape)
 
