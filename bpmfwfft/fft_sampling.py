@@ -287,7 +287,7 @@ class Sampling(object):
             self._cal_energies(name, step)
 
         energies = self._lig_grid.get_meaningful_energies()
-        energies = self._remove_nonphysical_energies(energies)
+        # energies = self._remove_nonphysical_energies(energies)
         print("Energies shape:", energies.shape)
 
         self._mean_energy = energies.mean()

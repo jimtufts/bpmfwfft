@@ -802,9 +802,7 @@ class LigGrid(Grid):
             grid_names = [name for name in self._grid_func_names if name not in ["occupancy", "water", "sasa"]]
             print(grid_names)
             for name in grid_names:
-                grid_func_energy = self._cal_corr_func(name)
-                self._meaningful_energies += grid_func_energy
-                del grid_func_energy
+                self._meaningful_energies += self._cal_corr_func(name)
             # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
             if "sasa" in self._grid_func_names:
                 bsa_energy = self._cal_delta_sasa_func(corr_func)
@@ -815,7 +813,7 @@ class LigGrid(Grid):
                 del bsa_energy
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
                                     0:max_k]  # exclude positions where ligand crosses border
-
+        print()
         self._meaningful_energies = self._meaningful_energies[
             self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
         self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
