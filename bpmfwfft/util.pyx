@@ -377,8 +377,8 @@ def c_distr_charge_one_atom( str name,
             for k in range(10):
                 a_matrix[row][k] = delta_vectors[k][i] * delta_vectors[k][j]
     if name == "electrostatic":
-        # distributed_charges = np.linalg.solve(a_matrix, b_vector)
-        distributed_charges = nnls(a_matrix, b_vector)[0]
+        distributed_charges = np.linalg.solve(a_matrix, b_vector)
+        # distributed_charges = nnls(a_matrix, b_vector)[0]
     else:
         distributed_charges = nnls(a_matrix, b_vector)[0]
     # distributed_charges = np.linalg.solve(a_matrix, b_vector)

@@ -528,7 +528,7 @@ class LigGrid(Grid):
         upper_ligand_corner = (self._crd.max(axis=0) + max_edge_radii + 2.8 * spacing).astype(float)
 
         # Align lower and upper ligand corners with the grid #FIXME: DEBUG np.ceil for lower corner
-        lower_ligand_corner_grid_aligned = (np.ceil((lower_ligand_corner - spacing) / spacing) * spacing).astype(float)
+        lower_ligand_corner_grid_aligned = (np.floor((lower_ligand_corner - spacing) / spacing) * spacing).astype(float)
         upper_ligand_corner_grid_aligned = (np.ceil((upper_ligand_corner + spacing) / spacing) * spacing).astype(float)
 
         # Calculate ligand box lengths
