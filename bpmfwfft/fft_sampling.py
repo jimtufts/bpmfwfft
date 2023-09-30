@@ -288,6 +288,8 @@ class Sampling(object):
 
         energies = self._lig_grid.get_meaningful_energies()
         # energies = self._remove_nonphysical_energies(energies)
+        energies = energies[0:self.lig_grid._i_max,0:self.lig_grid._j_max,0:self.lig_grid._k_max]
+        energies = energies[self.lig_grid._free_of_clash]
         print("Energies shape:", energies.shape)
 
         self._mean_energy = energies.mean()
