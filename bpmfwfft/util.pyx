@@ -313,7 +313,6 @@ def c_ten_corners(  np.ndarray[np.float64_t, ndim=1] atom_coordinate,
                                                                 uper_most_corner_crd, spacing,
                                                                 eight_corner_shifts,
                                                                 grid_x, grid_y, grid_z)
-    print(atom_coordinate)
     if not eight_corners:
         raise RuntimeError("Atom is outside the grid")
 
