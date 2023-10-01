@@ -210,8 +210,8 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        # self._grid_func_names   = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
-        self._grid_func_names = ("occupancy", "LJr", "LJa", "sasa", "water")  # don't calculate electrostatic
+        self._grid_func_names   = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
+        # self._grid_func_names = ("occupancy", "LJr", "LJa", "sasa", "water")  # don't calculate electrostatic
         # self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ("occupancy", "LJa")  # uncomment to calculate LJa and occupancy
