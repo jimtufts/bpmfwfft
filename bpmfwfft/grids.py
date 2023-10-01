@@ -210,7 +210,8 @@ class Grid(object):
     """
     def __init__(self):
         self._grid = {}
-        self._grid_func_names   = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
+        # self._grid_func_names   = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
+        self._grid_func_names = ("occupancy", "LJr", "LJa", "sasa", "water")  # don't calculate electrostatic
         # self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ("occupancy", "LJa")  # uncomment to calculate LJa and occupancy
@@ -541,7 +542,6 @@ class LigGrid(Grid):
         # Calculate max grid indices
         max_grid_indices = np.ceil(ligand_box_lengths / spacing).astype(int)
         print(f"max grid indicies calc: {max_grid_indices} = np.ceil({(ligand_box_lengths/spacing).astype(int)} = {np.ceil(ligand_box_lengths / spacing).astype(int)}")
-        self._max_grid_indices = self._grid["counts"] - (max_grid_indices) #FIXME:  10 to grid for test
         print("Max Grid Indicies:", self._max_grid_indices)
 
         # Check if any max grid indices are less than or equal to 1
