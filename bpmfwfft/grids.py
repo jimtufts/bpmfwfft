@@ -811,12 +811,13 @@ class LigGrid(Grid):
                               0:max_k][self._free_of_clash].max())
                 bsa_energy = bsa_energy * -GAMMA
                 self._meaningful_energies += bsa_energy
+                self._touching_no_overlap = (bsa_energy > 0.1)
                 del bsa_energy
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
                                     0:max_k]  # exclude positions where ligand crosses border
         print()
         self._meaningful_energies = self._meaningful_energies[
-            self._free_of_clash & self._touching_no_overlap]  # exclude positions where ligand is in clash with receptor, become 1D array
+            (self._free_of_clash & self._touching_no_overlap)]  # exclude positions where ligand is in clash with receptor, become 1D array
         self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
         # get crystal pose here, use i,j,k of crystal pose
         self._native_pose_energy = self._meaningful_energies[
@@ -851,7 +852,6 @@ class LigGrid(Grid):
                 print("max dSASA:", bsa_energy.max())
                 bsa_energy = bsa_energy * -GAMMA
                 self._meaningful_energies += bsa_energy
-                self._touching_no_overlap = (bsa_energy > 0.1)
                 del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
         self._native_pose_energy = self._meaningful_energies[
