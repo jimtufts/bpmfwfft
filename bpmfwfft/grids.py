@@ -794,9 +794,12 @@ class LigGrid(Grid):
         """
         max_i, max_j, max_k = self._max_grid_indices
         corr_func = self._cal_corr_func("occupancy")
+        bsa_energy = self._cal_delta_sasa_func(corr_func)
         self._free_of_clash = (corr_func < 0.001)
         self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j,
                               0:max_k]  # exclude positions where ligand crosses border
+        self._touching_no_overlap = (bsa_energy > 0.1)
+        self._touching_no_overlap = self._touching_no_overlap[0:max_i, 0:max_j, 0:max_k]
         print("Ligand positions excluding border crossers", self._free_of_clash.shape)
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
         if np.any(self._free_of_clash):
@@ -811,7 +814,6 @@ class LigGrid(Grid):
                               0:max_k][self._free_of_clash].max())
                 bsa_energy = bsa_energy * -GAMMA
                 self._meaningful_energies += bsa_energy
-                self._touching_no_overlap = (bsa_energy > 0.1)
                 del bsa_energy
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
                                     0:max_k]  # exclude positions where ligand crosses border

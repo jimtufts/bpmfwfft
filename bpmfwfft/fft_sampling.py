@@ -287,9 +287,10 @@ class Sampling(object):
             self._cal_energies(name, step)
 
         energies = self._lig_grid.get_meaningful_energies()
-        # energies = self._remove_nonphysical_energies
+        # energies = self._remove_nonphysical_energies(energies)
         i_max, j_max, k_max = self._lig_grid._max_grid_indices
         energies = energies[0:i_max,0:j_max,0:k_max]
+        self._lig_grid._touching_no_overlap = (self._lig_grid._cal_delta_sasa_func(1)[0:i_max,0:j_max,0:k_max] > 0.1)
         energies = energies[self._lig_grid._free_of_clash & self._lig_grid._touching_no_overlap]
         print("Energies shape:", energies.shape)
 
