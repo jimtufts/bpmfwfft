@@ -290,7 +290,7 @@ class Sampling(object):
         # energies = self._remove_nonphysical_energies
         i_max, j_max, k_max = self._lig_grid._max_grid_indices
         energies = energies[0:i_max,0:j_max,0:k_max]
-        energies = energies[self._lig_grid._free_of_clash]
+        energies = energies[self._lig_grid._free_of_clash & self._lig_grid._touching_no_overlap]
         print("Energies shape:", energies.shape)
 
         self._mean_energy = energies.mean()
