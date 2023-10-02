@@ -851,7 +851,7 @@ class LigGrid(Grid):
                 print("max dSASA:", bsa_energy.max())
                 bsa_energy = bsa_energy * -GAMMA
                 self._meaningful_energies += bsa_energy
-                self._touching_no_overlap = (bsa_energy > 0.001)
+                self._touching_no_overlap = (bsa_energy > 0.1)
                 del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
         self._native_pose_energy = self._meaningful_energies[
