@@ -546,24 +546,24 @@ class Sampling_PL(Sampling):
 
 if __name__ == "__main__":
     # test
-    test_dir = f"/mnt/sasa"
-    rec_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/1AY7_A:B/receptor.prmtop"
+    test_dir = f"/home/jtufts/Desktop"
+    rec_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
     lj_sigma_scal_fact = 1.0
-    rec_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/1AY7_A:B/receptor.inpcrd"
+    rec_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
 
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
-    # grid_nc_file = f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid.nc"
-    grid_nc_file = "/home/jim/Desktop/test_results/grid_1ay7.nc"
+    grid_nc_file = f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid_2oob.nc"
+    # grid_nc_file = "/home/jim/Desktop/test_results/grid_2oob.nc"
 
-    lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/1AY7_A:B/ligand.prmtop"
-    lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/1AY7_A:B/ligand.inpcrd"
+    lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
 
     energy_sample_size_per_ligand = 1000
-    # output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
-    output_nc = "/home/jim/Desktop/test_results/fft_1ay7.nc"
+    output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
+    # output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
-    ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/1AY7_A:B/rotation.nc"
+    ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,

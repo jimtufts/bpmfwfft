@@ -1703,16 +1703,17 @@ class RecGrid(Grid):
 
 if __name__ == "__main__":
     # do some test
+    test_dir = "/home/jtufts/Desktop"
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
-    rec_prmtop_file = "/mnt/sasa/FFT_PPI/2.redock/1.amber/1AY7_A:B/receptor.prmtop"
-    rec_inpcrd_file = "/mnt/sasa/FFT_PPI/2.redock/2.minimize/1AY7_A:B/receptor.inpcrd"
-    lig_prmtop_file = "/mnt/sasa/FFT_PPI/2.redock/1.amber/1AY7_A:B/ligand.prmtop"
-    lig_inpcrd_file = "/mnt/sasa/FFT_PPI/2.redock/2.minimize/1AY7_A:B/ligand.inpcrd"
+    rec_prmtop_file = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    rec_inpcrd_file = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
+    lig_prmtop_file = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    lig_inpcrd_file = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
     # lig_prmtop_file = "../examples/amber/ubiquitin/ligand.prmtop"
     # lig_inpcrd_file = "../examples/amber/ubiquitin/ligand.inpcrd"
-    grid_nc_file = "/home/jim/Desktop/test_results/grid_1ay7.nc"
+    grid_nc_file = f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid_2oob.nc"
     lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
