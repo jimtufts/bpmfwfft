@@ -951,7 +951,7 @@ class LigGrid(Grid):
         return grid corners corresponding to self._meaningful_energies
         """
         max_i, max_j, max_k = self._max_grid_indices
-        corners = np.where(self._free_of_clash[0:max_i, 0:max_j, 0:max_k])
+        corners = np.where(self._free_of_clash[0:max_i, 0:max_j, 0:max_k] & self._touching_no_overlap[0:max_i, 0:max_j, 0:max_k])
         corners = np.array(corners, dtype=int)
         corners = corners.transpose()
         return corners
