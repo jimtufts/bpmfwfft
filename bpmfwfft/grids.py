@@ -822,13 +822,12 @@ class LigGrid(Grid):
                 del bsa_energy
         self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
                                     0:max_k]  # exclude positions where ligand crosses border
-        print()
-        self._meaningful_energies = self._meaningful_energies[
-            self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
-        self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
         # get crystal pose here, use i,j,k of crystal pose
         self._native_pose_energy = self._meaningful_energies[
             self._native_translation[0], self._native_translation[1], self._native_translation[2]]
+        self._meaningful_energies = self._meaningful_energies[
+            self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
+        self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
 
         return None
 
@@ -1763,8 +1762,10 @@ if __name__ == "__main__":
     # print("get_natoms", rec_grid.get_natoms())
     # print("get_natoms", rec_grid.get_allowed_keys())
 
-    rec_grid.write_box("../examples/grid/ubiquitin_ligase/box.pdb")
-    rec_grid.write_pdb("../examples/grid/ubiquitin_ligase/test.pdb", "w")
+    # rec_grid.write_box("../examples/grid/ubiquitin_ligase/box.pdb")
+    # rec_grid.write_pdb("../examples/grid/ubiquitin_ligase/test.pdb", "w")
+    rec_grid.write_box(f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/box.pdb")
+    rec_grid.write_pdb(f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/test.pdb", "w")
     print("--- RecGrid calculated in %s seconds ---" % (time.time() - start_time))
 
     lig_core_scaling = 0.810000
@@ -1776,6 +1777,9 @@ if __name__ == "__main__":
                        lig_inpcrd_file, rec_grid)
     print(lig_grid._grid_func_names)
     lig_grid.cal_grids()
+    native_pose = lig_grid._native_translation
+    lig_grid.translate_ligand(native_pose*lig_grid._spacing[0])
+    lig_grid.write_pdb(f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/native.pdb", "w")
     print("--- LigGrid calculated in %s seconds ---" % (time.time() - start_time))
     # print("get_bpmf", lig_grid.get_bpmf())
     # print("get_number_translations", lig_grid.get_number_translations())

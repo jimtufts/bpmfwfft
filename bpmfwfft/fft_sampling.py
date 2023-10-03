@@ -562,7 +562,7 @@ if __name__ == "__main__":
     # output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
     ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
-    lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"]
+    lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][0 : 1]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
                        0.76, 0.53, 0.55, 9.0, rec_inpcrd,
