@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import numpy as np
 import netCDF4
+import os
 
 try:
     from bpmfwfft.grids import RecGrid
@@ -29,6 +30,7 @@ class Sampling(object):
                  lig_coord_ensemble,
                  energy_sample_size_per_ligand,
                  output_nc,
+                 start_index,
                  temperature=300.):
         """
         :param rec_prmtop: str, name of receptor prmtop file
@@ -57,7 +59,7 @@ class Sampling(object):
                                                lig_inpcrd, rec_grid)
 
         self._lig_coord_ensemble = self._load_ligand_coor_ensemble(lig_coord_ensemble)
-
+        self._start_index = start_index
         self._nc_handle = self._initialize_nc(output_nc)
 
         self._resampled_energies_components = {}
@@ -86,63 +88,71 @@ class Sampling(object):
         return ensemble
 
     def _initialize_nc(self, output_nc):
-        nc_handle = netCDF4.Dataset(output_nc, mode="w", format="NETCDF4")
+        if not os.path.exists(output_nc):
+            nc_handle = netCDF4.Dataset(output_nc, mode="w", format="NETCDF4")
 
-        nc_handle.createDimension("three", 3)
-        nc_handle.createDimension("one", 1)
-        rec_natoms = self._rec_crd.shape[0]
-        nc_handle.createDimension("rec_natoms", rec_natoms)
+            nc_handle.createDimension("three", 3)
+            nc_handle.createDimension("one", 1)
+            rec_natoms = self._rec_crd.shape[0]
+            nc_handle.createDimension("rec_natoms", rec_natoms)
 
-        lig_natoms = self._lig_grid.get_natoms()
-        nc_handle.createDimension("lig_natoms", lig_natoms)
-        nc_handle.createDimension("lig_sample_size", self._lig_coord_ensemble.shape[0])
+            lig_natoms = self._lig_grid.get_natoms()
+            nc_handle.createDimension("lig_natoms", lig_natoms)
+            # nc_handle.createDimension("lig_sample_size", self._lig_coord_ensemble.shape[0])
+            nc_handle.createDimension("lig_sample_size", None)
 
-        nc_handle.createDimension("energy_sample_size_per_ligand", self._energy_sample_size_per_ligand)
+            nc_handle.createDimension("energy_sample_size_per_ligand", self._energy_sample_size_per_ligand)
 
-        nc_handle.createVariable("rec_positions", "f8", ("rec_natoms", "three"))
-        nc_handle.variables["rec_positions"][:, :] = self._rec_crd
+            nc_handle.createVariable("rec_positions", "f8", ("rec_natoms", "three"))
+            nc_handle.variables["rec_positions"][:, :] = self._rec_crd
 
-        nc_handle.createVariable("lig_positions", "f8", ("lig_sample_size", "lig_natoms", "three"))
-        nc_handle.createVariable("lig_com", "f8", ("lig_sample_size", "three"))
-        nc_handle.createVariable("volume", "f8", ("lig_sample_size"))
-        nc_handle.createVariable("nr_grid_points", "i8", ("lig_sample_size"))
+            nc_handle.createVariable("lig_positions", "f8", ("lig_sample_size", "lig_natoms", "three"))
+            nc_handle.createVariable("lig_com", "f8", ("lig_sample_size", "three"))
+            nc_handle.createVariable("volume", "f8", ("lig_sample_size"))
+            nc_handle.createVariable("nr_grid_points", "i8", ("lig_sample_size"))
 
-        nc_handle.createVariable("exponential_sums", "f8", ("lig_sample_size"))
-        nc_handle.createVariable("log_of_divisors", "f8", ("lig_sample_size"))
+            nc_handle.createVariable("exponential_sums", "f8", ("lig_sample_size"))
+            nc_handle.createVariable("log_of_divisors", "f8", ("lig_sample_size"))
 
-        nc_handle.createVariable("mean_energy", "f8", ("lig_sample_size"))
-        nc_handle.createVariable("min_energy", "f8", ("lig_sample_size"))
-        nc_handle.createVariable("energy_std", "f8", ("lig_sample_size"))
+            nc_handle.createVariable("mean_energy", "f8", ("lig_sample_size"))
+            nc_handle.createVariable("min_energy", "f8", ("lig_sample_size"))
+            nc_handle.createVariable("energy_std", "f8", ("lig_sample_size"))
 
-        nc_handle.createVariable("resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
-        nc_handle.createVariable("resampled_trans_vectors", "i8",
-                                 ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
+            nc_handle.createVariable("resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
+            nc_handle.createVariable("resampled_trans_vectors", "i8",
+                                     ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
 
-        nc_handle.createVariable("native_pose_energy", "f8", ("one"))
-        nc_handle.createVariable("native_crd", "f8", ("lig_natoms", "three"))
-        nc_handle.createVariable("native_translation", "i8", ("three"))
+            nc_handle.createVariable("native_pose_energy", "f8", ("one"))
+            nc_handle.createVariable("native_crd", "f8", ("lig_natoms", "three"))
+            nc_handle.createVariable("native_translation", "i8", ("three"))
 
-        nc_handle.createVariable(f"LJ_resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
-        nc_handle.createVariable(f"LJ_resampled_trans_vectors", "i8",
-                                 ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
-        nc_handle.createVariable(f"LJ_native_pose_energy", "f8", ("one"))
+            nc_handle.createVariable(f"LJ_resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
+            nc_handle.createVariable(f"LJ_resampled_trans_vectors", "i8",
+                                     ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
+            nc_handle.createVariable(f"LJ_native_pose_energy", "f8", ("one"))
 
-        nc_handle.createVariable(f"no_sasa_resampled_energies", "f8",
-                                 ("lig_sample_size", "energy_sample_size_per_ligand"))
-        nc_handle.createVariable(f"no_sasa_resampled_trans_vectors", "i8",
-                                 ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
-        nc_handle.createVariable(f"no_sasa_native_pose_energy", "f8", ("one"))
+            nc_handle.createVariable(f"no_sasa_resampled_energies", "f8",
+                                     ("lig_sample_size", "energy_sample_size_per_ligand"))
+            nc_handle.createVariable(f"no_sasa_resampled_trans_vectors", "i8",
+                                     ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
+            nc_handle.createVariable(f"no_sasa_native_pose_energy", "f8", ("one"))
 
-        nc_handle.createVariable(f"sasa_resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
-        nc_handle.createVariable(f"sasa_resampled_trans_vectors", "i8",
-                                 ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
-        nc_handle.createVariable(f"sasa_native_pose_energy", "f8", ("one"))
+            nc_handle.createVariable(f"sasa_resampled_energies", "f8", ("lig_sample_size", "energy_sample_size_per_ligand"))
+            nc_handle.createVariable(f"sasa_resampled_trans_vectors", "i8",
+                                     ("lig_sample_size", "energy_sample_size_per_ligand", "three"))
+            nc_handle.createVariable(f"sasa_native_pose_energy", "f8", ("one"))
 
-        nc_handle.set_auto_mask(False)
+            nc_handle.createVariable(f"current_rotation_index", "i8", ("one"))
 
-        nc_handle = self._write_grid_info(nc_handle)
+            nc_handle.set_auto_mask(False)
+
+            nc_handle = self._write_grid_info(nc_handle)
+
+        else:
+            print(f"{output_nc} exists, opening in append mode.")
+            nc_handle = netCDF4.Dataset(output_nc, mode="a", format="NETCDF4")
+
         return nc_handle
-
     def _write_grid_info(self, nc_handle):
         """
         write grid info, "x", "y", "z" ...
@@ -172,6 +182,7 @@ class Sampling(object):
         return nc_handle
 
     def _save_data_to_nc(self, step):
+        step = step + self._start_index
         if step == 0:
             self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
             print("Native pose energy", self._lig_grid._native_pose_energy)
@@ -197,12 +208,16 @@ class Sampling(object):
         self._nc_handle.variables["resampled_energies"][step, :] = self._resampled_energies
 
         self._nc_handle.variables["resampled_trans_vectors"][step, :, :] = self._resampled_trans_vectors
+
+        self._nc_handle.variables["current_rotation_index"][0] = step + 1
+
         return None
 
     def _save_sub_data_to_nc(self, name, step):
         # if step == 0:
         #     self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
         #     print("Native pose energy", self._lig_grid._native_pose_energy)
+        step = step + self._start_index
         if name == "sasa":
             self._nc_handle.variables[f"{name}_resampled_energies"][step, :] = self._resampled_energies_components[name]
             self._nc_handle.variables[f"{name}_resampled_trans_vectors"][step, :, :] = \
@@ -226,10 +241,7 @@ class Sampling(object):
 
     def _remove_nonphysical_energies(self, grid):
         max_i, max_j, max_k = self._lig_grid._max_i, self._lig_grid._max_j, self._lig_grid._max_k  # self._lig_grid._max_grid_indices
-        print("max indices in remove nonphysical", max_i, max_j, max_k)
         grid = grid[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
-        print(self._lig_grid._free_of_clash.shape)
-        print(self._lig_grid._free_of_clash[0:max_i, 0:max_j, 0:max_k].shape, max_i, max_j, max_k)
         grid = grid[self._lig_grid._free_of_clash[0:max_i, 0:max_j, 0:max_k]]  # only include positions with no clash
         return grid
 
@@ -274,7 +286,7 @@ class Sampling(object):
                 self._save_sub_data_to_nc(name, step)
 
     def _do_fft(self, step):
-        print("Doing FFT for step %d" % step, "test")
+        print(f"Doing FFT for step {self._start_index + step}")
         lig_conf = self._lig_coord_ensemble[step]
         self._lig_grid._place_ligand_crd_in_grid(molecular_coord=lig_conf)
         self._cal_free_of_clash()
@@ -544,7 +556,7 @@ class Sampling_PL(Sampling):
 
 if __name__ == "__main__":
     # test
-    test_dir = f"/home/jtufts/Desktop"
+    test_dir = f"/mnt/fft"
     rec_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
     lj_sigma_scal_fact = 1.0
     rec_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
@@ -562,7 +574,11 @@ if __name__ == "__main__":
     # output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
     ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
-    lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][0 : 1]
+    if os.path.exists(output_nc):
+        rot_index = netCDF4.Dataset(output_nc, "r").variables["current_rotation_index"][0]
+    else:
+        rot_index = 0
+    lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][rot_index : rot_index + 1]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
                        0.76, 0.53, 0.55, 9.0, rec_inpcrd,
@@ -576,6 +592,7 @@ if __name__ == "__main__":
                         lig_coord_ensemble,
                         energy_sample_size_per_ligand,
                         output_nc,
+                        start_index=rot_index,
                         temperature=300.)
     sampler.run_sampling()
 

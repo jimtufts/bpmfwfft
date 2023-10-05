@@ -548,10 +548,7 @@ class LigGrid(Grid):
 
         # Calculate max grid indices
         max_grid_indices = np.ceil(ligand_box_lengths / spacing).astype(int)
-        print(
-            f"max grid indicies calc: {max_grid_indices} = np.ceil({(ligand_box_lengths / spacing).astype(int)} = {np.ceil(ligand_box_lengths / spacing).astype(int)}")
         self._max_grid_indices = self._grid["counts"] - (max_grid_indices)
-        print("Max Grid Indicies:", self._max_grid_indices)
 
         # Check if any max grid indices are less than or equal to 1
         if np.any(self._max_grid_indices <= 1):
@@ -1714,7 +1711,7 @@ class RecGrid(Grid):
 
 if __name__ == "__main__":
     # do some test
-    test_dir = "/home/jtufts/Desktop"
+    test_dir = "/mnt/fft"
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"

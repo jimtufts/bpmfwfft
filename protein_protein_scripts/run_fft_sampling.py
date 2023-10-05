@@ -25,7 +25,6 @@ parser.add_argument("--lig_ensemble_dir",              type=str, default="rotati
 
 parser.add_argument("--energy_sample_size_per_ligand", type=int, default=1000)
 parser.add_argument("--nr_lig_conf",                   type=int, default=5000)
-parser.add_argument("--start_index",                    type=int, default=0)
 
 parser.add_argument("--out_dir",                       type=str, default="out")
 
@@ -132,7 +131,6 @@ python {this_script}  \
         --ls_scale {args.ls_scale:.6f} \
         --lm_scale {args.lm_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
-        --start_index {args.start_index} \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
 
         fft_sampling_nc_file = os.path.join(out_dir, FFT_SAMPLING_NC)
@@ -246,7 +244,6 @@ python {this_script}  \
         --ls_scale {args.ls_scale:.6f} \
         --lm_scale {args.lm_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
-        --start_index {args.start_index} \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
 
         fft_sampling_nc_file = os.path.join(com_dir, FFT_SAMPLING_NC)
@@ -287,7 +284,6 @@ else:
 
     lig_coor_nc = os.path.join(args.lig_ensemble_dir, LIG_COOR_NC)
     nr_lig_conf = args.nr_lig_conf
-    start_index = args.start_index
 
     energy_sample_size_per_ligand = args.energy_sample_size_per_ligand
     output_nc = os.path.join(args.out_dir, FFT_SAMPLING_NC)
@@ -298,6 +294,6 @@ else:
              rho,
              rec_inpcrd, grid_nc_file,
              lig_prmtop, lig_inpcrd,
-             lig_coor_nc, nr_lig_conf, start_index,
+             lig_coor_nc, nr_lig_conf,
              energy_sample_size_per_ligand,
              output_nc)

@@ -21,10 +21,17 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
                 rho,
                 rec_inpcrd, grid_nc_file,
                 lig_prmtop, lig_inpcrd, 
-                lig_coor_nc, nr_lig_conf, start_index,
+                lig_coor_nc, nr_lig_conf,
                 energy_sample_size_per_ligand,
                 output_nc):
     lig_nc_handle = netCDF4.Dataset(lig_coor_nc, "r")
+    if os.path.exists(output_nc):
+        nc_handle = netCDF4.Dataset(output_nc, "r")
+        start_index = nc_handle.varibles["current_rotation_index"][0]
+        nc_handle.close()
+    else:
+        start_index = 0
+
     lig_coord_ensemble = lig_nc_handle.variables["positions"][start_index : start_index + nr_lig_conf]
     lig_nc_handle.close()
 
@@ -37,6 +44,7 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
                         lig_coord_ensemble,
                         energy_sample_size_per_ligand, 
                         output_nc,
+                        start_index,
                         temperature=300.)
 
     sampler.run_sampling()
