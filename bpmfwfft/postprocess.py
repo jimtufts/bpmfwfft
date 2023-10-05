@@ -628,19 +628,20 @@ class PostProcess_PL(PostProcess):
 
 #-----
 if __name__ == "__main__":
-    rec_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
-    lig_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
-    complex_prmtop = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/complex.prmtop"
-    sampling_nc_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_test.nc"
+    test_dir = f"/mnt/fft"
+    rec_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    complex_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/complex.prmtop"
+    sampling_nc_file = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
     solvent_phases = ["OpenMM_OBC2"]
-    nr_resampled_complexes = 100
+    nr_resampled_complexes = 1000
     randomly_translate_complex = False
     temperature = 300
     sander_tmp_dir = "../examples/postprocessing"
 
-    rec_pdb_out = "/media/jim/Research_TWO/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/receptor_trans.pdb"
-    lig_pdb_out = "/media/jim/Research_TWO/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/ligand_resampled.pdb"
-    bpmf_pkl_out = "/media/jim/Research_TWO/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/results.pkl"
+    rec_pdb_out = f"{test_dir}/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/receptor_trans.pdb"
+    lig_pdb_out = f"{test_dir}/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/ligand_resampled.pdb"
+    bpmf_pkl_out = f"{test_dir}/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/results.pkl"
 
     post_pro = PostProcess(rec_prmtop, lig_prmtop, complex_prmtop,
                                 sampling_nc_file,
