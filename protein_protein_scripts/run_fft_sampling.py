@@ -95,6 +95,7 @@ if args.pbs:
     job_count = 0
     for complex_name in complex_names:
 
+        com_dir = os.path.join(out_dir, complex_name)
         if not os.path.isdir(complex_name):
             os.makedirs(complex_name)
 
@@ -172,8 +173,11 @@ elif args.slurm:
     print("Complex   grid size   n_cpu   memory")
 
     for complex_name in complex_names:
-        cpu_count = np.ceil(((0.00045279032 * grid_sizes[complex_name] ** 3) / 128000) * 128)
-        memory_amt = np.ceil((0.00045279032 * grid_sizes[complex_name] ** 3))
+        # cpu_count = np.ceil(((0.00045279032 * grid_sizes[complex_name] ** 3) / 128000) * 128)
+        cpu_count = 16
+        memory_amt = np.ceil((0.00045279032 * grid_sizes[complex_name] ** 3)+4000)
+        if memory_amt < 32000.:
+            memory_amt = 32000.
         print(complex_name, grid_sizes[complex_name], cpu_count, memory_amt)
 
     pwd = os.getcwd()
@@ -188,8 +192,12 @@ elif args.slurm:
 
     job_count = 0
     for complex_name in complex_names:
-        cpu_count = np.ceil(((0.00045279032 * grid_sizes[complex_name] ** 3) / 128000) * 128)
-        memory_amt = np.ceil((0.00045279032 * grid_sizes[complex_name] ** 3))
+
+        cpu_count = 16
+        memory_amt = np.ceil((0.00045279032 * grid_sizes[complex_name] ** 3) + 4000)
+        if memory_amt < 32000.:
+            memory_amt = 32000.
+
         com_dir = os.path.join(out_dir, complex_name)
         if not os.path.isdir(com_dir):
             os.makedirs(com_dir)
@@ -201,7 +209,7 @@ elif args.slurm:
         lig_ensemble_sub_dir = os.path.join(lig_ensemble_dir, complex_name)
 
         # out_dir = os.path.abspath(complex_name)
-        qsub_file = os.path.join(com_dir, idx+"_fft.job")
+        qsub_file = os.path.join(com_dir, idx+"_fft_slurm.job")
         log_file = os.path.join(com_dir, idx+"_fft.log")
         qsub_script = f'''#!/bin/bash
 #SBATCH --job-name={idx}
@@ -248,10 +256,6 @@ python {this_script}  \
 
         fft_sampling_nc_file = os.path.join(com_dir, FFT_SAMPLING_NC)
         if not is_running(qsub_file, log_file, fft_sampling_nc_file):
-
-            if os.path.exists(fft_sampling_nc_file):
-                print("remove file " + fft_sampling_nc_file)
-                os.system("rm "+fft_sampling_nc_file)
 
             if os.path.exists(log_file):
                 print("remove file " + log_file)
