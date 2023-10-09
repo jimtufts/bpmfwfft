@@ -511,7 +511,7 @@ class LigGrid(Grid):
         self._lig_surface_scaling = lig_surface_scaling
         self._lig_metal_scaling = lig_metal_scaling
         self._rho = receptor_grid.get_rho()
-        self._native_translation = ((receptor_grid._displacement - self._displacement) / self._spacing).astype(int)
+        # self._native_translation = ((receptor_grid._displacement - self._new_displacement) / self._spacing).astype(int)
 
     def _move_ligand_to_lower_corner(self):
         """

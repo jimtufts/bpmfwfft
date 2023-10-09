@@ -259,9 +259,7 @@ class Sampling(object):
                 grid_energy = grid_energy * -self._lig_grid.get_gamma()
                 # grid_energy = self._remove_nonphysical_energies(grid_energy)
                 self._lig_grid._meaningful_energies += grid_energy
-
-            # self._native_pose_energy_components[name] = self._lig_grid._meaningful_energies[
-            #     self._lig_grid._native_translation[0], self._lig_grid._native_translation[1], self._lig_grid._native_translation[2]]
+            # save component energies for sasa, LJ, total without sasa
             if name == "sasa":
                 grid_energy = self._remove_nonphysical_energies(grid_energy)
                 sel_ind = np.argsort(grid_energy)[:self._energy_sample_size_per_ligand]
@@ -331,7 +329,6 @@ class Sampling(object):
         self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
             self._native_translation[0], self._native_translation[1],
             self._native_translation[2]]
-        print(self._lig_grid._native_translation, self._lig_grid._native_pose_energy)
         self._lig_grid.set_meaningful_energies_to_none()
         self._resampled_energies = np.array(self._resampled_energies, dtype=float)
         self._resampled_trans_vectors = np.array(self._resampled_trans_vectors, dtype=int)
