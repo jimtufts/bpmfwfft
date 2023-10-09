@@ -565,6 +565,7 @@ class LigGrid(Grid):
         # Calculate the initial center of mass
         lower_corner_origin = (self._crd.min(axis=0) - 1.5 * spacing).astype(float)
         self._initial_com = self._get_molecule_center_of_mass()
+        print("move_ligand_to_lower_corner", self._new_displacement)
 
         return None
 
@@ -822,6 +823,7 @@ class LigGrid(Grid):
         # get crystal pose here, use i,j,k of crystal pose
         self._native_pose_energy = self._meaningful_energies[
             self._native_translation[0], self._native_translation[1], self._native_translation[2]]
+        print("cal_energies native", self._native_translation, self._native_pose_energy)
         self._meaningful_energies = self._meaningful_energies[
             self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
         self._number_of_meaningful_energies = self._meaningful_energies.shape[0]

@@ -52,6 +52,7 @@ class Sampling(object):
         rec_grid = self._create_rec_grid(rec_prmtop, lj_sigma_scal_fact, rc_scale,
                                          rs_scale, rm_scale, rho, rec_inpcrd,
                                          bsite_file, grid_nc_file)
+        self._rec_grid_displacement = rec_grid._displacement
         self._rec_crd = rec_grid.get_crd()
 
         self._lig_grid = self._create_lig_grid(lig_prmtop, lj_sigma_scal_fact,
@@ -187,8 +188,8 @@ class Sampling(object):
             self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
             print("Native pose energy", self._lig_grid._native_pose_energy)
             self._nc_handle.variables["native_crd"][:, :] = self._lig_grid.get_crd()
-            self._nc_handle.variables["native_translation"][:] = self._lig_grid._native_translation
-            print("Native translation", self._lig_grid._native_translation)
+            self._nc_handle.variables["native_translation"][:] = self._native_translation
+            print("Native translation", self._native_translation)
         self._nc_handle.variables["lig_positions"][step, :, :] = self._lig_grid.get_crd()
 
         self._nc_handle.variables["lig_com"][step, :] = self._lig_grid.get_initial_com()
@@ -326,9 +327,13 @@ class Sampling(object):
         self._resampled_trans_vectors = [trans_vectors[ind] for ind in sel_ind]
         del trans_vectors
         # get crystal pose here, use i,j,k of crystal pose
+        self._native_translation = ((self._rec_grid_displacement - self._lig_grid._displacement) / self._lig_grid._spacing).astype(int)
+        # self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
+        #     self._lig_grid._native_translation[0], self._lig_grid._native_translation[1],
+        #     self._lig_grid._native_translation[2]]
         self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
-            self._lig_grid._native_translation[0], self._lig_grid._native_translation[1],
-            self._lig_grid._native_translation[2]]
+            self._native_translation[0], self._native_translation[1],
+            self._native_translation[2]]
         print(self._lig_grid._native_translation, self._lig_grid._native_pose_energy)
         self._lig_grid.set_meaningful_energies_to_none()
         self._resampled_energies = np.array(self._resampled_energies, dtype=float)
@@ -570,7 +575,7 @@ if __name__ == "__main__":
     lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
 
     energy_sample_size_per_ligand = 1000
-    output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
+    output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest2.nc"
     # output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
     ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
@@ -578,6 +583,7 @@ if __name__ == "__main__":
         rot_index = netCDF4.Dataset(output_nc, "r").variables["current_rotation_index"][0]
     else:
         rot_index = 0
+    rot_index = 0
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][rot_index : rot_index + 1]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
