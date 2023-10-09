@@ -555,6 +555,7 @@ class LigGrid(Grid):
             raise RuntimeError("At least one of the max grid indices is <= one")
 
         # Calculate displacement
+        print(self._origin_crd, lower_ligand_corner_grid_aligned, "origin and llcga")
         displacement = self._origin_crd - lower_ligand_corner_grid_aligned
 
         # Translate ligand coordinates

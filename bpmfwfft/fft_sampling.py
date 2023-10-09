@@ -188,8 +188,8 @@ class Sampling(object):
             self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
             print("Native pose energy", self._lig_grid._native_pose_energy)
             self._nc_handle.variables["native_crd"][:, :] = self._lig_grid.get_crd()
-            self._nc_handle.variables["native_translation"][:] = self._native_translation
-            print("Native translation", self._native_translation)
+            self._nc_handle.variables["native_translation"][:] = self._lig_grid._native_translation
+            print("Native translation", self._lig_grid._native_translation)
         self._nc_handle.variables["lig_positions"][step, :, :] = self._lig_grid.get_crd()
 
         self._nc_handle.variables["lig_com"][step, :] = self._lig_grid.get_initial_com()
@@ -575,7 +575,7 @@ if __name__ == "__main__":
     lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
 
     energy_sample_size_per_ligand = 1000
-    output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest2.nc"
+    output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
     # output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
     ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
