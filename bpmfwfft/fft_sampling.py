@@ -328,9 +328,6 @@ class Sampling(object):
         del trans_vectors
         # get crystal pose here, use i,j,k of crystal pose
         self._native_translation = ((self._rec_grid_displacement - self._lig_grid._displacement) / self._lig_grid._spacing).astype(int)
-        # self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
-        #     self._lig_grid._native_translation[0], self._lig_grid._native_translation[1],
-        #     self._lig_grid._native_translation[2]]
         self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
             self._native_translation[0], self._native_translation[1],
             self._native_translation[2]]

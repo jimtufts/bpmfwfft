@@ -533,6 +533,7 @@ class LigGrid(Grid):
 
         # Calculate lower and upper ligand corners
         lower_ligand_corner = (self._crd.min(axis=0) - min_edge_radii - 2.8 * spacing).astype(float)
+        print("lower ligand corner print", lower_ligand_corner)
         upper_ligand_corner = (self._crd.max(axis=0) + max_edge_radii + 2.8 * spacing).astype(float)
 
         # Align lower and upper ligand corners with the grid #FIXME: DEBUG np.ceil for lower corner
@@ -555,7 +556,6 @@ class LigGrid(Grid):
             raise RuntimeError("At least one of the max grid indices is <= one")
 
         # Calculate displacement
-        print(self._origin_crd, lower_ligand_corner_grid_aligned, "origin and llcga")
         displacement = self._origin_crd - lower_ligand_corner_grid_aligned
 
         # Translate ligand coordinates
