@@ -185,11 +185,12 @@ class Sampling(object):
     def _save_data_to_nc(self, step):
         step = step + self._start_index
         if step == 0:
-            self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
-            print("Native pose energy", self._lig_grid._native_pose_energy)
-            self._nc_handle.variables["native_crd"][:, :] = self._lig_grid.get_crd()
-            self._nc_handle.variables["native_translation"][:] = self._native_translation
-            print("Native translation", self._native_translation)
+            if self._nc_handle.variables["native_pose_energy"][:] == None:
+                self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
+                print("Native pose energy", self._lig_grid._native_pose_energy)
+                self._nc_handle.variables["native_crd"][:, :] = self._lig_grid.get_crd()
+                self._nc_handle.variables["native_translation"][:] = self._native_translation
+                print("Native translation", self._native_translation)
         self._nc_handle.variables["lig_positions"][step, :, :] = self._lig_grid.get_crd()
 
         self._nc_handle.variables["lig_com"][step, :] = self._lig_grid.get_initial_com()
