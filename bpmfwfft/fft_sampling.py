@@ -185,7 +185,7 @@ class Sampling(object):
     def _save_data_to_nc(self, step):
         step = step + self._start_index
         if step == 0:
-            if self._nc_handle.variables["native_pose_energy"][:].mask == True:
+            if self._nc_handle.variables["native_pose_energy"][:].any() is np.ma.masked:
                 self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
                 print("Native pose energy", self._lig_grid._native_pose_energy)
                 self._nc_handle.variables["native_crd"][:, :] = self._lig_grid.get_crd()
@@ -578,7 +578,8 @@ if __name__ == "__main__":
         rot_index = netCDF4.Dataset(output_nc, "r").variables["current_rotation_index"][0]
     else:
         rot_index = 0
-    rot_index = 0
+    # uncomment this to start over
+    # rot_index = 0
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][rot_index : rot_index + 1]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
