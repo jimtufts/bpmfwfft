@@ -30,6 +30,9 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
     else:
         start_index = 0
 
+    print(f"Resuming job at rotation index {start_index}")
+    print(f"debug info for start index: type:{type(start_index)}, value:{start_index}")
+
     lig_coord_ensemble = lig_nc_handle.variables["positions"][start_index : start_index + nr_lig_conf]
     lig_nc_handle.close()
 
