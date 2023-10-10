@@ -328,9 +328,11 @@ class Sampling(object):
         if step == 0:
             # get crystal pose here, use i,j,k of crystal pose
             self._native_translation = ((self._rec_grid_displacement - self._lig_grid._new_displacement) / self._lig_grid._spacing).astype(int)
-            self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
-                self._native_translation[0], self._native_translation[1],
-                self._native_translation[2]]
+            in_bounds = self._native_translation < (i_max, j_max, k_max)
+            if np.any(in_bounds):
+                self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
+                    self._native_translation[0], self._native_translation[1],
+                    self._native_translation[2]]
         self._lig_grid.set_meaningful_energies_to_none()
         self._resampled_energies = np.array(self._resampled_energies, dtype=float)
         self._resampled_trans_vectors = np.array(self._resampled_trans_vectors, dtype=int)
