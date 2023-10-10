@@ -185,7 +185,7 @@ class Sampling(object):
     def _save_data_to_nc(self, step):
         step = step + self._start_index
         if step == 0:
-            if self._nc_handle.variables["native_pose_energy"][:].any() is np.ma.masked:
+            if self._nc_handle.variables["native_pose_energy"][:][0] >= np.iinfo(np.int64).max:
                 self._nc_handle.variables["native_pose_energy"][:] = np.array(self._lig_grid._native_pose_energy)
                 print("Native pose energy", self._lig_grid._native_pose_energy)
                 self._nc_handle.variables["native_crd"][:, :] = self._lig_grid.get_crd()
@@ -328,7 +328,6 @@ class Sampling(object):
         if step == 0:
             # get crystal pose here, use i,j,k of crystal pose
             self._native_translation = ((self._rec_grid_displacement - self._lig_grid._new_displacement) / self._lig_grid._spacing).astype(int)
-            print(self._native_translation)
             self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
                 self._native_translation[0], self._native_translation[1],
                 self._native_translation[2]]
