@@ -276,7 +276,7 @@ python {this_script}  \
                 print("remove file " + log_file)
                 os.system("rm "+log_file)
 
-            print("Submitting %s" % complex_name)
+            print(f"Submitting {complex_name} log: {log_file}")
             open(qsub_file, "w").write(qsub_script)
             os.system("sbatch %s" % qsub_file)
             job_count += 1

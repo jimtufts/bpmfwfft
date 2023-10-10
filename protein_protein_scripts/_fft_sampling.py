@@ -52,8 +52,9 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
                             temperature=300.)
 
         sampler.run_sampling()
-        if start_index + nr_lig_conf >= lig_nc_handle.variables["positions"][:].shape[0]:
+        if start_index + nr_lig_conf >= lig_nc_handle.variables["positions"].shape[0]:
             with open(output_dir+"DONE") as done_file:
+                print("All rotations completed")
                 done_file.write("Sampling Done")
         print("Sampling Done")
     else:
