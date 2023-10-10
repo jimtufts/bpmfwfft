@@ -32,24 +32,29 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
 
     print(f"Resuming job at rotation index {start_index}")
     print(f"debug info for start index: type:{type(start_index)}, value:{start_index}")
+    if start_index < lig_nc_handle.variables["positions"][:].shape(0):
+        if start_index + nr_lig_conf < lig_nc_handle.variables["positions"][:].shape(0):
+            lig_coord_ensemble = lig_nc_handle.variables["positions"][:][start_index : start_index + nr_lig_conf]
+        else:
+            lig_coord_ensemble = lig_nc_handle.variables["positions"][:][start_index:]
+        lig_nc_handle.close()
 
-    lig_coord_ensemble = lig_nc_handle.variables["positions"][start_index : start_index + nr_lig_conf]
-    lig_nc_handle.close()
+        sampler = Sampling(rec_prmtop, lj_sigma_scal_fact,
+                            rc_scale, rs_scale, rm_scale,
+                            lc_scale, ls_scale, lm_scale,
+                            rho,
+                            rec_inpcrd,
+                            BSITE_FILE, grid_nc_file, lig_prmtop, lig_inpcrd,
+                            lig_coord_ensemble,
+                            energy_sample_size_per_ligand,
+                            output_nc,
+                            start_index,
+                            temperature=300.)
 
-    sampler = Sampling(rec_prmtop, lj_sigma_scal_fact,
-                        rc_scale, rs_scale, rm_scale,
-                        lc_scale, ls_scale, lm_scale,
-                        rho,
-                        rec_inpcrd,
-                        BSITE_FILE, grid_nc_file, lig_prmtop, lig_inpcrd,
-                        lig_coord_ensemble,
-                        energy_sample_size_per_ligand, 
-                        output_nc,
-                        start_index,
-                        temperature=300.)
-
-    sampler.run_sampling()
-    print("Sampling Done")
+        sampler.run_sampling()
+        print("Sampling Done")
+    else:
+        print("Sampling Done")
     return None
 
 

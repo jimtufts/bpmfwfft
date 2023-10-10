@@ -7,6 +7,7 @@ import sys
 import os
 import glob
 import argparse
+import datetime
 
 import numpy as np
 
@@ -24,7 +25,7 @@ parser.add_argument("--result_name",                      type=str, default="fft
 parser.add_argument("--lig_ensemble_dir",              type=str, default="rotation")
 
 parser.add_argument("--energy_sample_size_per_ligand", type=int, default=1000)
-parser.add_argument("--nr_lig_conf",                   type=int, default=5000)
+parser.add_argument("--nr_lig_conf",                   type=int, default=250)
 
 parser.add_argument("--out_dir",                       type=str, default="out")
 
@@ -210,7 +211,9 @@ elif args.slurm:
 
         # out_dir = os.path.abspath(complex_name)
         qsub_file = os.path.join(com_dir, idx+"_fft_slurm.job")
-        log_file = os.path.join(com_dir, idx+"_fft.log")
+        current_datetime = datetime.datetime.now()
+        date_time_string = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
+        log_file = os.path.join(com_dir, idx+f"_fft_{date_time_string}.log")
         qsub_script = f'''#!/bin/bash
 #SBATCH --job-name={idx}
 #SBATCH --output={log_file}
