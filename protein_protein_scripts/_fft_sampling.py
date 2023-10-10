@@ -27,7 +27,7 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
     lig_nc_handle = netCDF4.Dataset(lig_coor_nc, "r")
     if os.path.exists(output_nc):
         nc_handle = netCDF4.Dataset(output_nc, "r")
-        start_index = nc_handle.variables["current_rotation_index"][0]
+        start_index = int(nc_handle.variables["current_rotation_index"][0])
         nc_handle.close()
     else:
         start_index = 0
