@@ -23,7 +23,7 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
                 lig_prmtop, lig_inpcrd, 
                 lig_coor_nc, nr_lig_conf,
                 energy_sample_size_per_ligand,
-                output_nc):
+                output_nc, output_dir):
     lig_nc_handle = netCDF4.Dataset(lig_coor_nc, "r")
     if os.path.exists(output_nc):
         start_index = netCDF4.Dataset(output_nc, "r").variables["current_rotation_index"][:][0]
@@ -32,8 +32,8 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
 
     print(f"Resuming job at rotation index {start_index}")
     print(f"debug info for start index: type:{type(start_index)}, value:{start_index}")
-    if start_index < lig_nc_handle.variables["positions"][:].shape(0):
-        if start_index + nr_lig_conf < lig_nc_handle.variables["positions"][:].shape(0):
+    if start_index < lig_nc_handle.variables["positions"][:].shape[0]:
+        if start_index + nr_lig_conf < lig_nc_handle.variables["positions"][:].shape[0]:
             lig_coord_ensemble = lig_nc_handle.variables["positions"][:][start_index : start_index + nr_lig_conf]
         else:
             lig_coord_ensemble = lig_nc_handle.variables["positions"][:][start_index:]
@@ -52,6 +52,9 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
                             temperature=300.)
 
         sampler.run_sampling()
+        if start_index + nr_lig_conf >= lig_nc_handle.variables["positions"][:].shape[0]:
+            with open(output_dir+"DONE") as done_file:
+                done_file.write("Sampling Done")
         print("Sampling Done")
     else:
         print("Sampling Done")

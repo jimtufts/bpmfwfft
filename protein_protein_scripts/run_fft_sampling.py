@@ -54,6 +54,18 @@ GRID_NC = args.grid_name
 FFT_SAMPLING_NC = args.result_name
 
 
+def is_running_slurm(idx, out_dir):
+    # if os.path.exists(qsub_file) and os.path.exists(nc_file) and (not os.path.exists(log_file)):
+    #     return True
+    # if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (os.path.exists(log_file)):
+    #     return True
+    import subprocess
+    command = f'squeue -u jtufts'
+    output = subprocess.check_output(command, shell=True, text=True)
+    if idx in output or os.path.exists(os.path.join(out_dir, "DONE")):
+        return True
+    return False
+
 def is_running(qsub_file, log_file, nc_file):
     if os.path.exists(qsub_file) and os.path.exists(nc_file) and (not os.path.exists(log_file)):
         return True
@@ -258,7 +270,7 @@ python {this_script}  \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
 
         fft_sampling_nc_file = os.path.join(com_dir, FFT_SAMPLING_NC)
-        if not is_running(qsub_file, log_file, fft_sampling_nc_file):
+        if not is_running_slurm(idx, out_dir):
 
             if os.path.exists(log_file):
                 print("remove file " + log_file)
@@ -294,6 +306,7 @@ else:
 
     energy_sample_size_per_ligand = args.energy_sample_size_per_ligand
     output_nc = os.path.join(args.out_dir, FFT_SAMPLING_NC)
+    output_dir = args.out_dir
 
     sampling(rec_prmtop, lj_sigma_scal_fact,
              rc_scale, rs_scale, rm_scale,
@@ -303,4 +316,4 @@ else:
              lig_prmtop, lig_inpcrd,
              lig_coor_nc, nr_lig_conf,
              energy_sample_size_per_ligand,
-             output_nc)
+             output_nc, output_dir)
