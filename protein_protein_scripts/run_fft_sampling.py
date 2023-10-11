@@ -25,7 +25,7 @@ parser.add_argument("--result_name",                      type=str, default="fft
 parser.add_argument("--lig_ensemble_dir",              type=str, default="rotation")
 
 parser.add_argument("--energy_sample_size_per_ligand", type=int, default=1000)
-parser.add_argument("--nr_lig_conf",                   type=int, default=250)
+parser.add_argument("--nr_lig_conf",                   type=int, default=100)
 
 parser.add_argument("--out_dir",                       type=str, default="out")
 
