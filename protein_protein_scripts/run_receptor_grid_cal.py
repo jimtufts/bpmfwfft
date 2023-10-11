@@ -49,7 +49,7 @@ def is_running(qsub_file, log_file, nc_file):
     if os.path.exists(qsub_file) and os.path.exists(nc_file) and (not os.path.exists(log_file)):
         return True
 
-    if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (not os.path.exists(log_file)):
+    if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (os.path.exists(log_file)):
         return True
     return False
 
@@ -57,6 +57,7 @@ if args.pbs:
     this_script = os.path.abspath(sys.argv[0])
     amber_dir = os.path.abspath(args.amber_dir)
     coord_dir = os.path.abspath(args.coord_dir)
+    out_dir = os.path.abspath(args.out_dir)
 
     amber_sub_dirs = glob.glob(os.path.join(amber_dir, "*"))
     amber_sub_dirs = [dir for dir in amber_sub_dirs if os.path.isdir(dir)]
@@ -81,17 +82,16 @@ if args.pbs:
     job_count = 0
     for complex in complex_names:
 
-        if not os.path.isdir(complex):
-            os.makedirs(complex)
+        com_dir = os.path.join(out_dir, complex)
+        if not os.path.isdir(com_dir):
+            os.makedirs(com_dir)
 
         id = complex[:4].lower()
         amber_sub_dir = os.path.join(amber_dir, complex)
         coor_sub_dir = os.path.join(coord_dir, complex)
 
-        out_dir = os.path.abspath(complex)
-
-        qsub_file = os.path.join(out_dir, id+"_grid.job")
-        log_file = os.path.join(out_dir, id+"_grid.log")
+        qsub_file = os.path.join(com_dir, id + "_grid_pbs.job")
+        log_file = os.path.join(com_dir, id+"_grid.log")
         qsub_script = '''#!/bin/bash
 #PBS -S /bin/bash
 #PBS -o %s '''%log_file + '''
@@ -103,7 +103,7 @@ date
 python ''' + this_script + \
         ''' --amber_dir ''' + amber_sub_dir + \
         ''' --coord_dir ''' + coor_sub_dir + \
-        ''' --out_dir '''   + out_dir + \
+        ''' --out_dir '''   + com_dir + \
         ''' --grid_file_name ''' + args.grid_file_name + \
         ''' --lj_scale %f'''%args.lj_scale + \
         ''' --rc_scale %f''' % args.rc_scale + \
@@ -111,10 +111,10 @@ python ''' + this_script + \
         ''' --rm_scale %f''' % args.rm_scale + \
         ''' --spacing %f'''%args.spacing + \
         ''' --buffer %f'''%args.buffer + \
-        ''' --exclude_H %f''' % args.buffer + '''\n'''
+        ''' --exclude_H %f''' % args.exclude_H + '''\n'''
 
-        if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(qsub_file, log_file,
-                                                                os.path.join(out_dir, GRID_NC)):
+        if not is_nc_grid_good(os.path.join(com_dir, GRID_NC)) and not is_running(qsub_file, log_file,
+                                                                os.path.join(com_dir, GRID_NC)):
             print("Submitting %s"%complex)
             open(qsub_file, "w").write(qsub_script)
             os.system("qsub %s" %qsub_file)
@@ -128,6 +128,7 @@ elif args.slurm:
     this_script = os.path.abspath(sys.argv[0])
     amber_dir = os.path.abspath(args.amber_dir)
     coord_dir = os.path.abspath(args.coord_dir)
+    out_dir = os.path.abspath(args.out_dir)
 
     amber_sub_dirs = glob.glob(os.path.join(amber_dir, "*"))
     amber_sub_dirs = [dir for dir in amber_sub_dirs if os.path.isdir(dir)]
@@ -152,30 +153,28 @@ elif args.slurm:
     job_count = 0
     for complex in complex_names:
 
-        if not os.path.isdir(complex):
-            os.makedirs(complex)
+        com_dir = os.path.join(out_dir, complex)
+        if not os.path.isdir(com_dir):
+            os.makedirs(com_dir)
 
         id = complex[:4].lower()
         amber_sub_dir = os.path.join(amber_dir, complex)
         coor_sub_dir = os.path.join(coord_dir, complex)
 
-        out_dir = os.path.abspath(complex)
-        if args.slurm:
-            sbatch_file = os.path.join(out_dir, id+"_grid_slurm.job")
-        else:
-            sbatch_file = os.path.join(out_dir, id + "_grid_pbs.job")
-        log_file = os.path.join(out_dir, id+"_grid.log")
+        # out_dir = os.path.abspath(complex)
+        sbatch_file = os.path.join(com_dir, id+"_grid_slurm.job")
+        log_file = os.path.join(com_dir, id+"_grid.log")
         sbatch_script = f'''#!/bin/bash
 #SBATCH --job-name={id}
 #SBATCH --output={log_file}
-#SBATCH --partition=compute
+#SBATCH --partition=shared
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=31125M
 #SBATCH --account=iit103
 #SBATCH --export=ALL
-#SBATCH -t 48:00:00
+#SBATCH -t 10:00:00
 #SBATCH --constraint="lustre"
 module purge 
 module load cpu
@@ -193,8 +192,8 @@ export OMP_NUM_THREADS=16
 python {this_script} \
         --amber_dir {amber_sub_dir} \
         --coord_dir {coor_sub_dir} \
-        --out_dir {out_dir} \
-        --grid_file_name {args.grid_file_name}
+        --out_dir {com_dir} \
+        --grid_file_name {args.grid_file_name} \
         --lj_scale {args.lj_scale:.6f} \
         --rc_scale {args.rc_scale:.6f} \
         --rs_scale {args.rs_scale:.6f} \
@@ -202,10 +201,9 @@ python {this_script} \
         --spacing {args.spacing:.6f} \
         --buffer {args.buffer:.6f} \
         --radii_type {args.radii_type} \
-        --exclude_H \
         \n'''
-        if not is_nc_grid_good(os.path.join(out_dir, GRID_NC)) and not is_running(sbatch_file, log_file,
-                                                                os.path.join(out_dir, GRID_NC)):
+        if not is_nc_grid_good(os.path.join(com_dir, GRID_NC)) and not is_running(sbatch_file, log_file,
+                                                                os.path.join(com_dir, GRID_NC)):
             print("Submitting %s"%complex)
             open(sbatch_file, "w").write(sbatch_script)
             os.system("sbatch %s" %sbatch_file)

@@ -104,3 +104,13 @@ ENV/
 # profraw files from LLVM? Unclear exactly what triggers this
 # There are reports this comes from LLVM profiling, but also Xcode 9.
 *profraw
+
+# Add individual files that don't need to be tracked.
+bpmfwfft/util.html
+bpmfwfft/util.c
+
+# Remove build directories
+bpmfwfft.egg-info/
+build/
+dist/
+

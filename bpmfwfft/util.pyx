@@ -4,6 +4,7 @@ import numpy as np
 cimport numpy as np
 import math
 from cython cimport view
+from scipy.optimize import nnls
 
 
 cdef extern from "math.h":
@@ -333,7 +334,8 @@ def c_ten_corners(  np.ndarray[np.float64_t, ndim=1] atom_coordinate,
     
 
 @cython.boundscheck(False)
-def c_distr_charge_one_atom( np.ndarray[np.float64_t, ndim=1] atom_coordinate, 
+def c_distr_charge_one_atom( str name,
+                             np.ndarray[np.float64_t, ndim=1] atom_coordinate,
                              double charge,
                              np.ndarray[np.float64_t, ndim=1] origin_crd,
                              np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
@@ -351,7 +353,7 @@ def c_distr_charge_one_atom( np.ndarray[np.float64_t, ndim=1] atom_coordinate,
         np.ndarray[np.float64_t, ndim=1] b_vector = np.zeros([10], dtype=float)
         np.ndarray[np.float64_t, ndim=2] a_matrix = np.zeros([10,10], dtype=float)
         np.ndarray[np.float64_t, ndim=1] corner_crd
-        np.ndarray[np.float64_t, ndim=1] distributed_charges
+        np.ndarray[np.float64_t, ndim=1] distributed_charges = np.zeros([10], dtype=float)
 
     ten_corners = c_ten_corners(atom_coordinate, origin_crd, uper_most_corner_crd, uper_most_corner,
                                 spacing, eight_corner_shifts, six_corner_shifts, grid_x, grid_y, grid_z)
@@ -374,8 +376,13 @@ def c_distr_charge_one_atom( np.ndarray[np.float64_t, ndim=1] atom_coordinate,
             row += 1
             for k in range(10):
                 a_matrix[row][k] = delta_vectors[k][i] * delta_vectors[k][j]
+    if name == "electrostatic":
+        distributed_charges = np.linalg.solve(a_matrix, b_vector)
+        # distributed_charges = nnls(a_matrix, b_vector)[0]
+    else:
+        distributed_charges = nnls(a_matrix, b_vector)[0]
+    # distributed_charges = np.linalg.solve(a_matrix, b_vector)
 
-    distributed_charges = np.linalg.solve(a_matrix, b_vector)
     return ten_corners, distributed_charges
 
 
@@ -411,6 +418,8 @@ def get_min_dists(
         dict indR = {}
         dict indL = {}
         dict dist = {}
+        dict nameR = {}
+        dict nameL = {}
         str rad_type, diameter
         list metal_ions = ["ZN", "CA", "MG", "SR"]
         list key_types = ["ss", "sc", "cs", "cc", "ms", "sm", "mc", "cm"]
@@ -435,6 +444,8 @@ def get_min_dists(
         indR[key] = 0
         indL[key] = 0
         dist[key] = math.inf
+        nameR[key] = "None"
+        nameL[key] = "None"
     # Set either LJ_sigma or VDW diameter for atom size
     if use_vdw:
         diameter = "vdw_dia"
@@ -443,13 +454,13 @@ def get_min_dists(
     # Build index list without hydrogen if desired
     for i in range(rec_natoms):
         if exclude_H:
-            if rec["atom_names"][i][0] != 'H':
+            if "H" not in rec["atom_names"][i]:
                 rec_inds.append(i)
         else:
             rec_inds.append(i)
     for i in range(lig_natoms):
         if exclude_H:
-            if lig["atom_names"][i][0] != 'H':
+            if "H" not in lig["atom_names"][i]:
                 lig_inds.append(i)
         else:
             lig_inds.append(i)
@@ -468,6 +479,8 @@ def get_min_dists(
                                 indL["cc"] = lig_ind
                                 sigmaR["cc"] = rec[diameter][rec_ind]
                                 sigmaL["cc"] = lig[diameter][lig_ind]
+                                nameR["cc"] = rec_atom_names[rec_ind]
+                                nameL["cc"] = lig_atom_names[lig_ind]
                         else:
                             if dist["cs"] > distance:
                                 dist["cs"] = distance
@@ -475,6 +488,8 @@ def get_min_dists(
                                 indL["cs"] = lig_ind
                                 sigmaR["cs"] = rec[diameter][rec_ind]
                                 sigmaL["cs"] = lig[diameter][lig_ind]
+                                nameR["cs"] = rec_atom_names[rec_ind]
+                                nameL["cs"] = lig_atom_names[lig_ind]
                     else:
                         if dist["cm"] > distance:
                                 dist["cm"] = distance
@@ -482,6 +497,8 @@ def get_min_dists(
                                 indL["cm"] = lig_ind
                                 sigmaR["cm"] = rec[diameter][rec_ind]
                                 sigmaL["cm"] = lig[diameter][lig_ind]
+                                nameR["cm"] = rec_atom_names[rec_ind]
+                                nameL["cm"] = lig_atom_names[lig_ind]
             else:
                 for lig_ind in lig_inds:
                     distance = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
@@ -493,6 +510,8 @@ def get_min_dists(
                                 indL["sc"] = lig_ind
                                 sigmaR["sc"] = rec[diameter][rec_ind]
                                 sigmaL["sc"] = lig[diameter][lig_ind]
+                                nameR["sc"] = rec_atom_names[rec_ind]
+                                nameL["sc"] = lig_atom_names[lig_ind]
                         else:
                             if dist["ss"] > distance:
                                 dist["ss"] = distance
@@ -500,6 +519,8 @@ def get_min_dists(
                                 indL["ss"] = lig_ind
                                 sigmaR["ss"] = rec[diameter][rec_ind]
                                 sigmaL["ss"] = lig[diameter][lig_ind]
+                                nameR["ss"] = rec_atom_names[rec_ind]
+                                nameL["ss"] = lig_atom_names[lig_ind]
                     else:
                         if dist["sm"] > distance:
                                 dist["sm"] = distance
@@ -507,6 +528,8 @@ def get_min_dists(
                                 indL["sm"] = lig_ind
                                 sigmaR["sm"] = rec[diameter][rec_ind]
                                 sigmaL["sm"] = lig[diameter][lig_ind]
+                                nameR["sm"] = rec_atom_names[rec_ind]
+                                nameL["sm"] = lig_atom_names[lig_ind]
         else:
             for lig_ind in lig_inds:
                 distance = cdistance(rec_crd[rec_ind], lig_crd[lig_ind])
@@ -518,6 +541,8 @@ def get_min_dists(
                             indL["mc"] = lig_ind
                             sigmaR["mc"] = rec[diameter][rec_ind]
                             sigmaL["mc"] = lig[diameter][lig_ind]
+                            nameR["mc"] = rec_atom_names[rec_ind]
+                            nameL["mc"] = lig_atom_names[lig_ind]
                     else:
                         if dist["ms"] > distance:
                             dist["ms"] = distance
@@ -525,14 +550,89 @@ def get_min_dists(
                             indL["ms"] = lig_ind
                             sigmaR["ms"] = rec[diameter][rec_ind]
                             sigmaL["ms"] = lig[diameter][lig_ind]
+                            nameR["ms"] = rec_atom_names[rec_ind]
+                            nameL["ms"] = lig_atom_names[lig_ind]
 
     # result = (sigmaR_ss, sigmaL_ss, sigmaR_sc, sigmaL_sc,
     #           sigmaR_cs, sigmaL_cs, sigmaR_cc, sigmaL_cc,
     #           sigmaR_ms, sigmaL_ms, sigmaR_sm, sigmaL,sm,
     #           sigmaR_mc, sigmaL_mc, sigmaR_cm, sigmaL_cm,
     #           dmin_ss, dmin_sc, dmin_cs, dmin_cc, ind_list)
-    result = {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": dist, "indR": indR, "indL": indL}
+    result = {"sigmaR": sigmaR, "sigmaL": sigmaL, "dist": dist, "indR": indR, "indL": indL, "nameR": nameR, "nameL": nameL}
     return result
+
+@cython.boundscheck(False)
+# Custom function to create a unique key for label pairs
+def get_pair_key(label1, label2):
+    return label1 < label2 and f"{label1}:{label2}" or f"{label2}:{label1}"
+
+# Function to calculate distances
+def calculate_distances(np.ndarray[double, ndim=2] array1,
+                        np.ndarray[double, ndim=2] array2,
+                        list array1_labels,
+                        list array2_labels,
+                        np.ndarray[double, ndim=1] r_sigmas,
+                        np.ndarray[double, ndim=1] l_sigmas,
+                        np.ndarray[double, ndim=1] r_radii,
+                        np.ndarray[double, ndim=1] l_radii,
+                        np.ndarray[double, ndim=1] r_mass,
+                        np.ndarray[double, ndim=1] l_mass,
+                        np.ndarray[float, ndim=2] rec_sasa,
+                        np.ndarray[float, ndim=2] lig_sasa,
+                        float surface_core_cutoff,
+                        double cutoff_distance,
+                        str system_name,
+                        bint use_vdw,
+                        bint exclude_H
+                        ):
+    cdef:
+        dict distances = {}
+        dict indR = {}
+        dict indL = {}
+        dict sigmaR = {}
+        dict sigmaL = {}
+    cdef double previous_distance
+    cdef double current_distance
+    cdef int i, j
+    cdef list rec_inds = []
+    cdef list lig_inds = []
+    cdef list row
+    cdef list rows = []
+    cdef rec_natoms = array1.shape[0]
+    cdef lig_natoms = array2.shape[0]
+
+    for i in range(rec_natoms):
+        if exclude_H:
+            if "H" not in array1_labels[i]:
+                rec_inds.append(i)
+        else:
+            rec_inds.append(i)
+    for i in range(lig_natoms):
+        if exclude_H:
+            if "H" not in array2_labels[i]:
+                    lig_inds.append(i)
+        else:
+            lig_inds.append(i)
+
+    for i in rec_inds:
+        for j in lig_inds:
+            # Select which atom size source
+            if use_vdw:
+                rs = r_radii[i]*2.
+                ls = l_radii[j]*2.
+            else:
+                rs = r_sigmas[i]
+                ls = l_sigmas[j]
+            rm = r_mass[i]
+            lm = l_mass[j]
+            current_distance = cdistance(array1[i], array2[j])
+            array1_label = array1_labels[i]
+            array2_label = array2_labels[j]
+            pair_key = get_pair_key(array1_label, array2_label)
+            if current_distance <= cutoff_distance:
+                row = [rs,ls,current_distance,i,j,array1_label,array2_label,rm,lm,system_name]
+                rows.append(row)
+    return rows
 
 @cython.boundscheck(False)
 def c_cal_potential_grid_pp(   str name,
@@ -547,7 +647,9 @@ def c_cal_potential_grid_pp(   str name,
                             np.ndarray[np.int64_t, ndim=1]   grid_counts,
                             np.ndarray[np.float64_t, ndim=1] charges,
                             np.ndarray[np.float64_t, ndim=1] lj_sigma,
+                            np.ndarray[np.float64_t, ndim=1] vdw_radii,
                             np.ndarray[np.float64_t, ndim=1] clash_radii,
+                            list bond_list,
                             list atom_list,
                             np.ndarray[float, ndim=2] molecule_sasa,
                             np.ndarray[float, ndim=2] sasa_cutoffs,
@@ -564,7 +666,7 @@ def c_cal_potential_grid_pp(   str name,
         int j_max = grid_y.shape[0]
         int k_max = grid_z.shape[0]
         int i, j, k
-        int atom_ind
+        int atom_ind, bond_ind
         double charge, lj_diameter
         double d, exponent
         double dx_tmp, dy_tmp
@@ -585,7 +687,7 @@ def c_cal_potential_grid_pp(   str name,
             exponent = 1.
         else:
             raise RuntimeError("Wrong grid name %s"%name)
-        grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
+        grid_tmp = np.zeros([i_max, j_max, k_max], dtype=float)
         grid_tmp_view = grid_tmp
         for atom_ind in range(natoms):
             atom_coordinate = crd[atom_ind]
@@ -595,7 +697,7 @@ def c_cal_potential_grid_pp(   str name,
             if name == "water":
                 grid_tmp[grid_tmp > 0.] = 0.
                 charge = molecule_sasa[0][atom_ind]
-                lj_diameter = clash_radii[atom_ind]
+                lj_diameter = vdw_radii[atom_ind]
                 surface_layer = lj_diameter + 1.4
                 corners = c_corners_within_radius(atom_coordinate,
                                                   surface_layer,
@@ -609,10 +711,11 @@ def c_cal_potential_grid_pp(   str name,
                                                   grid_counts)
 
                 for i, j, k in corners:
-                    grid_tmp_view[i, j, k] = 1.
+                    grid_tmp[i, j, k] = 1.
             else:
                 charge = charges[atom_ind]
                 lj_diameter = lj_sigma[atom_ind]
+                clash_radius = clash_radii[atom_ind]
                 for i in range(i_max):
                     dx_tmp = dx2[i]
                     for j in range(j_max):
@@ -621,34 +724,28 @@ def c_cal_potential_grid_pp(   str name,
                             d = dx_tmp + dy_tmp + dz2[k]
                             d = d**exponent
                             grid_tmp_view[i,j,k] = charge / d
-                corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                                    uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
 
+                corners = c_corners_within_radius(atom_coordinate, clash_radius, origin_crd, uper_most_corner_crd,
+                                                      uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
                 for i, j, k in corners:
                     grid_tmp[i,j,k] = 0
-
-            # corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-            #                                     uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-            #
-            # for i, j, k in corners:
-            #     grid_tmp[i,j,k] = 0
 
             grid += grid_tmp
     else:
         for atom_ind in atom_list:
             atom_coordinate = crd[atom_ind]
-            if rec_res_names[atom_ind] in metal_ions:
-                scale = rec_metal_scaling
-            else:
-                if sasa_cutoffs[0][atom_ind] > 0.:
-                    scale = rec_surface_scaling
-                else:
-                    scale = rec_core_scaling
-            lj_diameter = clash_radii[atom_ind]*scale
+            lj_diameter = clash_radii[atom_ind]
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
                 grid[i, j, k] = 1.
+        for bond_crd in bond_list:
+            lj_diameter = 1.
+            corners = c_corners_within_radius(bond_crd, lj_diameter, origin_crd, uper_most_corner_crd,
+                                              uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+            for i, j, k in corners:
+                grid[i, j, k] = 1.
+
     return grid
 
 @cython.boundscheck(False)
@@ -799,7 +896,9 @@ def c_cal_charge_grid_pp_mp(  str name,
                         np.ndarray[np.int64_t, ndim=1]   grid_counts,
                         np.ndarray[np.float64_t, ndim=1] charges,
                         np.ndarray[np.float64_t, ndim=1] lj_sigma,
+                        np.ndarray[np.float64_t, ndim=1] vdw_radii,
                         np.ndarray[np.float64_t, ndim=1] clash_radii,
+                        list bond_list,
                         list atom_list,
                         int natoms_i,
                         int atomind,
@@ -813,7 +912,7 @@ def c_cal_charge_grid_pp_mp(  str name,
     cdef:
         list corners
         list metal_ions = ["ZN", "CA", "MG", "SR"]
-        int atom_ind, i, j, k, l, m, n
+        int atom_ind, bond_ind, i, j, k, l, m, n
         int ind, num_corners
         int natoms = crd.shape[0]
         int i_max = grid_x.shape[0]
@@ -832,12 +931,11 @@ def c_cal_charge_grid_pp_mp(  str name,
         float[:,:] molecule_sasa_view = molecule_sasa
 
     assert name in ["occupancy", "sasa", "water", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
-
     if name in ["LJa", "LJr", "electrostatic"]:
         for atom_ind in range(atomind,atomind+natoms_i):
             atom_coordinate = crd[atom_ind]
             charge = charges[atom_ind]
-            ten_corners, distributed_charges = c_distr_charge_one_atom( atom_coordinate, charge,
+            ten_corners, distributed_charges = c_distr_charge_one_atom(name, atom_coordinate, charge,
                                                                     origin_crd, uper_most_corner_crd,
                                                                     uper_most_corner, spacing,
                                                                     eight_corner_shifts, six_corner_shifts,
@@ -853,7 +951,7 @@ def c_cal_charge_grid_pp_mp(  str name,
         for atom_ind in range(atomind,atomind+natoms_i):
             atom_coordinate = crd[atom_ind]
             charge = molecule_sasa_view[0][atom_ind]
-            lj_diameter = clash_radii[atom_ind]
+            lj_diameter = vdw_radii[atom_ind]
 
             surface_layer = lj_diameter + 1.4
             corners = c_corners_within_radius(atom_coordinate, surface_layer, origin_crd,
@@ -883,15 +981,15 @@ def c_cal_charge_grid_pp_mp(  str name,
     else:
         for atom_ind in atom_list:
             atom_coordinate = crd[atom_ind]
-            if lig_res_names[atom_ind] in metal_ions:
-                scale = lig_metal_scaling
-            else:
-                if sasa_cutoffs[0][atom_ind] > 0.:
-                    scale = lig_surface_scaling
-                else:
-                    scale = lig_core_scaling
-            lj_diameter = clash_radii[atom_ind] * scale
+            lj_diameter = clash_radii[atom_ind]
             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+                                              uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+            for i, j, k in corners:
+                grid[i, j, k] = 1.
+
+        for bond_crd in bond_list:
+            lj_diameter = 1.
+            corners = c_corners_within_radius(bond_crd, lj_diameter, origin_crd, uper_most_corner_crd,
                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
             for i, j, k in corners:
                 grid[i, j, k] = 1.
@@ -899,105 +997,105 @@ def c_cal_charge_grid_pp_mp(  str name,
     return grid
 
 # TODO: Delete these old functions as they don't serve any purpose currently
-@cython.boundscheck(False)
-def c_cal_charge_grid_pp(  str name,
-                        np.ndarray[np.float64_t, ndim=2] crd,
-                        np.ndarray[np.float64_t, ndim=1] grid_x,
-                        np.ndarray[np.float64_t, ndim=1] grid_y,
-                        np.ndarray[np.float64_t, ndim=1] grid_z,
-                        np.ndarray[np.float64_t, ndim=1] origin_crd,
-                        np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
-                        np.ndarray[np.int64_t, ndim=1]   uper_most_corner,
-                        np.ndarray[np.float64_t, ndim=1] spacing,
-                        np.ndarray[np.int64_t, ndim=2]   eight_corner_shifts,
-                        np.ndarray[np.int64_t, ndim=2]   six_corner_shifts,
-                        np.ndarray[np.int64_t, ndim=1]   grid_counts,
-                        np.ndarray[np.float64_t, ndim=1] charges,
-                        np.ndarray[np.float64_t, ndim=1] lj_sigma,
-                        np.ndarray[np.float64_t, ndim=1] clash_radii,
-                        list atom_list,
-                        np.ndarray[float, ndim=2] molecule_sasa,
-                        np.ndarray[float, ndim=2] sasa_cutoffs,
-                        list lig_res_names,
-                        float lig_core_scaling,
-                        float lig_surface_scaling,
-                        float lig_metal_scaling):
-
-    cdef:
-        list corners
-        list metal_ions = ["ZN", "CA", "MG", "SR"]
-        int atom_ind, i, l, m, n
-        int natoms = crd.shape[0]
-        int i_max = grid_x.shape[0]
-        int j_max = grid_y.shape[0]
-        int k_max = grid_z.shape[0]
-        double charge, lj_diameter
-        list ten_corners, six_corners
-        np.ndarray[np.float64_t, ndim=1] distributed_charges
-        np.ndarray[np.float64_t, ndim=1] atom_coordinate
-        np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=float)
-
-    assert name in ["occupancy", "sasa", "water", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
-
-    if name in ["LJa", "LJr", "electrostatic"]:
-        for atom_ind in range(natoms):
-            atom_coordinate = crd[atom_ind]
-            charge = charges[atom_ind]
-            ten_corners, distributed_charges = c_distr_charge_one_atom( atom_coordinate, charge,
-                                                                    origin_crd, uper_most_corner_crd,
-                                                                    uper_most_corner, spacing,
-                                                                    eight_corner_shifts, six_corner_shifts,
-                                                                    grid_x, grid_y, grid_z)
-            for i in range(len(ten_corners)):
-                l, m, n = ten_corners[i]
-                grid[l, m, n] += distributed_charges[i]
-    elif name == "water":
-        for atom_ind in range(natoms):
-            atom_coordinate = crd[atom_ind]
-            charge = molecule_sasa[0][atom_ind]
-            lj_diameter = clash_radii[atom_ind]
-
-            surface_layer = lj_diameter + 1.4
-            corners = c_corners_within_radius(atom_coordinate, surface_layer, origin_crd,
-                                              uper_most_corner_crd,
-                                              uper_most_corner, spacing, grid_x, grid_y, grid_z,
-                                              grid_counts)
-            grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
-            dx2 = (atom_coordinate[0] - grid_x) ** 2
-            dy2 = (atom_coordinate[1] - grid_y) ** 2
-            dz2 = (atom_coordinate[2] - grid_z) ** 2
-            for i, j, k in corners:
-                dx_tmp = dx2[i]
-                dy_tmp = dy2[j]
-                d = dx_tmp + dy_tmp + dz2[k]
-                grid_tmp[i, j, k] = 1.
-
-            # corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-            #                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-
-
-            # for i, j, k in corners:
-            #     grid_tmp[i, j, k] = 0
-
-            grid += grid_tmp
-
-    else:
-        for atom_ind in atom_list:
-            atom_coordinate = crd[atom_ind]
-            if lig_res_names[atom_ind] in metal_ions:
-                scale = lig_metal_scaling
-            else:
-                if sasa_cutoffs[0][atom_ind] > 0.:
-                    scale = lig_surface_scaling
-                else:
-                    scale = lig_core_scaling
-            lj_diameter = clash_radii[atom_ind] * scale
-            corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
-                                              uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
-            for i, j, k in corners:
-                grid[i, j, k] = 1.
-
-    return grid
+# @cython.boundscheck(False)
+# def c_cal_charge_grid_pp(  str name,
+#                         np.ndarray[np.float64_t, ndim=2] crd,
+#                         np.ndarray[np.float64_t, ndim=1] grid_x,
+#                         np.ndarray[np.float64_t, ndim=1] grid_y,
+#                         np.ndarray[np.float64_t, ndim=1] grid_z,
+#                         np.ndarray[np.float64_t, ndim=1] origin_crd,
+#                         np.ndarray[np.float64_t, ndim=1] uper_most_corner_crd,
+#                         np.ndarray[np.int64_t, ndim=1]   uper_most_corner,
+#                         np.ndarray[np.float64_t, ndim=1] spacing,
+#                         np.ndarray[np.int64_t, ndim=2]   eight_corner_shifts,
+#                         np.ndarray[np.int64_t, ndim=2]   six_corner_shifts,
+#                         np.ndarray[np.int64_t, ndim=1]   grid_counts,
+#                         np.ndarray[np.float64_t, ndim=1] charges,
+#                         np.ndarray[np.float64_t, ndim=1] lj_sigma,
+#                         np.ndarray[np.float64_t, ndim=1] clash_radii,
+#                         list atom_list,
+#                         np.ndarray[float, ndim=2] molecule_sasa,
+#                         np.ndarray[float, ndim=2] sasa_cutoffs,
+#                         list lig_res_names,
+#                         float lig_core_scaling,
+#                         float lig_surface_scaling,
+#                         float lig_metal_scaling):
+#
+#     cdef:
+#         list corners
+#         list metal_ions = ["ZN", "CA", "MG", "SR"]
+#         int atom_ind, i, l, m, n
+#         int natoms = crd.shape[0]
+#         int i_max = grid_x.shape[0]
+#         int j_max = grid_y.shape[0]
+#         int k_max = grid_z.shape[0]
+#         double charge, lj_diameter
+#         list ten_corners, six_corners
+#         np.ndarray[np.float64_t, ndim=1] distributed_charges
+#         np.ndarray[np.float64_t, ndim=1] atom_coordinate
+#         np.ndarray[np.float64_t, ndim=3] grid = np.zeros([i_max, j_max, k_max], dtype=float)
+#
+#     assert name in ["occupancy", "sasa", "water", "LJa", "LJr", "electrostatic"], "Name %s not allowed"%name
+#
+#     if name in ["LJa", "LJr", "electrostatic"]:
+#         for atom_ind in range(natoms):
+#             atom_coordinate = crd[atom_ind]
+#             charge = charges[atom_ind]
+#             ten_corners, distributed_charges = c_distr_charge_one_atom(name, atom_coordinate, charge,
+#                                                                     origin_crd, uper_most_corner_crd,
+#                                                                     uper_most_corner, spacing,
+#                                                                     eight_corner_shifts, six_corner_shifts,
+#                                                                     grid_x, grid_y, grid_z)
+#             for i in range(len(ten_corners)):
+#                 l, m, n = ten_corners[i]
+#                 grid[l, m, n] += distributed_charges[i]
+#     elif name == "water":
+#         for atom_ind in range(natoms):
+#             atom_coordinate = crd[atom_ind]
+#             charge = molecule_sasa[0][atom_ind]
+#             lj_diameter = clash_radii[atom_ind]
+#
+#             surface_layer = lj_diameter + 1.4
+#             corners = c_corners_within_radius(atom_coordinate, surface_layer, origin_crd,
+#                                               uper_most_corner_crd,
+#                                               uper_most_corner, spacing, grid_x, grid_y, grid_z,
+#                                               grid_counts)
+#             grid_tmp = np.empty([i_max, j_max, k_max], dtype=float)
+#             dx2 = (atom_coordinate[0] - grid_x) ** 2
+#             dy2 = (atom_coordinate[1] - grid_y) ** 2
+#             dz2 = (atom_coordinate[2] - grid_z) ** 2
+#             for i, j, k in corners:
+#                 dx_tmp = dx2[i]
+#                 dy_tmp = dy2[j]
+#                 d = dx_tmp + dy_tmp + dz2[k]
+#                 grid_tmp[i, j, k] = 1.
+#
+#             # corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+#             #                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+#
+#
+#             # for i, j, k in corners:
+#             #     grid_tmp[i, j, k] = 0
+#
+#             grid += grid_tmp
+#
+#     else:
+#         for atom_ind in atom_list:
+#             atom_coordinate = crd[atom_ind]
+#             if lig_res_names[atom_ind] in metal_ions:
+#                 scale = lig_metal_scaling
+#             else:
+#                 if sasa_cutoffs[0][atom_ind] > 0.:
+#                     scale = lig_surface_scaling
+#                 else:
+#                     scale = lig_core_scaling
+#             lj_diameter = clash_radii[atom_ind] * scale
+#             corners = c_corners_within_radius(atom_coordinate, lj_diameter, origin_crd, uper_most_corner_crd,
+#                                               uper_most_corner, spacing, grid_x, grid_y, grid_z, grid_counts)
+#             for i, j, k in corners:
+#                 grid[i, j, k] = 1.
+#
+#     return grid
 
 # @cython.boundscheck(False)
 # def c_cal_potential_grid(   str name,

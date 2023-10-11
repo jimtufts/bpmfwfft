@@ -1,4 +1,3 @@
-
 from __future__ import print_function
 
 import os
@@ -14,7 +13,8 @@ from mdtraj.geometry.sasa import _ATOMIC_RADII
 
 try:
     from bpmfwfft import IO
-    try:        
+
+    try:
         from bpmfwfft.util import c_is_in_grid, cdistance, c_containing_cube
         from bpmfwfft.util import c_cal_charge_grid_pp_mp
         from bpmfwfft.util import c_cal_potential_grid_pp
@@ -41,6 +41,7 @@ except:
 # Gamma taken from amber manual
 GAMMA = 0.005
 
+
 def process_potential_grid_function(
         name,
         crd,
@@ -49,7 +50,9 @@ def process_potential_grid_function(
         grid_counts,
         charges,
         prmtop_ljsigma,
+        prmtop_vdwradii,
         clash_radii,
+        bond_list,
         atom_list,
         molecule_sasa,
         sasa_cutoffs,
@@ -65,7 +68,7 @@ def process_potential_grid_function(
     """
     grid_x = np.linspace(
         origin_crd[0],
-        origin_crd[0] + ((grid_counts[0]-1) * grid_spacing[0]),
+        origin_crd[0] + ((grid_counts[0] - 1) * grid_spacing[0]),
         num=grid_counts[0]
     )
     grid_y = np.linspace(
@@ -82,13 +85,14 @@ def process_potential_grid_function(
     uper_most_corner = (grid_counts - 1)
 
     grid = c_cal_potential_grid_pp(name, crd,
-                                grid_x, grid_y, grid_z,
-                                origin_crd, uper_most_corner_crd, uper_most_corner,
-                                grid_spacing, grid_counts, charges, prmtop_ljsigma,
-                                clash_radii, atom_list, molecule_sasa, sasa_cutoffs,
-                                rec_res_names, rec_core_scaling, rec_surface_scaling,
-                                rec_metal_scaling)
+                                   grid_x, grid_y, grid_z,
+                                   origin_crd, uper_most_corner_crd, uper_most_corner,
+                                   grid_spacing, grid_counts, charges, prmtop_ljsigma, prmtop_vdwradii,
+                                   clash_radii, bond_list, atom_list, molecule_sasa, sasa_cutoffs,
+                                   rec_res_names, rec_core_scaling, rec_surface_scaling,
+                                   rec_metal_scaling)
     return grid
+
 
 def process_charge_grid_function(
         name,
@@ -100,7 +104,9 @@ def process_charge_grid_function(
         grid_counts,
         charges,
         prmtop_ljsigma,
+        prmtop_vdwradii,
         clash_radii,
+        bond_list,
         atom_list,
         natoms_i,
         atomind,
@@ -118,7 +124,7 @@ def process_charge_grid_function(
     """
     grid_x = np.linspace(
         origin_crd[0],
-        origin_crd[0] + ((grid_counts[0]-1) * grid_spacing[0]),
+        origin_crd[0] + ((grid_counts[0] - 1) * grid_spacing[0]),
         num=grid_counts[0]
     )
     grid_y = np.linspace(
@@ -135,14 +141,16 @@ def process_charge_grid_function(
     uper_most_corner = (grid_counts - 1)
 
     grid = c_cal_charge_grid_pp_mp(name, crd,
-                                grid_x, grid_y, grid_z,
-                                origin_crd, uper_most_corner_crd, uper_most_corner,
-                                grid_spacing, eight_corner_shifts, six_corner_shifts,
-                                grid_counts, charges, prmtop_ljsigma, clash_radii, atom_list,
-                                natoms_i, atomind, molecule_sasa, sasa_cutoffs, lig_res_names,
-                                lig_core_scaling, lig_surface_scaling, lig_metal_scaling)
+                                   grid_x, grid_y, grid_z,
+                                   origin_crd, uper_most_corner_crd, uper_most_corner,
+                                   grid_spacing, eight_corner_shifts, six_corner_shifts,
+                                   grid_counts, charges, prmtop_ljsigma, prmtop_vdwradii, clash_radii,
+                                   bond_list, atom_list,
+                                   natoms_i, atomind, molecule_sasa, sasa_cutoffs, lig_res_names,
+                                   lig_core_scaling, lig_surface_scaling, lig_metal_scaling)
 
     return grid
+
 
 def process_sasa_grid_function(
         crd,
@@ -152,7 +160,7 @@ def process_sasa_grid_function(
         n_sphere_points,
         natoms_i,
         atomind
-        ):
+):
     """
     gets called by cal_potential_grid and assigned to a new python process
     uses cython to calculate a sasa grid
@@ -161,6 +169,7 @@ def process_sasa_grid_function(
 
     points = c_sasa(crd, radii, spacing, probe_size, n_sphere_points, natoms_i, atomind)
     return points
+
 
 def is_nc_grid_good(nc_grid_file):
     """
@@ -180,6 +189,7 @@ def is_nc_grid_good(nc_grid_file):
         if key not in nc_keys:
             return False
     return True
+
 
 # def get_min_dists_pool():
 
@@ -203,9 +213,11 @@ class Grid(object):
     an abstract class that defines some common methods and data attributes
     working implementations are in LigGrid and RecGrid below
     """
+
     def __init__(self):
         self._grid = {}
-        self._grid_func_names   = ("occupancy", "sasa", "water", "electrostatic", "LJr", "LJa")  # calculate all grids
+        self._grid_func_names = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
+        # self._grid_func_names = ("occupancy", "LJr", "LJa", "sasa", "water")  # don't calculate electrostatic
         # self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ("occupancy", "LJa")  # uncomment to calculate LJa and occupancy
@@ -213,13 +225,14 @@ class Grid(object):
         # self._grid_func_names = ("occupancy", "LJr", "LJa")  # uncomment to calculate Lennard-Jones and occupancy
         # self._grid_func_names = ("occupancy", "sasa", "water", "electrostatic")  # uncomment to calculate bsa, electrostatic, and occupancy
         # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
-        cartesian_axes  = ("x", "y", "z")
-        box_dim_names   = ("d0", "d1", "d2")
-        others          = ("spacing", "counts", "origin", "lj_sigma_scaling_factor", "rec_core_scaling",
-                           "rec_surface_scaling", "rec_metal_scaling")
+        cartesian_axes = ("x", "y", "z")
+        box_dim_names = ("d0", "d1", "d2")
+        others = ("spacing", "counts", "origin", "lj_sigma_scaling_factor", "rec_core_scaling",
+                  "rec_surface_scaling", "rec_metal_scaling")
         self._grid_allowed_keys = self._grid_func_names + cartesian_axes + box_dim_names + others
 
-        self._eight_corner_shifts = [np.array([i,j,k], dtype=int) for i in range(2) for j in range(2) for k in range(2)]
+        self._eight_corner_shifts = [np.array([i, j, k], dtype=int) for i in range(2) for j in range(2) for k in
+                                     range(2)]
         self._eight_corner_shifts = np.array(self._eight_corner_shifts, dtype=int)
 
         self._six_corner_shifts = self._get_six_corner_shifts()
@@ -229,9 +242,9 @@ class Grid(object):
     def _get_six_corner_shifts(self):
         six_corner_shifts = []
         for i in [-1, 1]:
-            six_corner_shifts.append(np.array([i,0,0], dtype=int))
-            six_corner_shifts.append(np.array([0,i,0], dtype=int))
-            six_corner_shifts.append(np.array([0,0,i], dtype=int))
+            six_corner_shifts.append(np.array([i, 0, 0], dtype=int))
+            six_corner_shifts.append(np.array([0, i, 0], dtype=int))
+            six_corner_shifts.append(np.array([0, 0, i], dtype=int))
         return np.array(six_corner_shifts, dtype=int)
 
     def _get_nearest_neighbor_shifts(self):
@@ -244,7 +257,7 @@ class Grid(object):
             nearest_neighbor_shifts.append(np.array([i, 0, i], dtype=int))
             nearest_neighbor_shifts.append(np.array([i, i, 0], dtype=int))
         return np.array(nearest_neighbor_shifts, dtype=int)
-    
+
     def _set_grid_key_value(self, key, value):
         """
         key:    str
@@ -256,7 +269,7 @@ class Grid(object):
             print(value)
         self._grid[key] = value
         return None
-    
+
     def _load_prmtop(self, prmtop_file_name, lj_sigma_scaling_factor):
         """
         :param prmtop_file_name: str, name of AMBER prmtop file
@@ -271,14 +284,14 @@ class Grid(object):
         self._prmtop["LJ_SIGMA"] *= lj_sigma_scaling_factor
         self._set_grid_key_value("lj_sigma_scaling_factor", np.array([lj_sigma_scaling_factor], dtype=float))
         return None
-    
+
     def _load_inpcrd(self, inpcrd_file_name):
         self._crd = IO.InpcrdLoad(inpcrd_file_name).get_coordinates()
         natoms = self._prmtop["POINTERS"]["NATOM"]
         if (self._crd.shape[0] != natoms) or (self._crd.shape[1] != 3):
-            raise RuntimeError("coordinates in %s has wrong shape"%inpcrd_file_name)
+            raise RuntimeError("coordinates in %s has wrong shape" % inpcrd_file_name)
         return None
-    
+
     def _move_molecule_to(self, location):
         """
         Move the center of mass of the molecule to location.
@@ -290,7 +303,7 @@ class Grid(object):
         for atom_ind in range(len(self._crd)):
             self._crd[atom_ind] += displacement
         return None
-    
+
     def _get_molecule_center_of_mass(self):
         """
         return the center of mass of self._crd
@@ -311,8 +324,8 @@ class Grid(object):
         xyz = self._crd
         xyz = np.expand_dims(xyz, 0)
         # convert coordinates to nanometers for mdtraj
-        xyz = xyz.astype(np.float32)/10.
-        atom_radii = self._prmtop["VDW_RADII"]/10.
+        xyz = xyz.astype(np.float32) / 10.
+        atom_radii = self._prmtop["VDW_RADII"] / 10.
 
         radii = np.array(atom_radii, np.float32) + probe_radius
         dim1 = xyz.shape[1]
@@ -331,16 +344,16 @@ class Grid(object):
         xyz = self._crd
         xyz = np.expand_dims(xyz, 0)
         # convert coordinates to nanometers for mdtraj
-        xyz = xyz.astype(np.float32)/10.
-        atom_radii = self._prmtop["VDW_RADII"]/10.
+        xyz = xyz.astype(np.float32) / 10.
+        atom_radii = self._prmtop["VDW_RADII"] / 10.
         radii = np.array(atom_radii, np.float32) + probe_radius
         dim1 = xyz.shape[1]
         atom_mapping = np.arange(dim1, dtype=np.int32)
-        out = np.zeros((xyz.shape[0],dim1), dtype=np.float32)
+        out = np.zeros((xyz.shape[0], dim1), dtype=np.float32)
         _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
         # out, centered_sphere_points = c_sasa(xyz, radii, int(n_sphere_points))
         # convert values from nm^2 to A^2
-        out = out*100.
+        out = out * 100.
         return out
 
     def _get_corner_crd(self, corner):
@@ -348,23 +361,23 @@ class Grid(object):
         corner: 3-array integers
         """
         i, j, k = corner
-        return np.array([self._grid["x"][i], self._grid["y"][j], self._grid["z"][k]] , dtype=float)
-    
+        return np.array([self._grid["x"][i], self._grid["y"][j], self._grid["z"][k]], dtype=float)
+
     def _get_uper_most_corner(self):
         return np.array(self._grid["counts"] - 1, dtype=int)
-    
+
     def _get_uper_most_corner_crd(self):
         uper_most_corner = self._get_uper_most_corner()
         return self._get_corner_crd(uper_most_corner)
-    
+
     def _get_origin_crd(self):
-        return self._get_corner_crd([0,0,0])
+        return self._get_corner_crd([0, 0, 0])
 
     def _initialize_convenient_para(self):
-        self._origin_crd           = self._get_origin_crd()
+        self._origin_crd = self._get_origin_crd()
         self._uper_most_corner_crd = self._get_uper_most_corner_crd()
-        self._uper_most_corner     = self._get_uper_most_corner()
-        self._spacing              = np.array([self._grid["d%d"%i][i] for i in range(3)], dtype=float)
+        self._uper_most_corner = self._get_uper_most_corner()
+        self._spacing = np.array([self._grid["d%d" % i][i] for i in range(3)], dtype=float)
         return None
 
     def _is_in_grid(self, atom_coordinate):
@@ -374,7 +387,7 @@ class Grid(object):
         :return: bool
         """
         return c_is_in_grid(atom_coordinate, self._origin_crd, self._uper_most_corner_crd)
-    
+
     def _distance(self, corner, atom_coordinate):
         """
         corner: 3-array int
@@ -383,14 +396,14 @@ class Grid(object):
         """
         corner_crd = self._get_corner_crd(corner)
         return cdistance(atom_coordinate, corner_crd)
-    
+
     def _containing_cube(self, atom_coordinate):
         eight_corners, nearest_ind, furthest_ind = c_containing_cube(atom_coordinate, self._origin_crd,
                                                                      self._uper_most_corner_crd,
                                                                      self._spacing, self._eight_corner_shifts,
                                                                      self._grid["x"], self._grid["y"], self._grid["z"])
         return eight_corners, nearest_ind, furthest_ind
-    
+
     def _is_row_in_matrix(self, row, matrix):
         for r in matrix:
             if (row == r).all():
@@ -399,16 +412,16 @@ class Grid(object):
 
     def get_grid_func_names(self):
         return self._grid_func_names
-    
+
     def get_grids(self):
         return self._grid
-    
+
     def get_crd(self):
         return self._crd
-    
+
     def get_prmtop(self):
         return self._prmtop
-    
+
     def get_charges(self):
         charges = dict()
         for key in ["CHARGE_E_UNIT", "R_LJ_CHARGE", "A_LJ_CHARGE"]:
@@ -421,14 +434,50 @@ class Grid(object):
     def get_allowed_keys(self):
         return self._grid_allowed_keys
 
+    def _get_bond_list(self):
+        # Ugliest function award 2023
+        bonds = {}
+        prmtop_parms = self.get_prmtop()
+        for key, value in prmtop_parms.items():
+            if key == "BONDS_WITHOUT_HYDROGEN":
+                for i in range(len(value), 3):
+                    if "H" in prmtop_parms["PDB_TEMPLATE"]["ATOM_NAME"][int(value[i] / 3)]:
+                        print(f"index {i} is an H bond")
+                    if i not in list(bonds.keys()):
+                        bonds[(value[i] / 3)] = []
+                        bonds[(value[i] / 3)].append((value[i + 1] / 3))
+                    else:
+                        bonds[(value[i] / 3)].append((value[i + 1] / 3))
+        b = []
+        for key, value in bonds.items():
+            a = [key]
+            for v in value:
+                a.append(v)
+            a.sort()
+            b.append(a)
+        b.sort()
+
+        def midpoint(a1, a2):
+            import numpy as np
+            a3 = np.zeros((3))
+            for i in range(a3.shape[0]):
+                a3[i] = (a2[i] - a1[i]) / 2.
+            return a3
+
+        bond_list = []
+        for b_s in b:
+            bond_list.append(midpoint(crd[int(b_s[0])], crd[int(b_s[1])]))
+        return bond_list
+
 
 class LigGrid(Grid):
     """
     Calculate the "charge" part of the interaction energy.
     """
+
     def __init__(self, prmtop_file_name, lj_sigma_scaling_factor,
-                       lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
-                       inpcrd_file_name, receptor_grid):
+                 lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
+                 inpcrd_file_name, receptor_grid):
         """
         :param prmtop_file_name: str, name of AMBER prmtop file
         :param lj_sigma_scaling_factor: float
@@ -441,9 +490,9 @@ class LigGrid(Grid):
         Grid.__init__(self)
         grid_data = receptor_grid.get_grids()
         if grid_data["lj_sigma_scaling_factor"][0] != lj_sigma_scaling_factor:
-            raise RuntimeError("lj_sigma_scaling_factor is %f but in receptor_grid, it is %f" %(
-                                lj_sigma_scaling_factor, grid_data["lj_sigma_scaling_factor"][0]))
-        
+            raise RuntimeError("lj_sigma_scaling_factor is %f but in receptor_grid, it is %f" % (
+                lj_sigma_scaling_factor, grid_data["lj_sigma_scaling_factor"][0]))
+
         entries = [key for key in grid_data.keys() if key not in self._grid_func_names]
         print("Copy entries from receptor_grid", entries)
         for key in entries:
@@ -462,43 +511,65 @@ class LigGrid(Grid):
         self._lig_surface_scaling = lig_surface_scaling
         self._lig_metal_scaling = lig_metal_scaling
         self._rho = receptor_grid.get_rho()
-        self._native_translation = ((receptor_grid._displacement - self._displacement)/self._spacing).astype(int)
-
+        # self._native_translation = ((receptor_grid._displacement - self._new_displacement) / self._spacing).astype(int)
 
     def _move_ligand_to_lower_corner(self):
         """
-        move ligand to near the grid lower corner 
+        move ligand to near the grid lower corner
         store self._max_grid_indices and self._initial_com
         """
+        import numpy as np
+
+        # Extract grid spacing
         spacing = self._grid["spacing"]
-        min_edge_ind = np.array([self._crd[:,i].argmin() for i in range(3)], dtype=int)
-        min_edge_radii = np.array([self._prmtop["VDW_RADII"][i] for i in min_edge_ind], dtype=float)
-        lower_ligand_corner = np.array([self._crd[:,i].min()-min_edge_radii[i] for i in range(3)], dtype=float) - 2.8*spacing
-        lower_ligand_corner_grid_aligned = lower_ligand_corner - (spacing + lower_ligand_corner % spacing) #new grid aligned variable
+
+        # Find the minimum and maximum edge indices for x, y, and z coordinates
+        min_edge_ind = np.array([self._crd[:, i].argmin() for i in range(3)], dtype=int)
         max_edge_ind = np.array([self._crd[:, i].argmax() for i in range(3)], dtype=int)
-        max_edge_radii = np.array([self._prmtop["VDW_RADII"][i] for i in max_edge_ind], dtype=float)
-        upper_ligand_corner = np.array([self._crd[:,i].max()+max_edge_radii[i] for i in range(3)], dtype=float) + 2.8*spacing
-        upper_ligand_corner_grid_aligned = upper_ligand_corner + (spacing - upper_ligand_corner % spacing) #new grid aligned variable
+
+        # Get the minimum and maximum radii based on the edge indices
+        min_edge_radii = self._prmtop["VDW_RADII"][min_edge_ind].astype(float)
+        max_edge_radii = self._prmtop["VDW_RADII"][max_edge_ind].astype(float)
+
+        # Calculate lower and upper ligand corners
+        lower_ligand_corner = (self._crd.min(axis=0) - min_edge_radii - 2.8 * spacing).astype(float)
+        print("lower ligand corner print", lower_ligand_corner)
+        upper_ligand_corner = (self._crd.max(axis=0) + max_edge_radii + 2.8 * spacing).astype(float)
+
+        # Align lower and upper ligand corners with the grid #FIXME: DEBUG np.ceil for lower corner
+        lower_ligand_corner_grid_aligned = (np.floor((lower_ligand_corner - spacing) / spacing) * spacing).astype(float)
+        upper_ligand_corner_grid_aligned = (np.ceil((upper_ligand_corner + spacing) / spacing) * spacing).astype(float)
+
+        # Calculate ligand box lengths
         ligand_box_lengths = upper_ligand_corner_grid_aligned - lower_ligand_corner_grid_aligned
 
+        # Check if any ligand box lengths are negative
         if np.any(ligand_box_lengths < 0):
-            raise RuntimeError("One of the ligand box lengths are negative")
+            raise RuntimeError("One of the ligand box lengths is negative")
 
-        max_grid_indices = np.ceil(ligand_box_lengths / spacing)
-        self._max_grid_indices = self._grid["counts"] - np.array(max_grid_indices, dtype=int)
+        # Calculate max grid indices
+        max_grid_indices = np.ceil(ligand_box_lengths / spacing).astype(int)
+        self._max_grid_indices = self._grid["counts"] - (max_grid_indices)
+
+        # Check if any max grid indices are less than or equal to 1
         if np.any(self._max_grid_indices <= 1):
             raise RuntimeError("At least one of the max grid indices is <= one")
 
-        displacement = self._origin_crd - lower_ligand_corner_grid_aligned #formerly lower_ligand_corner
-        for atom_ind in range(len(self._crd)):
-            self._crd[atom_ind] += displacement
+        # Calculate displacement
+        displacement = self._origin_crd - lower_ligand_corner_grid_aligned
+
+        # Translate ligand coordinates
+        self._crd += displacement
         print(f"Ligand translated by {displacement}")
         self._new_displacement = displacement
-        lower_corner_origin = np.array([self._crd[:,i].min() for i in range(3)], dtype=float) - 1.5*spacing
-        print(lower_corner_origin)
+
+        # Calculate the initial center of mass
+        lower_corner_origin = (self._crd.min(axis=0) - 1.5 * spacing).astype(float)
         self._initial_com = self._get_molecule_center_of_mass()
+        print("move_ligand_to_lower_corner", self._new_displacement)
+
         return None
-    
+
     def _get_charges(self, name):
         # assert name in self._grid_func_names, "%s is not allowed"%name
 
@@ -515,17 +586,39 @@ class LigGrid(Grid):
         elif name == "occupancy":
             return np.array([0], dtype=float)
         else:
-            raise RuntimeError("%s is unknown"%name)
+            raise RuntimeError("%s is unknown" % name)
 
     def _cal_charge_grid(self, name):
+
         clash_radii = np.copy(self._prmtop["VDW_RADII"])
+
+        clash_scale = {"C": 0.75, "CA++": 0.48, "CD": 0.75, "CD1": 0.73,
+                       "CD2": 0.73, "CE": 0.76, "CE1": 0.77, "CE2": 0.76,
+                       "CG": 0.73, "CZ": 0.79, "MG": 0.68, "N": 0.71,
+                       "ND1": 0.72, "ND2": 0.77, "NE": 0.78, "NE2": 0.79,
+                       "NZ": 0.74, "O": 0.63, "O1G": 0.74, "OD1": 0.64,
+                       "OD2": 0.63, "OE1": 0.63, "OE2": 0.59, "OG": 0.67,
+                       "OG1": 0.70, "OXT": 0.61, "SD": 0.78, "SG": 0.75,
+                       "ZN": 0.46
+                       }
+        # apply scaling factors to clash radii
+        clash_scale_keys = list(clash_scale.keys())
+        for i in range(len(clash_radii)):
+            atom_label = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"][i]
+            if atom_label == "CA" and self._prmtop["MASS"][i] == 40.08:
+                atom_label = "CA++"
+            if atom_label in clash_scale_keys:
+                clash_radii[i] = clash_radii[i] * clash_scale[atom_label]
+            else:
+                clash_radii[i] = clash_radii[i] * 0.8
+
         grid_counts = np.copy(self._grid["counts"])
         origin = np.copy(self._origin_crd)
         atom_names = np.copy(self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"])
         exclude_H = True
         probe_size = 1.4
         n_sphere_points = 960
-        task_divisor = 22
+        task_divisor = 16
         print("calculating Ligand %s grid" % name)
         start_time = time.time()
         with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -560,17 +653,18 @@ class LigGrid(Grid):
                 for i in range(task_divisor):
                     natoms_i = self._crd.shape[0]
                     natoms_slice = natoms_i // task_divisor
-                    if i == task_divisor-1:
+                    if i == task_divisor - 1:
                         natoms_slice += natoms_i % task_divisor
                     natoms_i = natoms_slice
                     atomind = i * (self._crd.shape[0] // task_divisor)
                     atom_list = []
-                    for i in range(self._crd.shape[0])[atomind:atomind+natoms_i]:
+                    for i in range(self._crd.shape[0])[atomind:atomind + natoms_i]:
                         if exclude_H:
                             if atom_names[i][0] != 'H':
                                 atom_list.append(i)
                         else:
                             atom_list.append(i)
+                    bond_list = self._get_bond_list()
                     futures_array.append(executor.submit(
                         process_charge_grid_function,
                         name,
@@ -582,7 +676,9 @@ class LigGrid(Grid):
                         grid_counts,
                         charges,
                         self._prmtop["LJ_SIGMA"],
+                        self._prmtop["VDW_RADII"],
                         clash_radii,
+                        bond_list,
                         atom_list,
                         natoms_i,
                         atomind,
@@ -596,31 +692,28 @@ class LigGrid(Grid):
                 grid = np.zeros(grid_counts, dtype=np.float64)
                 for i in range(task_divisor):
                     partial_grid = futures_array[i].result()
-                    grid = np.add(grid,partial_grid)
+                    grid = np.add(grid, partial_grid)
                     futures_array[i].done()
         print("--- %s calculated in %s seconds ---" % (name, time.time() - start_time))
         return grid
-
 
     def _cal_corr_func(self, grid_name):
         """
         :param grid_name: str
         :return: fft correlation function
         """
-        assert grid_name in self._grid_func_names, "%s is not an allowed grid name"%grid_name
-
-        grid = self._cal_charge_grid(grid_name)
-
-        self._set_grid_key_value(grid_name, grid)
+        assert grid_name in self._grid_func_names, "%s is not an allowed grid name" % grid_name
+        corr_func = self._cal_charge_grid(grid_name)
+        self._set_grid_key_value(grid_name, corr_func)
         corr_func = np.fft.fftn(self._grid[grid_name])
-        self._set_grid_key_value(grid_name, None)           # to save memory
+        self._set_grid_key_value(grid_name, None)  # to save memory
 
         corr_func = corr_func.conjugate()
         corr_func = np.fft.ifftn(self._rec_FFTs[grid_name] * corr_func)
         corr_func = np.real(corr_func)
         return corr_func
 
-    def _cal_delta_sasa_func(self, occupancy_fft):
+    def _cal_delta_sasa_func(self, free_of_clash):
         """
         :param grid_name: str
         :return: fft correlation function
@@ -628,20 +721,23 @@ class LigGrid(Grid):
         grid = self._cal_charge_grid("sasa")
         self._set_grid_key_value("sasa", grid)
         lsasa_fft = np.fft.fftn(self._grid["sasa"])
-        self._set_grid_key_value("sasa", None)           # to save memory
+        self._set_grid_key_value("sasa", None)  # to save memory
         del grid
         grid = self._cal_charge_grid("water")
-        grid[grid>0.] = 1.
+        grid[grid > 0.] = 1.
         self._set_grid_key_value("water", grid)
         lwater_fft = np.fft.fftn(self._grid["water"])
-        print(self._grid["water"].sum())
+        # print(self._grid["water"].sum())
         self._set_grid_key_value("water", None)
         del grid
-
         lsasa_fft = lsasa_fft.conjugate()
         lwater_fft = lwater_fft.conjugate()
-        dsasa_score = np.fft.ifftn(self._rec_FFTs["sasa"] * lwater_fft).real + np.fft.ifftn(self._rec_FFTs["water"] * lsasa_fft).real
-        dsasa_score[occupancy_fft > 0.001] = 0.
+        dsasa_score = np.fft.ifftn(self._rec_FFTs["sasa"] * lwater_fft).real + np.fft.ifftn(
+            self._rec_FFTs["water"] * lsasa_fft).real
+        max_i, max_j, max_k = self._max_grid_indices
+        # dsasa_score = dsasa_score[0:max_i,0:max_j,0:max_k]
+        # dsasa_score = dsasa_score[free_of_clash]
+        # dsasa_score[~free_of_clash] = 0.
         return dsasa_score
 
     def _cal_shape_complementarity(self):
@@ -653,7 +749,7 @@ class LigGrid(Grid):
         counts = self._grid["counts"]
 
         lig_sasai_grid, lig_sasar_grid = self.get_SASA_grids()
-        lig_sasa_grid = np.add(lig_sasar_grid, lig_sasai_grid*1.j)
+        lig_sasa_grid = np.add(lig_sasar_grid, lig_sasai_grid * 1.j)
 
         # self._set_grid_key_value(grid_name, lig_sasa_grid)
         # crucially takes the conjugate of the complex ligand grid BEFORE FFT
@@ -670,11 +766,11 @@ class LigGrid(Grid):
         return corr_func
 
     def _do_forward_fft(self, grid_name):
-        assert grid_name in self._grid_func_names, "%s is not an allowed grid name"%grid_name
+        assert grid_name in self._grid_func_names, "%s is not an allowed grid name" % grid_name
         grid = self._cal_charge_grid(grid_name)
         self._set_grid_key_value(grid_name, grid)
         forward_fft = np.fft.fftn(self._grid[grid_name])
-        self._set_grid_key_value(grid_name, None)           # to save memory
+        self._set_grid_key_value(grid_name, None)  # to save memory
         return forward_fft
 
     def _cal_corr_funcs(self, grid_names):
@@ -706,7 +802,47 @@ class LigGrid(Grid):
         max_i, max_j, max_k = self._max_grid_indices
         corr_func = self._cal_corr_func("occupancy")
         self._free_of_clash = (corr_func < 0.001)
-        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
+        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j,
+                              0:max_k]  # exclude positions where ligand crosses border
+        print("Ligand positions excluding border crossers", self._free_of_clash.shape)
+        self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
+        if np.any(self._free_of_clash):
+            grid_names = [name for name in self._grid_func_names if name not in ["occupancy", "water", "sasa"]]
+            print(grid_names)
+            for name in grid_names:
+                self._meaningful_energies += self._cal_corr_func(name)
+            # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
+            if "sasa" in self._grid_func_names:
+                bsa_energy = self._cal_delta_sasa_func(corr_func)
+                print("max dSASA:", bsa_energy.max(), bsa_energy[0:max_i, 0:max_j,
+                                                      0:max_k][self._free_of_clash].max())
+                bsa_energy = bsa_energy * -GAMMA
+                self._meaningful_energies += bsa_energy
+                del bsa_energy
+        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
+                                    0:max_k]  # exclude positions where ligand crosses border
+        # get crystal pose here, use i,j,k of crystal pose
+        self._native_pose_energy = self._meaningful_energies[
+            self._native_translation[0], self._native_translation[1], self._native_translation[2]]
+        print("cal_energies native", self._native_translation, self._native_pose_energy)
+        self._meaningful_energies = self._meaningful_energies[
+            self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
+        self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
+
+        return None
+
+    def _cal_energies_old(self):
+        """
+        calculate interaction energies
+        store self._meaningful_energies (1-array) and self._meaningful_corners (2-array)
+        meaningful means no border-crossing and no clashing
+        TODO
+        """
+        max_i, max_j, max_k = self._max_grid_indices
+        corr_func = self._cal_corr_func("occupancy")
+        self._free_of_clash = (corr_func < 0.001)
+        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j,
+                              0:max_k]  # exclude positions where ligand crosses border
         print("Ligand positions excluding border crossers", self._free_of_clash.shape)
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
         if np.any(self._free_of_clash):
@@ -724,12 +860,15 @@ class LigGrid(Grid):
                 self._meaningful_energies += bsa_energy
                 del bsa_energy
         # get crystal pose here, use i,j,k of crystal pose
-        self._native_pose_energy = self._meaningful_energies[self._native_translation[0], self._native_translation[1],self._native_translation[2]]
-        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j, 0:max_k] # exclude positions where ligand crosses border
-        
-        self._meaningful_energies = self._meaningful_energies[self._free_of_clash]         # exclude positions where ligand is in clash with receptor, become 1D array
+        self._native_pose_energy = self._meaningful_energies[
+            self._native_translation[0], self._native_translation[1], self._native_translation[2]]
+        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
+                                    0:max_k]  # exclude positions where ligand crosses border
+
+        self._meaningful_energies = self._meaningful_energies[
+            self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
         self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
-        
+
         return None
 
     def _cal_ligand_grids(self, grid_names):
@@ -743,7 +882,7 @@ class LigGrid(Grid):
         for grid_name in grid_names:
             if grid_name == "SASA":
                 sasai_grid, sasar_grid = self.get_SASA_grids()
-                grid = np.add(sasar_grid, sasai_grid*1.j)
+                grid = np.add(sasar_grid, sasai_grid * 1.j)
                 grids[grid_name] = grid
             else:
                 grid = self._cal_charge_grid(grid_name)
@@ -758,7 +897,7 @@ class LigGrid(Grid):
         multiprocessing functionality to the grid generation.
         """
 
-        task_divisor = 22
+        task_divisor = 16
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures_array = []
             for i in range(task_divisor):
@@ -798,8 +937,9 @@ class LigGrid(Grid):
         max_i, max_j, max_k = self._max_grid_indices
 
         corr_func = self._cal_corr_func("occupancy")
-        self._free_of_clash = (corr_func  < 0.001)
-        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
+        self._free_of_clash = (corr_func < 0.001)
+        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j,
+                              0:max_k]  # exclude positions where ligand crosses border
 
         if np.any(self._free_of_clash):
             grid_names = [name for name in self._grid_func_names if name != "occupancy"]
@@ -807,16 +947,19 @@ class LigGrid(Grid):
         else:
             self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
 
-        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j, 0:max_k] # exclude positions where ligand crosses border
-        self._meaningful_energies = self._meaningful_energies[self._free_of_clash]         # exclude positions where ligand is in clash with receptor, become 1D array
+        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
+                                    0:max_k]  # exclude positions where ligand crosses border
+        self._meaningful_energies = self._meaningful_energies[
+            self._free_of_clash]  # exclude positions where ligand is in clash with receptor, become 1D array
         self._number_of_meaningful_energies = self._meaningful_energies.shape[0]
         return None
-    
+
     def _cal_meaningful_corners(self):
         """
         return grid corners corresponding to self._meaningful_energies
         """
-        corners = np.where(self._free_of_clash)
+        max_i, max_j, max_k = self._max_grid_indices
+        corners = np.where(self._free_of_clash[0:max_i, 0:max_j, 0:max_k])
         corners = np.array(corners, dtype=int)
         corners = corners.transpose()
         return corners
@@ -842,11 +985,11 @@ class LigGrid(Grid):
         if molecular_coord is not None:
             self._place_ligand_crd_in_grid(molecular_coord)
         else:
-            self._move_ligand_to_lower_corner()         # this is just in case the self._crd is not at the right position
-        
+            self._move_ligand_to_lower_corner()  # this is just in case the self._crd is not at the right position
+
         self._cal_energies()
         return None
-    
+
     def get_bpmf(self, kB=0.001987204134799235, temperature=300.0):
         """
         use self._meaningful_energies to calculate and return exponential mean
@@ -858,19 +1001,19 @@ class LigGrid(Grid):
         V_0 = 1661.
 
         nr_samples = self.get_number_translations()
-        energies = -beta *  self._meaningful_energies
+        energies = -beta * self._meaningful_energies
         e_max = energies.max()
         exp_mean = np.exp(energies - e_max).sum() / nr_samples
 
         bpmf = -temperature * kB * (np.log(exp_mean) + e_max)
 
         V_binding = self.get_box_volume()
-        correction = -temperature * kB * np.log(V_binding / V_0 / 8 / np.pi**2)
+        correction = -temperature * kB * np.log(V_binding / V_0 / 8 / np.pi ** 2)
         return bpmf + correction
-    
+
     def get_number_translations(self):
         return self._max_grid_indices.prod()
-    
+
     def get_box_volume(self):
         """
         in angstrom ** 3
@@ -878,14 +1021,20 @@ class LigGrid(Grid):
         spacing = self._grid["spacing"]
         volume = ((self._max_grid_indices - 1) * spacing).prod()
         return volume
-    
+
     def get_meaningful_energies(self):
         return self._meaningful_energies
-    
+
     def get_meaningful_corners(self):
         meaningful_corners = self._cal_meaningful_corners()
-        if meaningful_corners.shape[0] != self._number_of_meaningful_energies:
-            raise RuntimeError("meaningful_corners does not have the same len as self._number_of_meaningful_energies")
+        # if meaningful_corners.shape[0] != self._number_of_meaningful_energies:
+        #     raise RuntimeError("meaningful_corners does not have the same len as self._number_of_meaningful_energies")
+        return meaningful_corners
+
+    def get_meaningful_corners_comp(self):
+        meaningful_corners = self._cal_meaningful_corners()
+        # if meaningful_corners.shape[0] != self._number_of_meaningful_energies:
+        #     raise RuntimeError("meaningful_corners does not have the same len as self._number_of_meaningful_energies")
         return meaningful_corners
 
     def set_meaningful_energies_to_none(self):
@@ -914,7 +1063,8 @@ class LigGrid(Grid):
 
         radii_type = radii_type.upper()
 
-        assert radii_type in ["LJ_SIGMA", "VDW_RADII"], "Radii_type %s not allowed, use LJ_SIGMA or VDW_RADII" % radii_type
+        assert radii_type in ["LJ_SIGMA",
+                              "VDW_RADII"], "Radii_type %s not allowed, use LJ_SIGMA or VDW_RADII" % radii_type
 
         # Select radii type, LJ_SIGMA is a diameter in this code
         if radii_type == "LJ_SIGMA":
@@ -966,7 +1116,7 @@ class LigGrid(Grid):
         grids = self._cal_ligand_grids(grid_names)
 
         return grids
-    
+
     def translate_ligand(self, displacement):
         """
         translate the ligand by displacement in Angstroms
@@ -975,25 +1125,31 @@ class LigGrid(Grid):
             self._crd[atom_ind] += displacement
         return None
 
+    def get_gamma(self):
+        """
+        returns value of GAMMA for use outside of class
+        """
+        return GAMMA
+
     def write_pdb(self, file_name, mode):
         IO.write_pdb(self._prmtop, self._crd, file_name, mode)
         return None
 
 
- 
 class RecGrid(Grid):
     """
     calculate the potential part of the interaction energy.
     """
-    def __init__(self,  prmtop_file_name, lj_sigma_scaling_factor,
-                        rec_core_scaling, rec_surface_scaling, rec_metal_scaling,
-                        rho,
-                        inpcrd_file_name,
-                        bsite_file,
-                        grid_nc_file,
-                        new_calculation=False,
-                        spacing=0.25, extra_buffer=3.0,
-                        radii_type="VDW_RADII", exclude_H=True):
+
+    def __init__(self, prmtop_file_name, lj_sigma_scaling_factor,
+                 rec_core_scaling, rec_surface_scaling, rec_metal_scaling,
+                 rho,
+                 inpcrd_file_name,
+                 bsite_file,
+                 grid_nc_file,
+                 new_calculation=False,
+                 spacing=0.25, extra_buffer=3.0,
+                 radii_type="VDW_RADII", exclude_H=True):
         """
         :param prmtop_file_name: str, name of AMBER prmtop file
         :param lj_sigma_scaling_factor: float
@@ -1019,8 +1175,8 @@ class RecGrid(Grid):
             self._rec_surface_scaling = rec_surface_scaling
             self._rec_metal_scaling = rec_metal_scaling
             nc_handle = netCDF4.Dataset(grid_nc_file, "w", format="NETCDF4")
-            self._write_to_nc(nc_handle, "lj_sigma_scaling_factor", 
-                                np.array([lj_sigma_scaling_factor], dtype=float))
+            self._write_to_nc(nc_handle, "lj_sigma_scaling_factor",
+                              np.array([lj_sigma_scaling_factor], dtype=float))
             self._write_to_nc(nc_handle, "rec_core_scaling",
                               np.array([rec_core_scaling], dtype=float))
             self._write_to_nc(nc_handle, "rec_surface_scaling",
@@ -1048,16 +1204,16 @@ class RecGrid(Grid):
             self._cal_potential_grids(nc_handle, radii_type, exclude_H)
             self._write_to_nc(nc_handle, "trans_crd", self._crd)
             nc_handle.close()
-                
+
         self._load_precomputed_grids(grid_nc_file, lj_sigma_scaling_factor)
 
     def _load_precomputed_grids(self, grid_nc_file, lj_sigma_scaling_factor):
         """
         nc_file_name:   str
         lj_sigma_scaling_factor: float, used for consistency check
-        load netCDF file, populate self._grid with all the data fields 
+        load netCDF file, populate self._grid with all the data fields
         """
-        assert os.path.isfile(grid_nc_file), "%s does not exist" %grid_nc_file
+        assert os.path.isfile(grid_nc_file), "%s does not exist" % grid_nc_file
 
         print(grid_nc_file)
         nc_handle = netCDF4.Dataset(grid_nc_file, "r")
@@ -1067,7 +1223,7 @@ class RecGrid(Grid):
             self._set_grid_key_value(key, nc_handle.variables[key][:])
 
         if self._grid["lj_sigma_scaling_factor"][0] != lj_sigma_scaling_factor:
-            raise RuntimeError("lj_sigma_scaling_factor is %f but in %s, it is %f" %(
+            raise RuntimeError("lj_sigma_scaling_factor is %f but in %s, it is %f" % (
                 lj_sigma_scaling_factor, grid_nc_file, self._grid["lj_sigma_scaling_factor"][0]))
 
         self._initialize_convenient_para()
@@ -1081,7 +1237,7 @@ class RecGrid(Grid):
 
         # for key in self._grid_func_names:
         for key in self._grid_func_names:
-            if key in list(nc_handle.variables.keys()): #FIXME: This is for debugging partial grid builds
+            if key in list(nc_handle.variables.keys()):  # FIXME: This is for debugging partial grid builds
                 self._set_grid_key_value(key, nc_handle.variables[key][:])
                 self._FFTs[key] = self._cal_FFT(key)
                 self._set_grid_key_value(key, None)  # to save memory
@@ -1091,10 +1247,10 @@ class RecGrid(Grid):
     def _cal_FFT(self, name):
         if name not in self._grid_func_names:
             raise RuntimeError("%s is not allowed.")
-        print("Doing FFT for %s"%name)
+        print("Doing FFT for %s" % name)
         if name == "water":
             grid = self._grid[name]
-            grid[grid>0] = 1.
+            grid[grid > 0] = 1.
             FFT = np.fft.fftn(grid)
         else:
             FFT = np.fft.fftn(self._grid[name])
@@ -1104,15 +1260,15 @@ class RecGrid(Grid):
         print("Doing FFT for SASA")
         sasai_grid = self._grid["SASAi"]
         sasar_grid = self._grid["SASAr"]
-        sasa_grid = np.add(sasar_grid, sasai_grid*1.j)
+        sasa_grid = np.add(sasar_grid, sasai_grid * 1.j)
         FFT = np.fft.fftn(sasa_grid)
         return FFT
 
     def _write_to_nc(self, nc_handle, key, value):
-        print("Writing %s into nc file"%key)
+        print("Writing %s into nc file" % key)
         # create dimensions
         for dim in value.shape:
-            dim_name = "%d"%dim
+            dim_name = "%d" % dim
             if dim_name not in nc_handle.dimensions.keys():
                 nc_handle.createDimension(dim_name, dim)
 
@@ -1122,8 +1278,8 @@ class RecGrid(Grid):
         elif value.dtype == float:
             store_format = "f8"
         else:
-            raise RuntimeError("unsupported dtype %s"%value.dtype)
-        dimensions = tuple(["%d"%dim for dim in value.shape])
+            raise RuntimeError("unsupported dtype %s" % value.dtype)
+        dimensions = tuple(["%d" % dim for dim in value.shape])
         nc_handle.createVariable(key, store_format, dimensions)
 
         # save data
@@ -1139,11 +1295,11 @@ class RecGrid(Grid):
         """
         assert spacing > 0, "spacing must be positive"
         self._set_grid_key_value("origin", np.zeros([3], dtype=float))
-        
+
         self._set_grid_key_value("d0", np.array([spacing, 0, 0], dtype=float))
         self._set_grid_key_value("d1", np.array([0, spacing, 0], dtype=float))
         self._set_grid_key_value("d2", np.array([0, 0, spacing], dtype=float))
-        self._set_grid_key_value("spacing", np.array([spacing]*3, dtype=float))
+        self._set_grid_key_value("spacing", np.array([spacing] * 3, dtype=float))
 
         # function to easily grab a single float from a complex string
         def get_num(x):
@@ -1161,17 +1317,17 @@ class RecGrid(Grid):
                 site_R = [float(i) for i in parser.findall(line)][0]
             if line.startswith('half_edge_length = '):
                 half_edge_length = [float(i) for i in parser.findall(line)][0]
-        #half_edge_length = get_num(line)
+        # half_edge_length = get_num(line)
         print("half_edge_length = ", half_edge_length)
-        length = 2. * half_edge_length         # TODO: this is not good, half_edge_length is define in bsite_file
+        length = 2. * half_edge_length  # TODO: this is not good, half_edge_length is define in bsite_file
         count = np.ceil(length / spacing) + 1
-        
-        self._set_grid_key_value("counts", np.array([count]*3, dtype=int))
+
+        self._set_grid_key_value("counts", np.array([count] * 3, dtype=int))
 
         for key in ["origin", "d0", "d1", "d2", "spacing", "counts"]:
             self._write_to_nc(nc_handle, key, self._grid[key])
         return None
-    
+
     def _cal_grid_parameters_without_bsite(self, spacing, extra_buffer, nc_handle):
         """
         use this when making box encompassing the whole receptor
@@ -1179,98 +1335,98 @@ class RecGrid(Grid):
         extra_buffer: float
         """
         assert spacing > 0 and extra_buffer > 0, "spacing and extra_buffer must be positive"
-        self._set_grid_key_value("origin", np.zeros( [3], dtype=float))
-        
+        self._set_grid_key_value("origin", np.zeros([3], dtype=float))
+
         self._set_grid_key_value("d0", np.array([spacing, 0, 0], dtype=float))
         self._set_grid_key_value("d1", np.array([0, spacing, 0], dtype=float))
         self._set_grid_key_value("d2", np.array([0, 0, spacing], dtype=float))
-        self._set_grid_key_value("spacing", np.array([spacing]*3, dtype=float))
+        self._set_grid_key_value("spacing", np.array([spacing] * 3, dtype=float))
 
         # TODO: Change LJ_radius to include scaling factors instead of shifting ligand position
-        lj_radius = np.array(self._prmtop["LJ_SIGMA"]/2., dtype=float)
-        dx = (self._crd[:,0] + lj_radius).max() - (self._crd[:,0] - lj_radius).min()
-        dy = (self._crd[:,1] + lj_radius).max() - (self._crd[:,1] - lj_radius).min()
-        dz = (self._crd[:,2] + lj_radius).max() - (self._crd[:,2] - lj_radius).min()
+        lj_radius = np.array(self._prmtop["LJ_SIGMA"] / 2., dtype=float)
+        dx = (self._crd[:, 0] + lj_radius).max() - (self._crd[:, 0] - lj_radius).min()
+        dy = (self._crd[:, 1] + lj_radius).max() - (self._crd[:, 1] - lj_radius).min()
+        dz = (self._crd[:, 2] + lj_radius).max() - (self._crd[:, 2] - lj_radius).min()
 
-        print("Receptor enclosing box [%f, %f, %f]"%(dx, dy, dz))
-        print("extra_buffer: %f"%extra_buffer)
+        print("Receptor enclosing box [%f, %f, %f]" % (dx, dy, dz))
+        print("extra_buffer: %f" % extra_buffer)
 
-        length = max([dx, dy, dz]) + 2.0*extra_buffer
+        length = max([dx, dy, dz]) + 2.0 * extra_buffer
 
-        if np.ceil(length / spacing)%2 != 0:
+        if np.ceil(length / spacing) % 2 != 0:
             length = length + spacing
         count = np.ceil(length / spacing) + 1
-        
-        self._set_grid_key_value("counts", np.array([count]*3, dtype=int))
+
+        self._set_grid_key_value("counts", np.array([count] * 3, dtype=int))
         print("counts ", self._grid["counts"])
-        print("Total box size %f" %((count-1)*spacing))
+        print("Total box size %f" % ((count - 1) * spacing))
 
         for key in ["origin", "d0", "d1", "d2", "spacing", "counts"]:
             self._write_to_nc(nc_handle, key, self._grid[key])
         return None
-    
+
     def _move_receptor_to_grid_center(self):
         """
         use this when making box encompassing the whole receptor
         """
-        spacing = self._grid["spacing"]        
-        lower_receptor_corner = np.array([self._crd[:,i].min() for i in range(3)], dtype=float)
-        upper_receptor_corner = np.array([self._crd[:,i].max() for i in range(3)], dtype=float)
-        
-        lower_receptor_corner_grid_aligned = lower_receptor_corner - (spacing + lower_receptor_corner % spacing)
-        upper_receptor_corner_grid_aligned = upper_receptor_corner + (spacing - upper_receptor_corner % spacing)
+        # Extract grid spacing
+        spacing = self._grid["spacing"]
 
-        receptor_box_center_grid_aligned = (upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.
+        # Calculate the lower and upper corners of the receptor box
+        lower_receptor_corner = np.min(self._crd, axis=0)
+        upper_receptor_corner = np.max(self._crd, axis=0)
 
-        receptor_box_center = (upper_receptor_corner + lower_receptor_corner) / 2.
-        
-        total_grid_count = (self._uper_most_corner_crd+spacing)/spacing
-        print(total_grid_count)             
-        grid_center = (self._origin_crd + self._uper_most_corner_crd) / 2.       
+        # Align lower and upper corners with the grid
+        lower_receptor_corner_grid_aligned = np.floor((lower_receptor_corner - spacing) / spacing) * spacing
+        upper_receptor_corner_grid_aligned = np.ceil((upper_receptor_corner + spacing) / spacing) * spacing
+
+        # Calculate the grid-aligned receptor box center
+        receptor_box_center_grid_aligned = (
+                                                   upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.0
+
+        # Calculate the receptor box center without grid alignment
+        receptor_box_center = (upper_receptor_corner + lower_receptor_corner) / 2.0
+
+        # Calculate the total grid count
+        total_grid_count = np.ceil((self._uper_most_corner_crd + spacing) / spacing)
+        print(total_grid_count)
+
+        # Calculate the grid center
+        grid_center = (self._origin_crd + self._uper_most_corner_crd) / 2.0
+
+        # Calculate the dimensions of the receptor box
         receptor_box_length = upper_receptor_corner - lower_receptor_corner
         receptor_box_length_grid_aligned = upper_receptor_corner_grid_aligned - lower_receptor_corner_grid_aligned
 
-        #test redefs of variables
-#        receptor_box_center = ([upper_receptor_corner_grid_aligned[0], 
-#            upper_receptor_corner_grid_aligned[1]+0.5,
-#            upper_receptor_corner_grid_aligned[2]+0.5] + lower_receptor_corner_grid_aligned) / 2.
-        for index, coord in enumerate(upper_receptor_corner_grid_aligned):
-            corner_to_corner_1D_distance = (coord - lower_receptor_corner_grid_aligned[index])/spacing[index]
-            lower_corner_coord = lower_receptor_corner_grid_aligned[index]
-            half_spacing = spacing[index]/2.
-            print(corner_to_corner_1D_distance)            
-            if corner_to_corner_1D_distance%2 == 0:
-                shifted_upper_coord = coord + half_spacing
-                shifted_lower_coord = lower_corner_coord - half_spacing
-                upper_receptor_corner_grid_aligned[index] = shifted_upper_coord
-                lower_receptor_corner_grid_aligned[index] = shifted_lower_coord
+        # Adjust the receptor box center for grid alignment
+        receptor_box_center = (upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.0
 
-        receptor_box_center = (upper_receptor_corner_grid_aligned + lower_receptor_corner_grid_aligned) / 2.
+        # Check if the receptor box center is not aligned with the grid
         grid_snap = np.mod(receptor_box_center, spacing)
-        if np.any(np.where(grid_snap != 0)):
-            receptor_box_center = np.add(receptor_box_center, np.subtract(spacing, grid_snap))
+        if np.any(grid_snap != 0):
+            receptor_box_center += spacing - grid_snap
 
-        print('receptor_box_center', receptor_box_center)        
+        print('receptor_box_center', receptor_box_center)
         displacement = grid_center - receptor_box_center
-        
-        print('lower_receptor_corner_grid_aligned: ', lower_receptor_corner_grid_aligned, 
-            '\nupper_receptor_corner_grid_aligned: ', upper_receptor_corner_grid_aligned,
-            '\nlower_receptor_corner: ', lower_receptor_corner, 
-            '\nupper_receptor_corner: ', upper_receptor_corner,
-            '\nreceptor_box_center: ', receptor_box_center,
-            '\nreceptor_box_center_grid_aligned', receptor_box_center_grid_aligned,
-            '\ngrid_center: ', grid_center,
-            '\nreceptor_box_length: ', receptor_box_length,
-            '\nreceptor_box_length_grid_aligned: ', receptor_box_length_grid_aligned,
-            '\nspacing num', receptor_box_length_grid_aligned/spacing
-            )
+
+        print('lower_receptor_corner_grid_aligned: ', lower_receptor_corner_grid_aligned,
+              '\nupper_receptor_corner_grid_aligned: ', upper_receptor_corner_grid_aligned,
+              '\nlower_receptor_corner: ', lower_receptor_corner,
+              '\nupper_receptor_corner: ', upper_receptor_corner,
+              '\nreceptor_box_center: ', receptor_box_center,
+              '\nreceptor_box_center_grid_aligned', receptor_box_center_grid_aligned,
+              '\ngrid_center: ', grid_center,
+              '\nreceptor_box_length: ', receptor_box_length,
+              '\nreceptor_box_length_grid_aligned: ', receptor_box_length_grid_aligned,
+              '\nspacing num', receptor_box_length_grid_aligned / spacing
+              )
         print("Receptor is translated by ", displacement)
         self._displacement = displacement
 
         for atom_ind in range(len(self._crd)):
             self._crd[atom_ind] += displacement
         return None
-    
+
     def _cal_grid_coordinates(self, nc_handle):
         """
         calculate grid coordinates (x,y,z) for each corner,
@@ -1281,15 +1437,15 @@ class RecGrid(Grid):
         x = np.zeros(self._grid["counts"][0], dtype=float)
         y = np.zeros(self._grid["counts"][1], dtype=float)
         z = np.zeros(self._grid["counts"][2], dtype=float)
-        
+
         for i in range(self._grid["counts"][0]):
-            x[i] = self._grid["origin"][0] + i*self._grid["d0"][0]
+            x[i] = self._grid["origin"][0] + i * self._grid["d0"][0]
 
         for j in range(self._grid["counts"][1]):
-            y[j] = self._grid["origin"][1] + j*self._grid["d1"][1]
+            y[j] = self._grid["origin"][1] + j * self._grid["d1"][1]
 
         for k in range(self._grid["counts"][2]):
-            z[k] = self._grid["origin"][2] + k*self._grid["d2"][2]
+            z[k] = self._grid["origin"][2] + k * self._grid["d2"][2]
 
         self._set_grid_key_value("x", x)
         self._set_grid_key_value("y", y)
@@ -1300,7 +1456,7 @@ class RecGrid(Grid):
         return None
 
     def _get_charges(self, name):
-        assert name in self._grid_func_names, "%s is not allowed"%name
+        assert name in self._grid_func_names, "%s is not allowed" % name
 
         if name == "electrostatic":
             return 332.05221729 * np.array(self._prmtop["CHARGE_E_UNIT"], dtype=float)
@@ -1315,7 +1471,7 @@ class RecGrid(Grid):
         elif name == "water":
             return np.array([0], dtype=float)
         else:
-            raise RuntimeError("%s is unknown"%name)
+            raise RuntimeError("%s is unknown" % name)
 
     def _cal_potential_grids(self, nc_handle, radii_type, exclude_H, platform='CPU'):
         """
@@ -1326,9 +1482,29 @@ class RecGrid(Grid):
         """
 
         if radii_type == "LJ_SIGMA":
-            clash_radii = self._prmtop["LJ_SIGMA"]/2
+            clash_radii = self._prmtop["LJ_SIGMA"] / 2
         else:
             clash_radii = self._prmtop["VDW_RADII"]
+
+        clash_scale = {"C": 0.75, "CA++": 0.48, "CD": 0.75, "CD1": 0.73,
+                       "CD2": 0.73, "CE": 0.76, "CE1": 0.77, "CE2": 0.76,
+                       "CG": 0.73, "CZ": 0.79, "MG": 0.68, "N": 0.71,
+                       "ND1": 0.72, "ND2": 0.77, "NE": 0.78, "NE2": 0.79,
+                       "NZ": 0.74, "O": 0.63, "O1G": 0.74, "OD1": 0.64,
+                       "OD2": 0.63, "OE1": 0.63, "OE2": 0.59, "OG": 0.67,
+                       "OG1": 0.70, "OXT": 0.61, "SD": 0.78, "SG": 0.75,
+                       "ZN": 0.46
+                       }
+        # apply scaling factors to clash radii
+        clash_scale_keys = list(clash_scale.keys())
+        for i in range(len(clash_radii)):
+            atom_label = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"][i]
+            if atom_label == "CA" and self._prmtop["MASS"][i] == 40.08:
+                atom_label = "CA++"
+            if atom_label in clash_scale_keys:
+                clash_radii[i] = clash_radii[i] * clash_scale[atom_label]
+            else:
+                clash_radii[i] = clash_radii[i] * 0.8
 
         probe_size = 1.4
         n_sphere_points = 960
@@ -1341,8 +1517,9 @@ class RecGrid(Grid):
                     atom_list.append(i)
             else:
                 atom_list.append(i)
+        bond_list = self._get_bond_list()
         if platform == 'CPU':
-            task_divisor = 22
+            task_divisor = 16
             for name in self._grid_func_names:
                 print("calculating receptor %s grid" % name)
                 with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -1351,7 +1528,7 @@ class RecGrid(Grid):
                         for i in range(task_divisor):
                             counts = np.copy(self._grid["counts"])
                             counts_x = counts[0] // task_divisor
-                            if i == task_divisor-1:
+                            if i == task_divisor - 1:
                                 counts_x += counts[0] % task_divisor
                             counts[0] = counts_x
                             grid_start_x = i * (self._grid["counts"][0] // task_divisor)
@@ -1366,7 +1543,9 @@ class RecGrid(Grid):
                                 counts,
                                 self._get_charges(name),
                                 self._prmtop["LJ_SIGMA"],
+                                self._prmtop["VDW_RADII"],
                                 clash_radii,
+                                bond_list,
                                 atom_list,
                                 self._molecule_sasa,
                                 self._sasa_cutoffs,
@@ -1410,7 +1589,7 @@ class RecGrid(Grid):
                     # self._set_grid_key_value(name, None)     # to save memory
 
         return None
-    
+
     def _exact_values(self, coordinate):
         """
         coordinate: 3-array of float
@@ -1419,26 +1598,26 @@ class RecGrid(Grid):
         assert len(coordinate) == 3, "coordinate must have len 3"
         if not self._is_in_grid(coordinate):
             raise RuntimeError("atom is outside grid even after pbc translated")
-        
+
         values = {}
         for name in self._grid_func_names:
             if name[:4] != "SASA":
                 values[name] = 0.
-        
+
         NATOM = self._prmtop["POINTERS"]["NATOM"]
         for atom_ind in range(NATOM):
             dif = coordinate - self._crd[atom_ind]
-            R = np.sqrt((dif*dif).sum())
+            R = np.sqrt((dif * dif).sum())
             lj_diameter = self._prmtop["LJ_SIGMA"][atom_ind]
 
             if R > lj_diameter:
-                values["electrostatic"] +=  332.05221729 * self._prmtop["CHARGE_E_UNIT"][atom_ind] / R
-                values["LJr"] +=  self._prmtop["R_LJ_CHARGE"][atom_ind] / R**12
-                values["LJa"] += -2. * self._prmtop["A_LJ_CHARGE"][atom_ind] / R**6
-        
+                values["electrostatic"] += 332.05221729 * self._prmtop["CHARGE_E_UNIT"][atom_ind] / R
+                values["LJr"] += self._prmtop["R_LJ_CHARGE"][atom_ind] / R ** 12
+                values["LJa"] += -2. * self._prmtop["A_LJ_CHARGE"][atom_ind] / R ** 6
+
         return values
-    
-    def _trilinear_interpolation( self, grid_name, coordinate ):
+
+    def _trilinear_interpolation(self, grid_name, coordinate):
         """
         grid_name is a str one of "electrostatic", "LJr" and "LJa"
         coordinate is an array of three numbers
@@ -1447,43 +1626,45 @@ class RecGrid(Grid):
         """
         raise RuntimeError("Do not use, not tested yet")
         assert len(coordinate) == 3, "coordinate must have len 3"
-        
-        eight_corners, nearest_ind, furthest_ind = self._containing_cube( coordinate ) # throw exception if coordinate is outside
+
+        eight_corners, nearest_ind, furthest_ind = self._containing_cube(
+            coordinate)  # throw exception if coordinate is outside
         lower_corner = eight_corners[0]
-        
+
         (i0, j0, k0) = lower_corner
         (i1, j1, k1) = (i0 + 1, j0 + 1, k0 + 1)
-        
-        xd = (coordinate[0] - self._grid["x"][i0,j0,k0]) / (self._grid["x"][i1,j1,k1] - self._grid["x"][i0,j0,k0])
-        yd = (coordinate[1] - self._grid["y"][i0,j0,k0]) / (self._grid["y"][i1,j1,k1] - self._grid["y"][i0,j0,k0])
-        zd = (coordinate[2] - self._grid["z"][i0,j0,k0]) / (self._grid["z"][i1,j1,k1] - self._grid["z"][i0,j0,k0])
-        
-        c00 = self._grid[grid_name][i0,j0,k0]*(1. - xd) + self._grid[grid_name][i1,j0,k0]*xd
-        c10 = self._grid[grid_name][i0,j1,k0]*(1. - xd) + self._grid[grid_name][i1,j1,k0]*xd
-        c01 = self._grid[grid_name][i0,j0,k1]*(1. - xd) + self._grid[grid_name][i1,j0,k1]*xd
-        c11 = self._grid[grid_name][i0,j1,k1]*(1. - xd) + self._grid[grid_name][i1,j1,k1]*xd
-        
-        c0 = c00*(1. - yd) + c10*yd
-        c1 = c01*(1. - yd) + c11*yd
-        
-        c = c0*(1. - zd) + c1*zd
+
+        xd = (coordinate[0] - self._grid["x"][i0, j0, k0]) / (self._grid["x"][i1, j1, k1] - self._grid["x"][i0, j0, k0])
+        yd = (coordinate[1] - self._grid["y"][i0, j0, k0]) / (self._grid["y"][i1, j1, k1] - self._grid["y"][i0, j0, k0])
+        zd = (coordinate[2] - self._grid["z"][i0, j0, k0]) / (self._grid["z"][i1, j1, k1] - self._grid["z"][i0, j0, k0])
+
+        c00 = self._grid[grid_name][i0, j0, k0] * (1. - xd) + self._grid[grid_name][i1, j0, k0] * xd
+        c10 = self._grid[grid_name][i0, j1, k0] * (1. - xd) + self._grid[grid_name][i1, j1, k0] * xd
+        c01 = self._grid[grid_name][i0, j0, k1] * (1. - xd) + self._grid[grid_name][i1, j0, k1] * xd
+        c11 = self._grid[grid_name][i0, j1, k1] * (1. - xd) + self._grid[grid_name][i1, j1, k1] * xd
+
+        c0 = c00 * (1. - yd) + c10 * yd
+        c1 = c01 * (1. - yd) + c11 * yd
+
+        c = c0 * (1. - zd) + c1 * zd
         return c
-    
+
     def direct_energy(self, ligand_coordinate, ligand_charges):
         """
         :param ligand_coordinate: ndarray of shape (natoms, 3)
         :param ligand_charges: ndarray of shape (3,)
         :return: dic
         """
-        assert len(ligand_coordinate) == len(ligand_charges["CHARGE_E_UNIT"]), "coord and charges must have the same len"
+        assert len(ligand_coordinate) == len(
+            ligand_charges["CHARGE_E_UNIT"]), "coord and charges must have the same len"
         energy = 0.
         for atom_ind in range(len(ligand_coordinate)):
             potentials = self._exact_values(ligand_coordinate[atom_ind])
-            energy += potentials["electrostatic"]*ligand_charges["CHARGE_E_UNIT"][atom_ind]
-            energy += potentials["LJr"]*ligand_charges["R_LJ_CHARGE"][atom_ind]
-            energy += potentials["LJa"]*ligand_charges["A_LJ_CHARGE"][atom_ind]
+            energy += potentials["electrostatic"] * ligand_charges["CHARGE_E_UNIT"][atom_ind]
+            energy += potentials["LJr"] * ligand_charges["R_LJ_CHARGE"][atom_ind]
+            energy += potentials["LJa"] * ligand_charges["A_LJ_CHARGE"][atom_ind]
         return energy
-    
+
     def interpolated_energy(self, ligand_coordinate, ligand_charges):
         """
         ligand_coordinate:  array of shape (natoms, 3)
@@ -1491,18 +1672,19 @@ class RecGrid(Grid):
         assume that ligand_coordinate is inside grid
         """
         raise RuntimeError("Do not use, not tested yet")
-        assert len(ligand_coordinate) == len(ligand_charges["CHARGE_E_UNIT"]), "coord and charges must have the same len"  
+        assert len(ligand_coordinate) == len(
+            ligand_charges["CHARGE_E_UNIT"]), "coord and charges must have the same len"
         grid_names = [name for name in self._grid_func_names if name[:4] != "SASA"]
         energy = 0.
         potentials = {}
         for atom_ind in range(len(ligand_coordinate)):
             for name in grid_names:
                 potentials[name] = self._trilinear_interpolation(name, ligand_coordinate[atom_ind])
-            
-            energy += potentials["electrostatic"]*ligand_charges["CHARGE_E_UNIT"][atom_ind]
-            energy += potentials["LJr"]*ligand_charges["R_LJ_CHARGE"][atom_ind]
-            energy += potentials["LJa"]*ligand_charges["A_LJ_CHARGE"][atom_ind]
-        
+
+            energy += potentials["electrostatic"] * ligand_charges["CHARGE_E_UNIT"][atom_ind]
+            energy += potentials["LJr"] * ligand_charges["R_LJ_CHARGE"][atom_ind]
+            energy += potentials["LJa"] * ligand_charges["A_LJ_CHARGE"][atom_ind]
+
         return energy
 
     def get_FFTs(self):
@@ -1530,20 +1712,20 @@ class RecGrid(Grid):
 
         return complex_grid
 
-
 if __name__ == "__main__":
     # do some test
+    test_dir = "/mnt/fft"
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
-    rec_prmtop_file = "/media/jim/fft_data/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
-    rec_inpcrd_file = "/media/jim/fft_data/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
-    # lig_prmtop_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
-    # lig_inpcrd_file = "/media/jim/Research_TWO/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
-    lig_prmtop_file = "/home/jim/Desktop/fahtest/carbon.prmtop"
-    lig_inpcrd_file = "/home/jim/Desktop/fahtest/carbon.inpcrd"
-    grid_nc_file = "/media/jim/fft_data/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/carbon_test.nc"
-    lj_sigma_scaling_factor = 0.8
+    rec_prmtop_file = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
+    rec_inpcrd_file = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/receptor.inpcrd"
+    lig_prmtop_file = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
+    lig_inpcrd_file = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
+    # lig_prmtop_file = "../examples/amber/ubiquitin/ligand.prmtop"
+    # lig_inpcrd_file = "../examples/amber/ubiquitin/ligand.inpcrd"
+    grid_nc_file = f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/grid_2oob.nc"
+    lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
     spacing = 0.5
@@ -1580,8 +1762,10 @@ if __name__ == "__main__":
     # print("get_natoms", rec_grid.get_natoms())
     # print("get_natoms", rec_grid.get_allowed_keys())
 
-    rec_grid.write_box("../examples/grid/ubiquitin_ligase/box.pdb")
-    rec_grid.write_pdb("../examples/grid/ubiquitin_ligase/test.pdb", "w")
+    # rec_grid.write_box("../examples/grid/ubiquitin_ligase/box.pdb")
+    # rec_grid.write_pdb("../examples/grid/ubiquitin_ligase/test.pdb", "w")
+    rec_grid.write_box(f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/box.pdb")
+    rec_grid.write_pdb(f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/test.pdb", "w")
     print("--- RecGrid calculated in %s seconds ---" % (time.time() - start_time))
 
     lig_core_scaling = 0.810000
@@ -1591,7 +1775,11 @@ if __name__ == "__main__":
     lig_grid = LigGrid(lig_prmtop_file, lj_sigma_scaling_factor,
                        lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
                        lig_inpcrd_file, rec_grid)
+    print(lig_grid._grid_func_names)
     lig_grid.cal_grids()
+    native_pose = lig_grid._native_translation
+    lig_grid.translate_ligand(native_pose*lig_grid._spacing[0])
+    lig_grid.write_pdb(f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/native.pdb", "w")
     print("--- LigGrid calculated in %s seconds ---" % (time.time() - start_time))
     # print("get_bpmf", lig_grid.get_bpmf())
     # print("get_number_translations", lig_grid.get_number_translations())

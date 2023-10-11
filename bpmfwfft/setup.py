@@ -9,7 +9,7 @@ except ImportError:
 from Cython.Distutils import build_ext
 import numpy as np
 
-ext_modules = [Extension("util",["util.pyx"])]
+ext_modules = cythonize([Extension("util",["util.pyx"])], compiler_directives={'language_level' : "2"})
 
 setup(
     name= 'util',

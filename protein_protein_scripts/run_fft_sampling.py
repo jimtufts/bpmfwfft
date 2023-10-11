@@ -7,6 +7,9 @@ import sys
 import os
 import glob
 import argparse
+import datetime
+
+import numpy as np
 
 from _receptor_grid_cal import is_nc_grid_good
 from _fft_sampling import sampling, is_sampling_nc_good
@@ -22,8 +25,7 @@ parser.add_argument("--result_name",                      type=str, default="fft
 parser.add_argument("--lig_ensemble_dir",              type=str, default="rotation")
 
 parser.add_argument("--energy_sample_size_per_ligand", type=int, default=1000)
-parser.add_argument("--nr_lig_conf",                   type=int, default=500)
-parser.add_argument("--start_index",                    type=int, default=0)
+parser.add_argument("--nr_lig_conf",                   type=int, default=100)
 
 parser.add_argument("--out_dir",                       type=str, default="out")
 
@@ -52,10 +54,22 @@ GRID_NC = args.grid_name
 FFT_SAMPLING_NC = args.result_name
 
 
-def is_running(qsub_file, log_file, nc_file):
-    if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (not os.path.exists(log_file)):
+def is_running_slurm(idx, out_dir):
+    # if os.path.exists(qsub_file) and os.path.exists(nc_file) and (not os.path.exists(log_file)):
+    #     return True
+    # if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (os.path.exists(log_file)):
+    #     return True
+    import subprocess
+    command = f'squeue -u jtufts'
+    output = subprocess.check_output(command, shell=True, text=True)
+    if idx in output or os.path.exists(os.path.join(out_dir, "DONE")):
         return True
+    return False
+
+def is_running(qsub_file, log_file, nc_file):
     if os.path.exists(qsub_file) and os.path.exists(nc_file) and (not os.path.exists(log_file)):
+        return True
+    if os.path.exists(qsub_file) and (not os.path.exists(nc_file)) and (os.path.exists(log_file)):
         return True
     return False
 
@@ -94,6 +108,7 @@ if args.pbs:
     job_count = 0
     for complex_name in complex_names:
 
+        com_dir = os.path.join(out_dir, complex_name)
         if not os.path.isdir(complex_name):
             os.makedirs(complex_name)
 
@@ -130,7 +145,6 @@ python {this_script}  \
         --ls_scale {args.ls_scale:.6f} \
         --lm_scale {args.lm_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
-        --start_index {args.start_index} \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
 
         fft_sampling_nc_file = os.path.join(out_dir, FFT_SAMPLING_NC)
@@ -157,6 +171,7 @@ elif args.slurm:
     coord_dir = os.path.abspath(args.coord_dir)
     grid_dir = os.path.abspath(args.grid_dir)
     lig_ensemble_dir = os.path.abspath(args.lig_ensemble_dir)
+    out_dir = os.path.abspath(args.out_dir)
 
     complex_names = glob.glob(os.path.join(grid_dir, "*"))
     complex_names = [os.path.basename(d) for d in complex_names if os.path.isdir(d)]
@@ -168,10 +183,15 @@ elif args.slurm:
     for complex_name in complex_names:
         grid_sizes[complex_name] = get_grid_size_from_nc(os.path.join(grid_dir, complex_name, GRID_NC))
     complex_names.sort(key=lambda name: grid_sizes[name])
-    print("Complex   grid size")
+    print("Complex   grid size   n_cpu   memory")
 
     for complex_name in complex_names:
-        print(complex_name, grid_sizes[complex_name])
+        # cpu_count = np.ceil(((0.00045279032 * grid_sizes[complex_name] ** 3) / 128000) * 128)
+        cpu_count = 16
+        memory_amt = np.ceil((0.00045279032 * grid_sizes[complex_name] ** 3)+4000)
+        if memory_amt < 32000.:
+            memory_amt = 32000.
+        print(complex_name, grid_sizes[complex_name], cpu_count, memory_amt)
 
     pwd = os.getcwd()
     complex_names = [c for c in complex_names if not is_sampling_nc_good(
@@ -186,8 +206,14 @@ elif args.slurm:
     job_count = 0
     for complex_name in complex_names:
 
-        if not os.path.isdir(complex_name):
-            os.makedirs(complex_name)
+        cpu_count = 16
+        memory_amt = np.ceil((0.00045279032 * grid_sizes[complex_name] ** 3) + 4000)
+        if memory_amt < 32000.:
+            memory_amt = 32000.
+
+        com_dir = os.path.join(out_dir, complex_name)
+        if not os.path.isdir(com_dir):
+            os.makedirs(com_dir)
 
         idx = complex_name[:4].lower()
         amber_sub_dir = os.path.join(amber_dir, complex_name)
@@ -195,17 +221,19 @@ elif args.slurm:
         grid_sub_dir = os.path.join(grid_dir, complex_name)
         lig_ensemble_sub_dir = os.path.join(lig_ensemble_dir, complex_name)
 
-        out_dir = os.path.abspath(complex_name)
-        qsub_file = os.path.join(out_dir, idx+"_fft.job")
-        log_file = os.path.join(out_dir, idx+"_fft.log")
+        # out_dir = os.path.abspath(complex_name)
+        qsub_file = os.path.join(com_dir, idx+"_fft_slurm.job")
+        current_datetime = datetime.datetime.now()
+        date_time_string = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
+        log_file = os.path.join(com_dir, idx+f"_fft_{date_time_string}.log")
         qsub_script = f'''#!/bin/bash
-#SBATCH --job-name={id}
+#SBATCH --job-name={idx}
 #SBATCH --output={log_file}
-#SBATCH --partition=compute
+#SBATCH --partition=shared
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=128
-#SBATCH --mem=249325M
+#SBATCH --cpus-per-task={int(cpu_count)}
+#SBATCH --mem={int(memory_amt)}M
 #SBATCH --account=iit103
 #SBATCH --export=ALL
 #SBATCH -t 48:00:00
@@ -220,7 +248,7 @@ conda activate fft
 date
 
 #SET the number of openmp threads
-export OMP_NUM_THREADS=128
+export OMP_NUM_THREADS={int(cpu_count)}
 
 #Run the job
 python {this_script}  \
@@ -228,9 +256,9 @@ python {this_script}  \
         --coord_dir {coor_sub_dir} \
         --grid_dir {grid_sub_dir} \
         --grid_name {args.grid_name} \
-        --grid_name {args.grid_name} \
-        --result_name {lig_ensemble_sub_dir} \
-        --out_dir {out_dir} \
+        --result_name {args.result_name} \
+        --lig_ensemble_dir {lig_ensemble_sub_dir} \
+        --out_dir {com_dir} \
         --lj_scale {args.lj_scale:.6f} \
         --rc_scale {args.rc_scale:.6f} \
         --rs_scale {args.rs_scale:.6f} \
@@ -239,23 +267,18 @@ python {this_script}  \
         --ls_scale {args.ls_scale:.6f} \
         --lm_scale {args.lm_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
-        --start_index {args.start_index} \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
 
-        fft_sampling_nc_file = os.path.join(out_dir, FFT_SAMPLING_NC)
-        if not is_running(qsub_file, log_file, fft_sampling_nc_file):
-
-            if os.path.exists(fft_sampling_nc_file):
-                print("remove file " + fft_sampling_nc_file)
-                os.system("rm "+fft_sampling_nc_file)
+        fft_sampling_nc_file = os.path.join(com_dir, FFT_SAMPLING_NC)
+        if not is_running_slurm(idx, out_dir):
 
             if os.path.exists(log_file):
                 print("remove file " + log_file)
                 os.system("rm "+log_file)
 
-            print("Submitting %s" % complex_name)
+            print(f"Submitting {complex_name} log: {log_file}")
             open(qsub_file, "w").write(qsub_script)
-            os.system("qsub %s" % qsub_file)
+            os.system("sbatch %s" % qsub_file)
             job_count += 1
             if job_count == max_jobs:
                 print("Max number of jobs %d reached." % job_count)
@@ -280,10 +303,10 @@ else:
 
     lig_coor_nc = os.path.join(args.lig_ensemble_dir, LIG_COOR_NC)
     nr_lig_conf = args.nr_lig_conf
-    start_index = args.start_index
 
     energy_sample_size_per_ligand = args.energy_sample_size_per_ligand
     output_nc = os.path.join(args.out_dir, FFT_SAMPLING_NC)
+    output_dir = args.out_dir
 
     sampling(rec_prmtop, lj_sigma_scal_fact,
              rc_scale, rs_scale, rm_scale,
@@ -291,6 +314,6 @@ else:
              rho,
              rec_inpcrd, grid_nc_file,
              lig_prmtop, lig_inpcrd,
-             lig_coor_nc, nr_lig_conf, start_index,
+             lig_coor_nc, nr_lig_conf,
              energy_sample_size_per_ligand,
-             output_nc)
+             output_nc, output_dir)
