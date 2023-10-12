@@ -134,7 +134,6 @@ python {this_script}  \
         --coord_dir {coor_sub_dir} \
         --grid_dir {grid_sub_dir} \
         --grid_name {args.grid_name} \
-        --grid_name {args.grid_name} \
         --result_name {lig_ensemble_sub_dir} \
         --out_dir {out_dir} \
         --lj_scale {args.lj_scale:.6f} \
@@ -149,10 +148,6 @@ python {this_script}  \
 
         fft_sampling_nc_file = os.path.join(out_dir, FFT_SAMPLING_NC)
         if not is_running(qsub_file, log_file, fft_sampling_nc_file):
-
-            if os.path.exists(fft_sampling_nc_file):
-                print("remove file " + fft_sampling_nc_file)
-                os.system("rm " + fft_sampling_nc_file)
 
             if os.path.exists(log_file):
                 print("remove file " + log_file)
