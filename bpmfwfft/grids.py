@@ -5,7 +5,6 @@ import re
 import concurrent.futures
 import time
 
-import pyfftw
 import numpy as np
 import netCDF4
 from mdtraj.geometry import _geometry
@@ -618,7 +617,7 @@ class LigGrid(Grid):
         exclude_H = True
         probe_size = 1.4
         n_sphere_points = 960
-        task_divisor = 16
+        task_divisor = 2
         print("calculating Ligand %s grid" % name)
         start_time = time.time()
         with concurrent.futures.ProcessPoolExecutor() as executor:
