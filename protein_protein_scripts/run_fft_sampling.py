@@ -142,7 +142,7 @@ python {this_script}  \
         --grid_name {args.grid_name} \
         --result_name {args.result_name} \
         --lig_ensemble_dir {lig_ensemble_sub_dir} \
-	--out_dir {com_dir} \
+	    --out_dir {com_dir} \
         --lj_scale {args.lj_scale:.6f} \
         --rc_scale {args.rc_scale:.6f} \
         --rs_scale {args.rs_scale:.6f} \
