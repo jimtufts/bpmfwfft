@@ -252,6 +252,15 @@ date
 #SET the number of openmp threads
 export OMP_NUM_THREADS={int(cpu_count)}
 
+source_file="{com_dir}/{FFT_SAMPLING_NC}"
+destination_directory="/scratch/$USER/job_$SLURM_JOB_ID/{FFT_SAMPLING_NC}"
+if [ -e "$source_file" ]; then
+    timestamp=$(date +'%Y%m%d%H%M%S')
+    backup_file="${{source_file}}_backup_${{timestamp}}"
+    cp "$source_file" "$backup_file"
+    cp "$source_file" "$destination_directory"
+    echo "File copied to $destination_directory and backed up as $backup_file."
+fi
 #Run the job
 python {this_script}  \
         --amber_dir {amber_sub_dir} \
@@ -260,7 +269,7 @@ python {this_script}  \
         --grid_name {args.grid_name} \
         --result_name {args.result_name} \
         --lig_ensemble_dir {lig_ensemble_sub_dir} \
-        --out_dir {com_dir} \
+        --out_dir /scratch/$USER/job_$SLURM_JOB_ID \
         --lj_scale {args.lj_scale:.6f} \
         --rc_scale {args.rc_scale:.6f} \
         --rs_scale {args.rs_scale:.6f} \
@@ -269,7 +278,8 @@ python {this_script}  \
         --ls_scale {args.ls_scale:.6f} \
         --lm_scale {args.lm_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
-        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
+        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n
+mv "$destination_directory" "$source_file" \n'''
 
         fft_sampling_nc_file = os.path.join(com_dir, FFT_SAMPLING_NC)
         if not is_running_slurm(idx, out_dir):
