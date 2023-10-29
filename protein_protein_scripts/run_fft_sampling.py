@@ -283,7 +283,7 @@ mv "$destination_directory" "$source_file" \n
 echo "File copied to $source_file from $destination_directory" \n'''
 
         fft_sampling_nc_file = os.path.join(out_dir, FFT_SAMPLING_NC)
-        if not is_running_slurm(idx, out_dir):
+        if not is_running_slurm(idx, com_dir):
 
             if os.path.exists(log_file):
                 print("remove file " + log_file)
