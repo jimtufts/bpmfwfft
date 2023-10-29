@@ -279,9 +279,10 @@ python {this_script}  \
         --lm_scale {args.lm_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n
-mv "$destination_directory" "$source_file" \n'''
+mv "$destination_directory" "$source_file" \n
+echo "File copied to $source_file from $destination_directory" \n'''
 
-        fft_sampling_nc_file = os.path.join(com_dir, FFT_SAMPLING_NC)
+        fft_sampling_nc_file = os.path.join(out_dir, FFT_SAMPLING_NC)
         if not is_running_slurm(idx, out_dir):
 
             if os.path.exists(log_file):
