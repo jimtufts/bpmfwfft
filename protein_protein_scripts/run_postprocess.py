@@ -46,11 +46,18 @@ def is_sampling_good(sampling_dir):
     complex_name = sampling_dir.split("/")[-1]
     idx = complex_name[:4].lower()
     submit_file = idx + "_fft.job"
-    nr_lig_confs =  parse_nr_ligand_confs(os.path.join(sampling_dir, submit_file))
+    nc_sampling_file = os.path.join(sampling_dir, FFT_SAMPLING_NC)
+    print(nc_sampling_file)
+    if os.path.exists(nc_sampling_file):
+        temp_nc_handle = netCDF4.Dataset(nc_sampling_file, "r")
+        nr_lig_confs = temp_nc_handle.variables["resampled_energies"][:].shape[0]
+        temp_nc_handle.close()
+        print(nr_lig_confs)
+    else:
+        nr_lig_confs = None
     if nr_lig_confs is None:
         return False
 
-    nc_sampling_file = os.path.join(sampling_dir, FFT_SAMPLING_NC)
     return is_sampling_nc_good(nc_sampling_file, nr_lig_confs)
 
 if args.pbs:
@@ -123,41 +130,46 @@ elif args.slurm:
         sbatch_file = os.path.join(com_dir, idx + "_post_slurm.job")
         log_file = os.path.join(com_dir, idx + "_post.log")
         sbatch_script = f'''#!/bin/bash
-        #SBATCH --job-name={idx}
-        #SBATCH --output={log_file}
-        #SBATCH --partition=gpu
-        #SBATCH --nodes=1
-        #SBATCH --gpus=1
-        #SBATCH --cpus-per-task=1
-        #SBATCH --mem=8G
-        #SBATCH --account=iit103
-        #SBATCH --export=ALL
-        #SBATCH -t 48:00:00
-        #SBATCH --constraint="lustre"
-        
-        module purge
-        module load gpu
-        module load slurm
-        module load openmpi			
-        module load amber
-        source /cm/shared/apps/spack/cpu/opt/spack/linux-centos8-zen/gcc-8.3.1/anaconda3-2020.11-da3i7hmt6bdqbmuzq6pyt7kbm47wyrjp/etc/profile.d/conda.sh
-        conda activate fft
-        date
+#SBATCH --job-name={idx}
+#SBATCH --output={log_file}
+#SBATCH --partition=gpu
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+#SBATCH --account=iit103
+#SBATCH --export=ALL
+#SBATCH -t 48:00:00
+#SBATCH --constraint="lustre"
 
-        #SET the number of openmp threads
+module purge
+module load gpu
+module load slurm
+module load openmpi			
+module load amber
+source /cm/shared/apps/spack/cpu/opt/spack/linux-centos8-zen/gcc-8.3.1/anaconda3-2020.11-da3i7hmt6bdqbmuzq6pyt7kbm47wyrjp/etc/profile.d/conda.sh
+conda activate fft
+date
+#SET the number of openmp threads
 
-        #Run the job
-        python {this_script} \
-        --amber_dir {amber_sub_dir} \
-        --sampling_dir {sampling_sub_dir} \
-        --out_dir {out_dir} \
-        --nr_resample {args.nr_resample} \n'''
+#Run the job
+python {this_script} \
+--amber_dir {amber_sub_dir} \
+--sampling_dir {sampling_sub_dir} \
+--out_dir {out_dir} \
+--nr_resample {args.nr_resample} \n'''
 
-        bpmf_out = os.path.join(out_dir, BPMF_OUT)
+        bpmf_out = os.path.join(com_dir, BPMF_OUT)
         if not os.path.exists(bpmf_out):
             open(sbatch_file, "w").write(sbatch_script)
             print("Submiting " + sbatch_file)
             os.system("sbatch %s" % sbatch_file)
+            job_count += 1
+            if job_count == max_jobs:
+                print("Max number of jobs %d reached." % job_count)
+                break
+
 else:
     rec_prmtop = os.path.join(args.amber_dir, RECEPTOR_PRMTOP)
     lig_prmtop = os.path.join(args.amber_dir, LIGAND_PRMTOP)

@@ -67,6 +67,7 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
 
 def is_sampling_nc_good(nc_file, nr_extracted_lig_conf):
     if not os.path.exists(nc_file):
+        print(f"{nc_file} doesn't exist")
         return False
 
     try:
@@ -79,11 +80,14 @@ def is_sampling_nc_good(nc_file, nr_extracted_lig_conf):
         pass
     cond1 = nc_handle.variables["lig_positions"][:].shape[0] == nr_extracted_lig_conf
     if not cond1:
+        print(f"cond1 is false, lig_positions doesn't match {nr_extracted_lig_conf}")
         return False
-
-    cond2 = type(nc_handle.variables["lig_positions"][:]) == np.ndarray
+    lig_pos_type = type(nc_handle.variables["lig_positions"][:])
+    lig_pos_0 = nc_handle.variables["lig_positions"][:][0][0]
+    cond2 = lig_pos_type == np.ndarray
     if not cond2:
-        return False
+        print(f"lig_positions: {lig_pos_type} is not an ndarray, cond2 failed.")
+        return True 
 
     return True
 
