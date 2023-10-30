@@ -132,7 +132,7 @@ elif args.slurm:
         sbatch_script = f'''#!/bin/bash
 #SBATCH --job-name={idx}
 #SBATCH --output={log_file}
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu-shared
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus=1
@@ -140,7 +140,7 @@ elif args.slurm:
 #SBATCH --mem=8G
 #SBATCH --account=iit103
 #SBATCH --export=ALL
-#SBATCH -t 48:00:00
+#SBATCH -t 2:00:00
 #SBATCH --constraint="lustre"
 
 module purge
@@ -157,7 +157,7 @@ date
 python {this_script} \
 --amber_dir {amber_sub_dir} \
 --sampling_dir {sampling_sub_dir} \
---out_dir {out_dir} \
+--out_dir {com_dir} \
 --nr_resample {args.nr_resample} \n'''
 
         bpmf_out = os.path.join(com_dir, BPMF_OUT)
