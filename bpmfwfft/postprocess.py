@@ -69,6 +69,8 @@ class PostProcess(object):
                         sampling_nc_file, 
                         solvent_phases,
                         nr_resampled_complexes,
+                        start,
+                        end,
                         randomly_translate_complex,
                         temperature,
                         sander_tmp_dir,
@@ -90,6 +92,8 @@ class PostProcess(object):
         self._complex_prmtop = complex_prmtop
         self._sander_tmp_dir = sander_tmp_dir
         self._rotation_indexes = rotation_indexes
+        self._start = start
+        self._end = end
 
         self._solvent_phases = solvent_phases
         # get gas phases corresponding to the solvent phases
@@ -102,7 +106,8 @@ class PostProcess(object):
 
         self._nc_handle = netCDF4.Dataset(sampling_nc_file, "r")
         self._check_number_resampled_energy(nr_resampled_complexes)
-        self._resampled_energy_shape = self._nc_handle.variables[e_string].shape
+        self._resampled_energy_shape = self._nc_handle.variables[e_string][start:end].shape
+        print(f"Using {end-start} energies from index {start} to {end}")
         self._estimate_gas_bpmf()
         if self._no_sample:
             self._cal_rec_desolv_no_sample()
@@ -182,7 +187,7 @@ class PostProcess(object):
         set self._lig_energies[phase] -> 1D np.array of len(lig_confs)
         and self._lig_desol_fe[phase] -> float
         """
-        lig_confs = self._nc_handle.variables["lig_positions"][:]#[self._rotation_indexes]
+        lig_confs = self._nc_handle.variables["lig_positions"][:][self._start:self._end]
         self._lig_energies = {}
         for p in self._gas_phases + self._solvent_phases:
             self._lig_energies[p] = cal_pot_energy(self._lig_prmtop, lig_confs, p, self._sander_tmp_dir)
@@ -216,7 +221,7 @@ class PostProcess(object):
         set self._lig_energies[phase] -> 1D np.array of len(lig_confs)
         and self._lig_desol_fe[phase] -> float
         """
-        nr_lig_confs = self._nc_handle.variables["lig_positions"][:].shape[0]
+        nr_lig_confs = self._nc_handle.variables["lig_positions"][:][self._start:self._end].shape[0]
 
         self._lig_energies = {}
         for p in self._gas_phases + self._solvent_phases:
@@ -238,8 +243,8 @@ class PostProcess(object):
     def _resample_bound_state(self, nr_resampled_complexes):
         beta = 1./ KB/ self._temperature
 
-        strata_weights  = self._nc_handle.variables["exponential_sums"][:]
-        log_of_divisors = self._nc_handle.variables["log_of_divisors"][:]
+        strata_weights  = self._nc_handle.variables["exponential_sums"][:][self._start:self._end]
+        log_of_divisors = self._nc_handle.variables["log_of_divisors"][:][self._start:self._end]
         common_divisor  = log_of_divisors.max()
         strata_weights *= np.exp(log_of_divisors - common_divisor)
         strata_weights /= strata_weights.sum()
@@ -258,8 +263,8 @@ class PostProcess(object):
         #         selected_trans_ind =
         #         for trans_ind in selected_trans_ind:
         #             conf_trans_inds.append((conf_ind, trans_ind))
-        lowest_energy_confs = np.argsort(np.array(self._nc_handle.variables['resampled_energies']).flatten())[:nr_resampled_complexes]
-        lowest_energy_confs = np.unravel_index(lowest_energy_confs, self._nc_handle.variables['resampled_energies'].shape)
+        lowest_energy_confs = np.argsort(np.array(self._nc_handle.variables['resampled_energies'][self._start:self._end]).flatten())[:nr_resampled_complexes]
+        lowest_energy_confs = np.unravel_index(lowest_energy_confs, self._nc_handle.variables['resampled_energies'][self._start:self._end].shape)
         lowest_energy_confs = np.array(lowest_energy_confs).transpose()
         for conf in lowest_energy_confs:
             conf_trans_inds.append((conf[0], conf[1]))
@@ -270,8 +275,8 @@ class PostProcess(object):
         """
         move ligand originally at lig_com to trans_corner
         """
-        lig_conf     = self._nc_handle.variables["lig_positions"][conf_ind]
-        trans_corner = self._nc_handle.variables[t_string][conf_ind, trans_ind]
+        lig_conf     = self._nc_handle.variables["lig_positions"][self._start:self._end][conf_ind]
+        trans_corner = self._nc_handle.variables[t_string][self._start:self._end][conf_ind, trans_ind]
 
         i, j, k = trans_corner
         x = self._nc_handle.variables["x"][i]
@@ -318,13 +323,12 @@ class PostProcess(object):
         and self._complex_sol_fe
         """
         complex_confs = self._construct_complexes(nr_resampled_complexes, randomly_translate_complex)
-        fft_energies = np.array(self._nc_handle.variables['resampled_energies'])
+        fft_energies = np.array(self._nc_handle.variables['resampled_energies'][self._start:self._end])
         self._bootstrapping_data = fft_energies
         fft_min_energies = np.sort(fft_energies.flatten())[:nr_resampled_complexes]
         fft_trans_ind = np.argsort(fft_energies.flatten())[:nr_resampled_complexes]
         fft_trans_ind = np.unravel_index(fft_trans_ind, fft_energies.shape)
         fft_trans_ind = np.array(fft_trans_ind).transpose()
-
 
         # for i in range(len(fft_min_energies)):
         #     print(fft_trans_ind[i], fft_min_energies[i])
@@ -338,6 +342,7 @@ class PostProcess(object):
         self._mean_interaction_energies = {}
         self._min_interaction_energies  = {}
         self._std_interaction_energies  = {}
+        self._inter_energies            = {}
 
         for p in self._gas_phases + self._solvent_phases:
             inter_energies = np.zeros(len(complex_energies[p]), dtype=float)
@@ -346,13 +351,16 @@ class PostProcess(object):
                 conf_ind = self._resampled_conf_trans_inds[i][0]
                 inter_energies[i] = complex_energies[p][i] - self._lig_energies[p][conf_ind] - self._rec_energies[p]
 
-            self._mean_interaction_energies[p] = inter_energies.mean() # This will be wrong
-            self._std_interaction_energies[p]  = inter_energies.std() # As will this
+            self._mean_interaction_energies[p] = inter_energies.mean() # FIXME: This will be wrong
+            self._std_interaction_energies[p]  = inter_energies.std() # FIXME: As will this
             self._min_interaction_energies[p]  = inter_energies.min()
+            self._inter_energies[p] = inter_energies
 
         beta = 1./ KB/ self._temperature
         self._complex_sol_fe = {}
         self._complex_sol_fe_std = {}
+        self._delta_E = {}
+        self._lse = {}
 
         for solvent_phase in self._solvent_phases:
             corresp_gas_phase = self._corresponding_gas_phase(solvent_phase)
@@ -363,6 +371,8 @@ class PostProcess(object):
             lse_den_arg = -beta * fft_min_energies
             lse_den = np.log(np.sum(np.exp(lse_den_arg - lse_den_arg.max()))) + lse_den_arg.max()
             self._complex_sol_fe[solvent_phase] = -KB * self._temperature * (lse_num - lse_den)
+            self._delta_E[solvent_phase] = delta_E
+            self._lse[solvent_phase] = (lse_num_arg - lse_den_arg)
 
             # delta_E_max = delta_E.max()
             # exp_energies = np.exp(delta_E - delta_E_max)
@@ -416,16 +426,16 @@ class PostProcess(object):
         """
         v_0 = 1661.
         beta = 1./ KB/ self._temperature
-        v_binding = self._nc_handle.variables["volume"][:].mean()
+        v_binding = self._nc_handle.variables["volume"][:][self._start:self._end].mean()
         print("v_binding %f"%v_binding)
         correction = -KB * self._temperature * np.log(v_binding / v_0 / 8 / np.pi**2)
         print("Volume correction %f"%correction)
 
-        nr_grid_points = np.array(self._nc_handle.variables["nr_grid_points"][:], dtype=float)
+        nr_grid_points = np.array(self._nc_handle.variables["nr_grid_points"][:][self._start:self._end], dtype=float)
         number_of_samples = nr_grid_points.sum()
 
-        exponential_sums = self._nc_handle.variables["exponential_sums"][:]
-        log_of_divisors  = self._nc_handle.variables["log_of_divisors"][:]
+        exponential_sums = self._nc_handle.variables["exponential_sums"][:][self._start:self._end]
+        log_of_divisors  = self._nc_handle.variables["log_of_divisors"][:][self._start:self._end]
         common_divisor  = log_of_divisors.max()
 
         exponential_sums *= np.exp(log_of_divisors - common_divisor)
@@ -476,6 +486,16 @@ class PostProcess(object):
         standard_dev["complex_solvation"] = self._complex_sol_fe_std
 
         data["std"] = standard_dev
+
+        energies = {}
+        energies["lig_desol_fe"] = self._lig_desol_fe
+        energies["rec_desol_fe"] = self._rec_desol_fe
+        energies["complex_sol_fe"] = self._complex_sol_fe
+        energies["delta_E"] = self._delta_E
+        energies["lse"] = self._lse
+        energies["inter_energies"] = self._inter_energies
+
+        data["energies"] = energies
 
         pickle.dump(data, open(file, "wb"))
         return None
@@ -632,21 +652,24 @@ if __name__ == "__main__":
     rec_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/receptor.prmtop"
     lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
     complex_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/complex.prmtop"
-    sampling_nc_file = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
+    sampling_nc_file = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sample.nc"
     solvent_phases = ["OpenMM_OBC2"]
     nr_resampled_complexes = 1000
     randomly_translate_complex = False
+    start = 2
+    end = 500
     temperature = 300
     sander_tmp_dir = "../examples/postprocessing"
 
-    rec_pdb_out = f"{test_dir}/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/receptor_trans.pdb"
-    lig_pdb_out = f"{test_dir}/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/ligand_resampled.pdb"
-    bpmf_pkl_out = f"{test_dir}/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/results.pkl"
+    rec_pdb_out = f"{test_dir}/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/receptor_trans_maintest.pdb"
+    lig_pdb_out = f"{test_dir}/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/ligand_resampled_maintest.pdb"
+    bpmf_pkl_out = f"{test_dir}/FFT_PPI/2.redock/6.postprocess/2OOB_A:B/results_maintest.pkl"
 
     post_pro = PostProcess(rec_prmtop, lig_prmtop, complex_prmtop,
                                 sampling_nc_file,
                                 solvent_phases,
-                                nr_resampled_complexes, randomly_translate_complex,
+                                nr_resampled_complexes, start, end,
+                                randomly_translate_complex,
                                 temperature,
                                 sander_tmp_dir)
     post_pro.write_rececptor_pdb(rec_pdb_out)

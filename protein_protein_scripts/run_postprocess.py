@@ -19,8 +19,11 @@ parser.add_argument("--max_jobs",  type=int, default=50)
 parser.add_argument("--amber_dir", type=str, default="amber")
 parser.add_argument("--sampling_dir", type=str, default="fft_sampling")
 parser.add_argument("--sampling_nc", type=str, default="fft_sample.nc")
+parser.add_argument("--sampling_out_name", type=str, default="ligand_resampled.pdb")
 
 parser.add_argument("--nr_resample", type=int, default=100)
+parser.add_argument("--start", type=int, default=0)
+parser.add_argument("--end", type=int, default=None)
 
 parser.add_argument("--out_dir", type=str, default="out")
 parser.add_argument("--check_convergence", action="store_true", default=False)
@@ -35,7 +38,7 @@ COMPLEX_PRMTOP = "complex.prmtop"
 FFT_SAMPLING_NC = args.sampling_nc
 
 REC_PDB_OUT = "receptor_trans.pdb"
-LIG_PDB_OUT = "ligand_resampled.pdb"
+LIG_PDB_OUT = args.sampling_out_nameok
 if args.check_convergence:
     BPMF_OUT = f"convergence_test.pkl"
 else:
@@ -93,7 +96,9 @@ python {this_script} \
         --amber_dir {amber_sub_dir} \
         --sampling_dir {sampling_sub_dir} \
         --out_dir {out_dir} \
-        --nr_resample {args.nr_resample} \n'''
+        --nr_resample {args.nr_resample}
+        --start {args.start}
+        --end {args.end} \n'''
 
         bpmf_out = os.path.join(out_dir, BPMF_OUT)
         if not os.path.exists(bpmf_out):
@@ -158,7 +163,9 @@ python {this_script} \
 --amber_dir {amber_sub_dir} \
 --sampling_dir {sampling_sub_dir} \
 --out_dir {com_dir} \
---nr_resample {args.nr_resample} \n'''
+--nr_resample {args.nr_resample} 
+--start {args.start}
+--end {args.end} \n'''
 
         bpmf_out = os.path.join(com_dir, BPMF_OUT)
         if not os.path.exists(bpmf_out):
@@ -183,6 +190,8 @@ else:
     rec_pdb_out = os.path.join(args.out_dir, REC_PDB_OUT)
     lig_pdb_out = os.path.join(args.out_dir, LIG_PDB_OUT)
     bpmf_pkl_out = os.path.join(args.out_dir, BPMF_OUT )
+    start = args.start
+    end = args.end
 
     if args.check_convergence:
         n_rotations = netCDF4.Dataset(sampling_nc_file).variables["resampled_energies"].shape[0]
@@ -194,7 +203,7 @@ else:
                      rec_pdb_out, lig_pdb_out, bpmf_pkl_out, n_rotations, M, N_step)
     else:
         post_process(rec_prmtop, lig_prmtop, complex_prmtop, sampling_nc_file,
-                nr_resampled_complexes,
+                nr_resampled_complexes, start, end,
                 sander_tmp_dir,
                 rec_pdb_out, lig_pdb_out, bpmf_pkl_out)
 
