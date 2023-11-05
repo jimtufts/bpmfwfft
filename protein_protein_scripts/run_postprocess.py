@@ -20,6 +20,7 @@ parser.add_argument("--amber_dir", type=str, default="amber")
 parser.add_argument("--sampling_dir", type=str, default="fft_sampling")
 parser.add_argument("--sampling_nc", type=str, default="fft_sample.nc")
 parser.add_argument("--sampling_out_name", type=str, default="ligand_resampled.pdb")
+parser.add_argument("--pkl_name", type=str, default="bpmf.pkl")
 
 parser.add_argument("--nr_resample", type=int, default=100)
 parser.add_argument("--start", type=int, default=0)
@@ -42,7 +43,7 @@ LIG_PDB_OUT = args.sampling_out_nameok
 if args.check_convergence:
     BPMF_OUT = f"convergence_test.pkl"
 else:
-    BPMF_OUT = f"bpmf.pkl"
+    BPMF_OUT = args.pkl_name
 
 
 def is_sampling_good(sampling_dir):
