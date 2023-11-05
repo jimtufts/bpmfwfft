@@ -39,7 +39,7 @@ COMPLEX_PRMTOP = "complex.prmtop"
 FFT_SAMPLING_NC = args.sampling_nc
 
 REC_PDB_OUT = "receptor_trans.pdb"
-LIG_PDB_OUT = args.sampling_out_nameok
+LIG_PDB_OUT = args.sampling_out_name
 if args.check_convergence:
     BPMF_OUT = f"convergence_test.pkl"
 else:
