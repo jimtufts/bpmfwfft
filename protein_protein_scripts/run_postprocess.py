@@ -164,8 +164,8 @@ python {this_script} \
 --amber_dir {amber_sub_dir} \
 --sampling_dir {sampling_sub_dir} \
 --out_dir {com_dir} \
---nr_resample {args.nr_resample} 
---start {args.start}
+--nr_resample {args.nr_resample} \
+--start {args.start} \
 --end {args.end} \n'''
 
         bpmf_out = os.path.join(com_dir, BPMF_OUT)
