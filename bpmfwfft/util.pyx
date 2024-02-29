@@ -976,7 +976,7 @@ def c_cal_charge_grid_pp_mp(  str name,
             # for i, j, k in corners:
             #     grid_tmp[i, j, k] = 0
 
-            # grid += grid_tmp
+            grid += grid_tmp
 
     else:
         for atom_ind in atom_list:

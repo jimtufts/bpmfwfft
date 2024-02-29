@@ -324,7 +324,7 @@ class Grid(object):
         xyz = np.expand_dims(xyz, 0)
         # convert coordinates to nanometers for mdtraj
         xyz = xyz.astype(np.float32) / 10.
-        atom_radii = self._prmtop["VDW_RADII"] / 10.
+        atom_radii = np.copy(self._prmtop["VDW_RADII"]) / 10.
 
         radii = np.array(atom_radii, np.float32) + probe_radius
         dim1 = xyz.shape[1]
@@ -344,7 +344,7 @@ class Grid(object):
         xyz = np.expand_dims(xyz, 0)
         # convert coordinates to nanometers for mdtraj
         xyz = xyz.astype(np.float32) / 10.
-        atom_radii = self._prmtop["VDW_RADII"] / 10.
+        atom_radii = np.copy(self._prmtop["VDW_RADII"]) / 10.
         radii = np.array(atom_radii, np.float32) + probe_radius
         dim1 = xyz.shape[1]
         atom_mapping = np.arange(dim1, dtype=np.int32)
@@ -510,7 +510,7 @@ class LigGrid(Grid):
         self._lig_surface_scaling = lig_surface_scaling
         self._lig_metal_scaling = lig_metal_scaling
         self._rho = receptor_grid.get_rho()
-        # self._native_translation = ((receptor_grid._displacement - self._new_displacement) / self._spacing).astype(int)
+        self._native_translation = ((receptor_grid._displacement - self._new_displacement) / self._spacing).astype(int)
 
     def _move_ligand_to_lower_corner(self):
         """
@@ -1481,9 +1481,9 @@ class RecGrid(Grid):
         """
 
         if radii_type == "LJ_SIGMA":
-            clash_radii = self._prmtop["LJ_SIGMA"] / 2
+            clash_radii = np.copy(self._prmtop["LJ_SIGMA"]) / 2
         else:
-            clash_radii = self._prmtop["VDW_RADII"]
+            clash_radii = np.copy(self._prmtop["VDW_RADII"])
 
         clash_scale = {"C": 0.75, "CA++": 0.48, "CD": 0.75, "CD1": 0.73,
                        "CD2": 0.73, "CE": 0.76, "CE1": 0.77, "CE2": 0.76,
@@ -1727,7 +1727,7 @@ if __name__ == "__main__":
     lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
-    spacing = 0.5
+    spacing = 2.0
     rec_core_scaling = 0.760000
     rec_surface_scaling = 0.530000
     rec_metal_scaling = 0.550000
@@ -1776,8 +1776,8 @@ if __name__ == "__main__":
                        lig_inpcrd_file, rec_grid)
     print(lig_grid._grid_func_names)
     lig_grid.cal_grids()
-    native_pose = lig_grid._native_translation
-    lig_grid.translate_ligand(native_pose*lig_grid._spacing[0])
+    # native_pose = lig_grid._native_translation
+    # lig_grid.translate_ligand(native_pose*lig_grid._spacing[0])
     lig_grid.write_pdb(f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/native.pdb", "w")
     print("--- LigGrid calculated in %s seconds ---" % (time.time() - start_time))
     # print("get_bpmf", lig_grid.get_bpmf())
@@ -1787,7 +1787,7 @@ if __name__ == "__main__":
     # print("get_meaningful_corners", lig_grid.get_meaningful_corners())
     # print("set_meaningful_energies_to_none", lig_grid.set_meaningful_energies_to_none())
     # print("get_initial_com", lig_grid.get_initial_com())
-    # print("Receptor SASA", rec_grid._get_molecule_sasa(0.14, 960))
-    # print("Ligand SASA", lig_grid._get_molecule_sasa(0.14, 960))
-
+    print("Receptor SASA", rec_grid._get_molecule_sasa(0.14, 960).sum())
+    print("Ligand SASA", lig_grid._get_molecule_sasa(0.14, 960).sum())
+    # print("Ligand SASA grid", lig_grid._grid["sasa"].sum())
 
