@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <cstdint>
 #include <Eigen/Dense>
+#include <string>
+#include <stdexcept>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -117,10 +119,77 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
     return grid;
 }
 
+Eigen::VectorXd nnls(const Eigen::MatrixXd& A, const Eigen::VectorXd& b, double tolerance = 1e-10, int max_iterations = 1000) {
+    int m = A.rows();
+    int n = A.cols();
+    Eigen::VectorXd x = Eigen::VectorXd::Zero(n);
+    Eigen::VectorXd w = A.transpose() * (b - A * x);
+    std::vector<int> P;
+    std::vector<int> R(n);
+    for (int i = 0; i < n; ++i) R[i] = i;
+
+    for (int iter = 0; iter < max_iterations; ++iter) {
+        if (R.empty() || w.maxCoeff() <= tolerance) break;
+
+        int j = std::max_element(R.begin(), R.end(), [&w](int i, int j) { return w[i] < w[j]; }) - R.begin();
+        int t = R[j];
+        P.push_back(t);
+        R.erase(R.begin() + j);
+
+        Eigen::MatrixXd AP(m, P.size());
+        for (size_t i = 0; i < P.size(); ++i) AP.col(i) = A.col(P[i]);
+
+        Eigen::VectorXd s = AP.colPivHouseholderQr().solve(b);
+
+        while (s.minCoeff() <= 0) {
+            double alpha = INFINITY;
+            int alpha_index = -1;
+            for (size_t i = 0; i < P.size(); ++i) {
+                if (s[i] <= 0) {
+                    double ratio = x[P[i]] / (x[P[i]] - s[i]);
+                    if (ratio < alpha) {
+                        alpha = ratio;
+                        alpha_index = i;
+                    }
+                }
+            }
+
+            for (size_t i = 0; i < P.size(); ++i) {
+                x[P[i]] += alpha * (s[i] - x[P[i]]);
+            }
+
+            std::vector<int> to_remove;
+            for (size_t i = 0; i < P.size(); ++i) {
+                if (std::abs(x[P[i]]) < tolerance) {
+                    R.push_back(P[i]);
+                    to_remove.push_back(i);
+                }
+            }
+
+            for (auto it = to_remove.rbegin(); it != to_remove.rend(); ++it) {
+                P.erase(P.begin() + *it);
+            }
+
+            AP = Eigen::MatrixXd(m, P.size());
+            for (size_t i = 0; i < P.size(); ++i) AP.col(i) = A.col(P[i]);
+
+            s = AP.colPivHouseholderQr().solve(b);
+        }
+
+        for (size_t i = 0; i < P.size(); ++i) {
+            x[P[i]] = s[i];
+        }
+
+        w = A.transpose() * (b - A * x);
+    }
+
+    return x;
+}
+
 std::vector<std::vector<std::vector<double>>> cal_charge_grid(
     const std::vector<std::vector<double>>& crd,
     const std::vector<double>& charges,
-    const std::vector<std::string>& names,
+    const std::string& name,
     const std::vector<double>& grid_x,
     const std::vector<double>& grid_y,
     const std::vector<double>& grid_z,
@@ -129,14 +198,13 @@ std::vector<std::vector<std::vector<double>>> cal_charge_grid(
     const std::vector<int64_t>& upper_most_corner,
     const std::vector<double>& spacing,
     const std::vector<std::vector<int64_t>>& eight_corner_shifts,
-    const std::vector<std::vector<int64_t>>& six_corner_shifts,
-    int64_t atomind,
-    int64_t natoms_i) {
+    const std::vector<std::vector<int64_t>>& six_corner_shifts) {
 
-    if (crd.empty() || charges.empty() || names.empty() || 
-        grid_x.empty() || grid_y.empty() || grid_z.empty() || 
-        origin_crd.size() != 3 || upper_most_corner_crd.size() != 3 || 
-        upper_most_corner.size() != 3 || spacing.size() != 3) {
+    if (crd.empty() || charges.empty() || name.empty() ||
+        grid_x.empty() || grid_y.empty() || grid_z.empty() ||
+        origin_crd.size() != 3 || upper_most_corner_crd.size() != 3 ||
+        upper_most_corner.size() != 3 || spacing.size() != 3 ||
+        crd.size() != charges.size() || crd.size() != name.size()) {
         throw std::runtime_error("Invalid input parameters");
     }
 
@@ -144,19 +212,90 @@ std::vector<std::vector<std::vector<double>>> cal_charge_grid(
     int64_t j_max = upper_most_corner[1];
     int64_t k_max = upper_most_corner[2];
 
-    std::vector<std::vector<std::vector<double>>> grid(i_max, 
-        std::vector<std::vector<double>>(j_max, 
+    std::vector<std::vector<std::vector<double>>> grid(i_max,
+        std::vector<std::vector<double>>(j_max,
         std::vector<double>(k_max, 0.0)));
 
-    #pragma omp parallel for
-    for (int64_t atom_ind = atomind; atom_ind < atomind + natoms_i; ++atom_ind) {
-        if (atom_ind >= static_cast<int64_t>(crd.size())) {
-            continue;
+    #ifdef _OPENMP
+    #pragma omp parallel
+    {
+        std::vector<std::vector<std::vector<double>>> local_grid(i_max,
+            std::vector<std::vector<double>>(j_max,
+            std::vector<double>(k_max, 0.0)));
+
+        #pragma omp for schedule(dynamic)
+        for (int64_t atom_ind = 0; atom_ind < static_cast<int64_t>(crd.size()); ++atom_ind) {
+            const auto& atom_coordinate = crd[atom_ind];
+            double charge = charges[atom_ind];
+
+            auto ten_corners = get_ten_corners(atom_coordinate, origin_crd, upper_most_corner_crd,
+                                             upper_most_corner, spacing, eight_corner_shifts,
+                                             six_corner_shifts, grid_x, grid_y, grid_z);
+
+            Eigen::MatrixXd a_matrix = Eigen::MatrixXd::Zero(10, 10);
+            Eigen::VectorXd b_vector = Eigen::VectorXd::Zero(10);
+            b_vector(0) = charge;
+            a_matrix.row(0).setOnes();
+
+            std::vector<std::vector<double>> delta_vectors;
+            for (const auto& corner : ten_corners) {
+                auto corner_crd = get_corner_crd(corner, grid_x, grid_y, grid_z);
+                std::vector<double> delta(3);
+                for (int i = 0; i < 3; ++i) {
+                    delta[i] = corner_crd[i] - atom_coordinate[i];
+                }
+                delta_vectors.push_back(delta);
+            }
+
+            for (int j = 0; j < 10; ++j) {
+                a_matrix(1, j) = delta_vectors[j][0];
+                a_matrix(2, j) = delta_vectors[j][1];
+                a_matrix(3, j) = delta_vectors[j][2];
+            }
+
+            int row = 3;
+            for (int i = 0; i < 3; ++i) {
+                for (int j = i; j < 3; ++j) {
+                    ++row;
+                    for (int k = 0; k < 10; ++k) {
+                        a_matrix(row, k) = delta_vectors[k][i] * delta_vectors[k][j];
+                    }
+                }
+            }
+
+            Eigen::VectorXd distributed_charges;
+            if (name == "electrostatic") {
+                distributed_charges = a_matrix.colPivHouseholderQr().solve(b_vector);
+            } else {
+                // Use non-negative least squares for Lennard-Jones to prevent singularity issues
+                distributed_charges = nnls(a_matrix, b_vector);
+            }
+
+            for (size_t i = 0; i < ten_corners.size(); ++i) {
+                int64_t l = ten_corners[i][0];
+                int64_t m = ten_corners[i][1];
+                int64_t n = ten_corners[i][2];
+                if (l >= 0 && l < i_max && m >= 0 && m < j_max && n >= 0 && n < k_max) {
+                    local_grid[l][m][n] += distributed_charges(i);
+                }
+            }
         }
 
+        #pragma omp critical
+        {
+            for (int64_t i = 0; i < i_max; ++i) {
+                for (int64_t j = 0; j < j_max; ++j) {
+                    for (int64_t k = 0; k < k_max; ++k) {
+                        grid[i][j][k] += local_grid[i][j][k];
+                    }
+                }
+            }
+        }
+    }
+    #else
+    for (int64_t atom_ind = 0; atom_ind < static_cast<int64_t>(crd.size()); ++atom_ind) {
         const auto& atom_coordinate = crd[atom_ind];
         double charge = charges[atom_ind];
-        const auto& name = names[atom_ind];
 
         auto ten_corners = get_ten_corners(atom_coordinate, origin_crd, upper_most_corner_crd,
                                          upper_most_corner, spacing, eight_corner_shifts,
@@ -197,23 +336,20 @@ std::vector<std::vector<std::vector<double>>> cal_charge_grid(
         if (name == "electrostatic") {
             distributed_charges = a_matrix.colPivHouseholderQr().solve(b_vector);
         } else {
-            // For non-negative least squares, you might need to implement or use a library
-            // that provides NNLS. For now, we'll use the same method as electrostatic.
-            distributed_charges = a_matrix.colPivHouseholderQr().solve(b_vector);
+            // Use non-negative least squares for Lennard-Jones to prevent singularity issues
+            distributed_charges = nnls(a_matrix, b_vector);
         }
 
-        #pragma omp critical
-        {
-            for (size_t i = 0; i < ten_corners.size(); ++i) {
-                int64_t l = ten_corners[i][0];
-                int64_t m = ten_corners[i][1];
-                int64_t n = ten_corners[i][2];
-                if (l >= 0 && l < i_max && m >= 0 && m < j_max && n >= 0 && n < k_max) {
-                    grid[l][m][n] += distributed_charges(i);
-                }
+        for (size_t i = 0; i < ten_corners.size(); ++i) {
+            int64_t l = ten_corners[i][0];
+            int64_t m = ten_corners[i][1];
+            int64_t n = ten_corners[i][2];
+            if (l >= 0 && l < i_max && m >= 0 && m < j_max && n >= 0 && n < k_max) {
+                grid[l][m][n] += distributed_charges(i);
             }
         }
     }
+    #endif
 
     return grid;
 }

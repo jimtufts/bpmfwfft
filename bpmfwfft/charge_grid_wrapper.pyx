@@ -65,7 +65,7 @@ cdef extern from "charge_grid.h":
     vector[vector[vector[double]]] cal_charge_grid(
         const vector[vector[double]]& crd,
         const vector[double]& charges,
-        const vector[string]& names,
+        const string& name,
         const vector[double]& grid_x,
         const vector[double]& grid_y,
         const vector[double]& grid_z,
@@ -74,9 +74,7 @@ cdef extern from "charge_grid.h":
         const vector[int64_t]& upper_most_corner,
         const vector[double]& spacing,
         const vector[vector[int64_t]]& eight_corner_shifts,
-        const vector[vector[int64_t]]& six_corner_shifts,
-        int64_t atomind,
-        int64_t natoms_i
+        const vector[vector[int64_t]]& six_corner_shifts
     ) nogil
 
 cdef extern from "charge_grid.h":
@@ -85,7 +83,7 @@ cdef extern from "charge_grid.h":
 def py_cal_charge_grid(
     np.ndarray[double, ndim=2] crd,
     np.ndarray[double, ndim=1] charges,
-    list names,
+    str name,
     np.ndarray[double, ndim=1] grid_x,
     np.ndarray[double, ndim=1] grid_y,
     np.ndarray[double, ndim=1] grid_z,
@@ -94,13 +92,11 @@ def py_cal_charge_grid(
     np.ndarray[int64_t, ndim=1] upper_most_corner,
     np.ndarray[double, ndim=1] spacing,
     np.ndarray[int64_t, ndim=2] eight_corner_shifts,
-    np.ndarray[int64_t, ndim=2] six_corner_shifts,
-    int64_t atomind,
-    int64_t natoms_i
+    np.ndarray[int64_t, ndim=2] six_corner_shifts
 ):
     cdef vector[vector[double]] crd_cpp = crd
     cdef vector[double] charges_cpp = charges
-    cdef vector[string] names_cpp = [name.encode('utf-8') for name in names]
+    cdef string name_cpp = name.encode('utf-8')
     cdef vector[double] grid_x_cpp = grid_x
     cdef vector[double] grid_y_cpp = grid_y
     cdef vector[double] grid_z_cpp = grid_z
@@ -131,11 +127,10 @@ def py_cal_charge_grid(
     cdef vector[vector[vector[double]]] result
     with nogil:
         result = cal_charge_grid(
-            crd_cpp, charges_cpp, names_cpp,
+            crd_cpp, charges_cpp, name_cpp,
             grid_x_cpp, grid_y_cpp, grid_z_cpp,
             origin_crd_cpp, upper_most_corner_crd_cpp, upper_most_corner_cpp,
-            spacing_cpp, eight_corner_shifts_cpp, six_corner_shifts_cpp,
-            atomind, natoms_i
+            spacing_cpp, eight_corner_shifts_cpp, six_corner_shifts_cpp
         )
 
     return np.asarray(result)

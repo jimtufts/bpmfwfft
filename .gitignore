@@ -114,3 +114,5 @@ bpmfwfft.egg-info/
 build/
 dist/
 
+/bpmfwfft/sasa_wrapper.cpp
+/bpmfwfft/charge_grid_wrapper.cpp

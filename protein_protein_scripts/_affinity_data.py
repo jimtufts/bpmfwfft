@@ -86,7 +86,7 @@ class AffinityData(object):
             tsvreader = csv.reader(tsvfile, delimiter="\t")
             tsvreader.next()                            # ignore the first line
             data_fields = tsvreader.next()
-            # in the the file, there are two columns with the same name "Unbound PDB"
+            # in the file, there are two columns with the same name "Unbound PDB"
             # make each field in data_fields unique
             for i in range(len(data_fields)):
                 if data_fields[i] == "Unbound PDB":

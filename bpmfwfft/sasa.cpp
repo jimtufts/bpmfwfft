@@ -40,11 +40,21 @@
  *     the output buffer to place the results in -- the surface area of each
  *     atom
  */
-static void asa_frame(const float* frame, const int n_atoms, const float* atom_radii,
-                      const float* sphere_points, const int n_sphere_points,
-                      int* neighbor_indices, float* centered_sphere_points, const int* atom_selection_mask, float* accessible_sphere_points)
+void asa_frame(const float* frame, const int n_atoms, const float* atom_radii,
+               const float* sphere_points, const int n_sphere_points,
+               int* neighbor_indices, float* centered_sphere_points,
+               const int* atom_selection_mask, float* out_grid,
+               const int* counts, const float grid_spacing)
 {
-//    float constant = 4.0 * M_PI / n_sphere_points;
+    // Calculate total number of grid points
+    int total_grid_points = counts[0] * counts[1] * counts[2];
+
+    // Initialize the output grid to zero
+    for (int i = 0; i < total_grid_points; i++) {
+        out_grid[i] = 0.0f;
+    }
+
+    float constant = 4.0f * M_PI / n_sphere_points;
 
     for (int i = 0; i < n_atoms; i++) {
         // Skip atom if not in selection
@@ -90,7 +100,6 @@ static void asa_frame(const float* frame, const int n_atoms, const float* atom_r
 
         // Check if each of these points is accessible
         int k_closest_neighbor = 0;
-        int accessible_point_count = 0;
         for (int j = 0; j < n_sphere_points; j++) {
             bool is_accessible = true;
             fvec4 r_j(centered_sphere_points[3*j], centered_sphere_points[3*j+1], centered_sphere_points[3*j+2], 0);
@@ -112,24 +121,29 @@ static void asa_frame(const float* frame, const int n_atoms, const float* atom_r
             }
 
             if (is_accessible) {
-                int k = (i * n_sphere_points + j) * 4;
-                accessible_sphere_points[k] = centered_sphere_points[3*j];
-                accessible_sphere_points[k+1] = centered_sphere_points[3*j+1];
-                accessible_sphere_points[k+2] = centered_sphere_points[3*j+2];
-                accessible_sphere_points[k+3] = atom_radii[i];
-                accessible_point_count++;
+                // Snap coordinates to grid
+                float x = roundf(r_j[0] / grid_spacing) * grid_spacing;
+                float y = roundf(r_j[1] / grid_spacing) * grid_spacing;
+                float z = roundf(r_j[2] / grid_spacing) * grid_spacing;
+
+                // Calculate grid indices
+                int ix = (int)(x / grid_spacing);
+                int iy = (int)(y / grid_spacing);
+                int iz = (int)(z / grid_spacing);
+
+                // Ensure indices are within bounds
+                if (ix >= 0 && ix < counts[0] && iy >= 0 && iy < counts[1] && iz >= 0 && iz < counts[2]) {
+                    // Calculate grid index
+                    int grid_index = iz * counts[1] * counts[0] + iy * counts[0] + ix;
+
+                    // Calculate value to add
+                    float value = constant * atom_radius_i * atom_radius_i;
+
+                    // Add value to grid
+                    out_grid[grid_index] += value;
+                }
             }
         }
-        // Fill the rest of the points for this atom with NaN to indicate they're not used
-        for (int j = accessible_point_count; j < n_sphere_points; j++) {
-            int k = (i * n_sphere_points + j) * 4;
-            accessible_sphere_points[k] = NAN;
-            accessible_sphere_points[k+1] = NAN;
-            accessible_sphere_points[k+2] = NAN;
-            accessible_sphere_points[k+3] = NAN;
-        }
-
-//        areas[i] *= constant * (atom_radii[i])*(atom_radii[i]);
     }
 }
 
@@ -169,7 +183,8 @@ static void generate_sphere_points(float* sphere_points, int n_points)
 
 void sasa(const int n_frames, const int n_atoms, const float* xyzlist,
           const float* atom_radii, const int n_sphere_points,
-          const int* atom_selection_mask, float* out)
+          const int* atom_selection_mask, float* out,
+          const int* counts, const float grid_spacing)
 {
     int i;
 
@@ -180,6 +195,9 @@ void sasa(const int n_frames, const int n_atoms, const float* xyzlist,
     /* generate the sphere points */
     float* sphere_points = (float*) malloc(n_sphere_points*3*sizeof(float));
     generate_sphere_points(sphere_points, n_sphere_points);
+
+    // Calculate total number of grid points
+    int total_grid_points = counts[0] * counts[1] * counts[2];
 
 #ifdef _OPENMP
     #pragma omp parallel private(wb1, wb2)
@@ -195,8 +213,8 @@ void sasa(const int n_frames, const int n_atoms, const float* xyzlist,
 #endif
     for (i = 0; i < n_frames; i++) {
         asa_frame(xyzlist + i*n_atoms*3, n_atoms, atom_radii, sphere_points,
-                  n_sphere_points, wb1, wb2, atom_selection_mask, 
-                  out + i*n_atoms*n_sphere_points*4);
+                  n_sphere_points, wb1, wb2, atom_selection_mask,
+                  out + i*total_grid_points, counts, grid_spacing);
     }
 
     free(wb1);

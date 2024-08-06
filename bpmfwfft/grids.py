@@ -20,6 +20,8 @@ try:
         # from bpmfwfft.util import c_cal_lig_sasa_grid
         # from bpmfwfft.util import c_cal_lig_sasa_grids
         from bpmfwfft.util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
+        from bpmfwfft.sasa_wrapper import calculate_sasa
+        from bpmfwfft.charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
         from util import c_cal_charge_grid_pp_mp
@@ -27,6 +29,8 @@ try:
         # from util import c_cal_lig_sasa_grid
         # from util import c_cal_lig_sasa_grids
         from util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
+        from sasa_wrapper import calculate_sasa
+        from charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
 
 except:
     import IO
@@ -36,6 +40,8 @@ except:
     # from util import c_cal_lig_sasa_grid
     # from util import c_cal_lig_sasa_grids
     from util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
+    from sasa_wrapper import calculate_sasa
+    from charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
 
 # Gamma taken from amber manual
 GAMMA = 0.005
@@ -439,33 +445,27 @@ class Grid(object):
         prmtop_parms = self.get_prmtop()
         for key, value in prmtop_parms.items():
             if key == "BONDS_WITHOUT_HYDROGEN":
-                for i in range(len(value), 3):
-                    if "H" in prmtop_parms["PDB_TEMPLATE"]["ATOM_NAME"][int(value[i] / 3)]:
+                for i in range(0, len(value), 3):
+                    if "H" in prmtop_parms["PDB_TEMPLATE"]["ATOM_NAME"][value[i] // 3]:
                         print(f"index {i} is an H bond")
-                    if i not in list(bonds.keys()):
-                        bonds[(value[i] / 3)] = []
-                        bonds[(value[i] / 3)].append((value[i + 1] / 3))
-                    else:
-                        bonds[(value[i] / 3)].append((value[i + 1] / 3))
+                    if value[i] // 3 not in bonds:
+                        bonds[value[i] // 3] = []
+                    bonds[value[i] // 3].append(value[i + 1] // 3)
+
         b = []
         for key, value in bonds.items():
-            a = [key]
-            for v in value:
-                a.append(v)
+            a = [key] + value
             a.sort()
             b.append(a)
         b.sort()
 
         def midpoint(a1, a2):
             import numpy as np
-            a3 = np.zeros((3))
-            for i in range(a3.shape[0]):
-                a3[i] = (a2[i] - a1[i]) / 2.
-            return a3
+            return (a2 - a1) / 2.
 
         bond_list = []
         for b_s in b:
-            bond_list.append(midpoint(crd[int(b_s[0])], crd[int(b_s[1])]))
+            bond_list.append(midpoint(self._crd[int(b_s[0])], self._crd[int(b_s[1])]))
         return bond_list
 
 
@@ -588,6 +588,91 @@ class LigGrid(Grid):
             raise RuntimeError("%s is unknown" % name)
 
     def _cal_charge_grid(self, name):
+
+        clash_radii = np.copy(self._prmtop["VDW_RADII"])
+
+        clash_scale = {"C": 0.75, "CA++": 0.48, "CD": 0.75, "CD1": 0.73,
+                       "CD2": 0.73, "CE": 0.76, "CE1": 0.77, "CE2": 0.76,
+                       "CG": 0.73, "CZ": 0.79, "MG": 0.68, "N": 0.71,
+                       "ND1": 0.72, "ND2": 0.77, "NE": 0.78, "NE2": 0.79,
+                       "NZ": 0.74, "O": 0.63, "O1G": 0.74, "OD1": 0.64,
+                       "OD2": 0.63, "OE1": 0.63, "OE2": 0.59, "OG": 0.67,
+                       "OG1": 0.70, "OXT": 0.61, "SD": 0.78, "SG": 0.75,
+                       "ZN": 0.46
+                       }
+        clash_scale_keys = list(clash_scale.keys())
+        for i in range(len(clash_radii)):
+            atom_label = self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"][i]
+            if atom_label == "CA" and self._prmtop["MASS"][i] == 40.08:
+                atom_label = "CA++"
+            if atom_label in clash_scale_keys:
+                clash_radii[i] = clash_radii[i] * clash_scale[atom_label]
+            else:
+                clash_radii[i] = clash_radii[i] * 0.8
+
+        grid_counts = np.copy(self._grid["counts"])
+        origin_crd = np.copy(self._origin_crd)
+        grid_spacing = np.copy(self._grid["spacing"])
+        atom_names = np.copy(self._prmtop["PDB_TEMPLATE"]["ATOM_NAME"])
+        exclude_H = True
+        probe_size = 1.4
+        n_sphere_points = 960
+
+        grid_x = np.linspace(
+            origin_crd[0],
+            origin_crd[0] + ((grid_counts[0] - 1) * grid_spacing[0]),
+            num=grid_counts[0]
+        )
+        grid_y = np.linspace(
+            origin_crd[1],
+            origin_crd[1] + ((grid_counts[1] - 1) * grid_spacing[1]),
+            num=grid_counts[1]
+        )
+        grid_z = np.linspace(
+            origin_crd[2],
+            origin_crd[2] + ((grid_counts[2] - 1) * grid_spacing[2]),
+            num=grid_counts[2]
+        )
+
+        upper_most_corner_crd = origin_crd + (grid_counts - 1.) * grid_spacing
+        upper_most_corner = (grid_counts - 1)
+        if name == "sasa":
+           radii = np.copy(self._prmtop["VDW_RADII"]) + probe_size
+           atom_selection_mask = np.ones(self._crd.shape[0], dtype=np.int32)
+           grid = calculate_sasa(self._crd[np.newaxis, :, :].astype(np.float32),
+                                 radii.astype(np.float32), n_sphere_points, atom_selection_mask, self._grid["counts"], self._spacing[0])
+        elif name == "water":
+            radii = np.copy(self._prmtop["VDW_RADII"]) + probe_size
+            grid = py_cal_solvent_grid(self._crd, grid_x, grid_y, grid_z, origin_crd,
+                                       upper_most_corner_crd, grid_counts, radii)
+        elif name == "occupancy":
+            atom_list = []
+            for i in range(self._crd.shape[0]):
+                if exclude_H:
+                    if atom_names[i][0] != 'H':
+                        atom_list.append(i)
+                else:
+                    atom_list.append(i)
+                # apply scaling factors to clash radii
+            bonds = self._get_bond_list()
+            print(bonds)
+            bonds = np.array(self._get_bond_list()).reshape(-1, self._crd.shape[1])
+            combined_crd = np.concatenate((np.copy(self._crd[atom_list]), np.array(bonds)))
+            combined_radii = np.concatenate((np.copy(clash_radii[atom_list]), np.ones(bonds.shape[0])))
+
+            grid = py_cal_solvent_grid(np.copy(self._crd[atom_list])[np.newaxis, :, :], grid_x, grid_y, grid_z, origin_crd,
+                                       upper_most_corner_crd, grid_counts, clash_radii[atom_list])
+        else:
+            charges = self._get_charges(name)
+            py_cal_charge_grid(
+                crd, charges, name, grid_x, grid_y, grid_z,
+                origin_crd, upper_most_corner_crd, upper_most_corner,
+                grid_spacing, self._eight_corner_shifts, self._six_corner_shifts
+            )
+        print("--- %s calculated in %s seconds ---" % (name, time.time() - start_time))
+        return grid
+
+    def _cal_charge_grid_old(self, name):
 
         clash_radii = np.copy(self._prmtop["VDW_RADII"])
 
@@ -890,41 +975,42 @@ class LigGrid(Grid):
 
     def _cal_sasa_grid(self, probe_size, n_sphere_points):
         """
-        Divides each grid calculation into a separate process (electrostatic, LJr, LJa,
-        SASAr, SASAi) and then divides the grid into slices along the x-axis determined by
-        the "task divisor". Remainders are calculated in the last slice.  This adds
-        multiprocessing functionality to the grid generation.
+        Calculates a sasa grid using the c++ wrapper function
         """
+        radii = self._prmtop["VDW_RADII"] + probe_size
+        atom_selection_mask = np.ones(self._crd.shape[0], dtype=np.int32)
+        grid = calculate_sasa(self._crd[np.newaxis, :, :].astype(np.float32), radii.astype(np.float32), n_sphere_points, atom_selection_mask, self._grid["counts"], self._spacing[0])
+        # task_divisor = 16
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     futures_array = []
+        #     for i in range(task_divisor):
+        #         natoms_i = self._crd.shape[0]
+        #         natoms_slice = natoms_i // task_divisor
+        #         if i == task_divisor - 1:
+        #             natoms_slice += natoms_i % task_divisor
+        #         natoms_i = natoms_slice
+        #
+        #         atomind = i * (self._crd.shape[0] // task_divisor)
+        #         futures_array.append(executor.submit(
+        #             process_sasa_grid_function,
+        #             self._crd,
+        #             self._prmtop["VDW_RADII"],
+        #             self._spacing,
+        #             probe_size,
+        #             n_sphere_points,
+        #             natoms_i,
+        #             atomind,
+        #         ))
+        #     point_array = []
+        #     for i in range(task_divisor):
+        #         partial_points = futures_array[i].result()
+        #         point_array.append(partial_points)
+        #     points = np.concatenate(tuple(point_array), axis=0)
+        #     del point_array
+        #
+        return grid
 
-        task_divisor = 16
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            futures_array = []
-            for i in range(task_divisor):
-                natoms_i = self._crd.shape[0]
-                natoms_slice = natoms_i // task_divisor
-                if i == task_divisor - 1:
-                    natoms_slice += natoms_i % task_divisor
-                natoms_i = natoms_slice
 
-                atomind = i * (self._crd.shape[0] // task_divisor)
-                futures_array.append(executor.submit(
-                    process_sasa_grid_function,
-                    self._crd,
-                    self._prmtop["VDW_RADII"],
-                    self._spacing,
-                    probe_size,
-                    n_sphere_points,
-                    natoms_i,
-                    atomind,
-                ))
-            point_array = []
-            for i in range(task_divisor):
-                partial_points = futures_array[i].result()
-                point_array.append(partial_points)
-            points = np.concatenate(tuple(point_array), axis=0)
-            del point_array
-
-        return points
 
     def _cal_energies_NOT_USED(self):
         """
@@ -1727,7 +1813,7 @@ if __name__ == "__main__":
     lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
-    spacing = 2.0
+    spacing = 0.5
     rec_core_scaling = 0.760000
     rec_surface_scaling = 0.530000
     rec_metal_scaling = 0.550000
@@ -1749,7 +1835,7 @@ if __name__ == "__main__":
                         rec_inpcrd_file,
                         bsite_file,
                         grid_nc_file,
-                        new_calculation=True,
+                        new_calculation=False,
                         spacing=spacing,
                         extra_buffer=total_buffer,
                         radii_type="VDW_RADII")
@@ -1775,7 +1861,9 @@ if __name__ == "__main__":
                        lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
                        lig_inpcrd_file, rec_grid)
     print(lig_grid._grid_func_names)
+    print(lig_grid._get_bond_list())
     lig_grid.cal_grids()
+    print(lig_grid._cal_sasa_grid(1.4, 960).sum())
     # native_pose = lig_grid._native_translation
     # lig_grid.translate_ligand(native_pose*lig_grid._spacing[0])
     lig_grid.write_pdb(f"{test_dir}/FFT_PPI/2.redock/4.receptor_grid/2OOB_A:B/native.pdb", "w")

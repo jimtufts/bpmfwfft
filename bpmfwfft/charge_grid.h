@@ -55,7 +55,7 @@ bool is_in_grid(
 std::vector<std::vector<std::vector<double>>> cal_charge_grid(
     const std::vector<std::vector<double>>& crd,
     const std::vector<double>& charges,
-    const std::vector<std::string>& names,
+    const std::string&,
     const std::vector<double>& grid_x,
     const std::vector<double>& grid_y,
     const std::vector<double>& grid_z,
@@ -64,9 +64,7 @@ std::vector<std::vector<std::vector<double>>> cal_charge_grid(
     const std::vector<int64_t>& upper_most_corner,
     const std::vector<double>& spacing,
     const std::vector<std::vector<int64_t>>& eight_corner_shifts,
-    const std::vector<std::vector<int64_t>>& six_corner_shifts,
-    int64_t atomind,
-    int64_t natoms_i);
+    const std::vector<std::vector<int64_t>>& six_corner_shifts);
 
 bool is_row_in_matrix(const std::vector<int64_t>& row, const std::vector<std::vector<int64_t>>& matrix);
 

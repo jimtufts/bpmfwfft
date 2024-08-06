@@ -573,7 +573,7 @@ if __name__ == "__main__":
     lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
     lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
 
-    energy_sample_size_per_ligand = 1000
+    energy_sample_size_per_ligand = 300
     output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
     # output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
@@ -583,7 +583,7 @@ if __name__ == "__main__":
     else:
         rot_index = 0
     # uncomment this to start over
-    rot_index = 0
+    # rot_index = 0
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][rot_index : rot_index + 1]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,

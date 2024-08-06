@@ -197,7 +197,7 @@ elif args.slurm:
 
     pwd = os.getcwd()
     complex_names = [c for c in complex_names if not is_sampling_nc_good(
-        os.path.join(pwd, c, FFT_SAMPLING_NC), args.nr_lig_conf)]
+        os.path.join(out_dir, c, FFT_SAMPLING_NC), args.nr_lig_conf)]
 
     if args.max_jobs > 0:
         max_jobs = args.max_jobs
@@ -293,6 +293,7 @@ echo "File copied to $source_file from $destination_directory" \n'''
             open(qsub_file, "w").write(qsub_script)
             os.system("sbatch %s" % qsub_file)
             job_count += 1
+
             if job_count == max_jobs:
                 print("Max number of jobs %d reached." % job_count)
                 break
