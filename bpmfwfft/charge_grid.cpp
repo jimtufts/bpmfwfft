@@ -200,12 +200,82 @@ std::vector<std::vector<std::vector<double>>> cal_charge_grid(
     const std::vector<std::vector<int64_t>>& eight_corner_shifts,
     const std::vector<std::vector<int64_t>>& six_corner_shifts) {
 
-    if (crd.empty() || charges.empty() || name.empty() ||
-        grid_x.empty() || grid_y.empty() || grid_z.empty() ||
-        origin_crd.size() != 3 || upper_most_corner_crd.size() != 3 ||
-        upper_most_corner.size() != 3 || spacing.size() != 3 ||
-        crd.size() != charges.size() || crd.size() != name.size()) {
-        throw std::runtime_error("Invalid input parameters");
+     // Input validation
+    if (crd.empty()) {
+        throw std::runtime_error("crd is empty");
+    }
+    if (charges.empty()) {
+        throw std::runtime_error("charges is empty");
+    }
+    if (name.empty()) {
+        throw std::runtime_error("name is empty");
+    }
+    if (grid_x.empty()) {
+        throw std::runtime_error("grid_x is empty");
+    }
+    if (grid_y.empty()) {
+        throw std::runtime_error("grid_y is empty");
+    }
+    if (grid_z.empty()) {
+        throw std::runtime_error("grid_z is empty");
+    }
+    if (origin_crd.empty()) {
+        throw std::runtime_error("origin_crd is empty");
+    }
+    if (upper_most_corner_crd.empty()) {
+        throw std::runtime_error("upper_most_corner_crd is empty");
+    }
+    if (upper_most_corner.empty()) {
+        throw std::runtime_error("upper_most_corner is empty");
+    }
+    if (spacing.empty()) {
+        throw std::runtime_error("spacing is empty");
+    }
+    if (eight_corner_shifts.empty()) {
+        throw std::runtime_error("eight_corner_shifts is empty");
+    }
+    if (six_corner_shifts.empty()) {
+        throw std::runtime_error("six_corner_shifts is empty");
+    }
+
+    if (crd.size() != charges.size()) {
+        throw std::runtime_error("crd and charges size mismatch");
+    }
+    if (origin_crd.size() != 3) {
+        throw std::runtime_error("origin_crd size is not 3");
+    }
+    if (upper_most_corner_crd.size() != 3) {
+        throw std::runtime_error("upper_most_corner_crd size is not 3");
+    }
+    if (upper_most_corner.size() != 3) {
+        throw std::runtime_error("upper_most_corner size is not 3");
+    }
+    if (spacing.size() != 3) {
+        throw std::runtime_error("spacing size is not 3");
+    }
+
+    for (const auto& coord : crd) {
+        if (coord.size() != 3) {
+            throw std::runtime_error("crd inner vector size is not 3");
+        }
+    }
+
+    if (eight_corner_shifts.size() != 8) {
+        throw std::runtime_error("eight_corner_shifts size is not 8");
+    }
+    for (const auto& shift : eight_corner_shifts) {
+        if (shift.size() != 3) {
+            throw std::runtime_error("eight_corner_shifts inner vector size is not 3");
+        }
+    }
+
+    if (six_corner_shifts.size() != 6) {
+        throw std::runtime_error("six_corner_shifts size is not 6");
+    }
+    for (const auto& shift : six_corner_shifts) {
+        if (shift.size() != 3) {
+            throw std::runtime_error("six_corner_shifts inner vector size is not 3");
+        }
     }
 
     int64_t i_max = upper_most_corner[0];

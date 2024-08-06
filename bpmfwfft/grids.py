@@ -1799,7 +1799,7 @@ class RecGrid(Grid):
 
 if __name__ == "__main__":
     # do some test
-    test_dir = "/mnt/fft"
+    test_dir = "/home/jtufts/Desktop"
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
@@ -1862,6 +1862,7 @@ if __name__ == "__main__":
                        lig_inpcrd_file, rec_grid)
     print(lig_grid._grid_func_names)
     print(lig_grid._get_bond_list())
+    print(lig_grid.get_crd())
     lig_grid.cal_grids()
     print(lig_grid._cal_sasa_grid(1.4, 960).sum())
     # native_pose = lig_grid._native_translation
