@@ -189,6 +189,7 @@ std::vector<std::vector<std::vector<double>>> cal_charge_grid(
     const std::vector<std::vector<int64_t>>& eight_corner_shifts,
     const std::vector<std::vector<int64_t>>& six_corner_shifts) {
 
+
     if (crd.empty()) throw std::runtime_error("crd is empty");
     if (charges.empty()) throw std::runtime_error("charges is empty");
     if (name.empty()) throw std::runtime_error("name is empty");

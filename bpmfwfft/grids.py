@@ -1808,7 +1808,7 @@ class RecGrid(Grid):
 
 if __name__ == "__main__":
     # do some test
-    test_dir = "/mnt/fft"
+    test_dir = "/home/jtufts/Desktop"
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
@@ -1869,6 +1869,7 @@ if __name__ == "__main__":
     lig_grid = LigGrid(lig_prmtop_file, lj_sigma_scaling_factor,
                        lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
                        lig_inpcrd_file, rec_grid)
+
     lig_grid.cal_grids()
 
     print(lig_grid._cal_sasa_grid(1.4, 960).sum())

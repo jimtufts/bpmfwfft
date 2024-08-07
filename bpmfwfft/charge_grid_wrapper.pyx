@@ -58,36 +58,37 @@ cdef extern from "charge_grid.h":
     bint is_row_in_matrix(const vector[int64_t]& row, const vector[vector[int64_t]]& matrix) nogil
 
     vector[vector[vector[double]]] cal_charge_grid(
-        const vector[vector[double]]& crd,
-        const vector[double]& charges,
-        const string& name,
-        const vector[double]& grid_x,
-        const vector[double]& grid_y,
-        const vector[double]& grid_z,
-        const vector[double]& origin_crd,
-        const vector[double]& upper_most_corner_crd,
-        const vector[int64_t]& upper_most_corner,
-        const vector[double]& spacing,
-        const vector[vector[int64_t]]& eight_corner_shifts,
-        const vector[vector[int64_t]]& six_corner_shifts
+            const vector[vector[double]]& crd,
+            const vector[double]& charges,
+            const string& name,
+            const vector[double]& grid_x,
+            const vector[double]& grid_y,
+            const vector[double]& grid_z,
+            const vector[double]& origin_crd,
+            const vector[double]& upper_most_corner_crd,
+            const vector[int64_t]& upper_most_corner,
+            const vector[double]& spacing,
+            const vector[vector[int64_t]]& eight_corner_shifts,
+            const vector[vector[int64_t]]& six_corner_shifts
     ) nogil
 
 cdef extern from "charge_grid.h":
-    vector[double] get_corner_crd(const vector[int64_t]&, const vector[double]&, const vector[double]&, const vector[double]&)
+    vector[double] get_corner_crd(const vector[int64_t] &, const vector[double] &, const vector[double] &,
+                                  const vector[double] &)
 
 def py_cal_charge_grid(
-    np.ndarray[double, ndim=2] crd,
-    np.ndarray[double, ndim=1] charges,
-    str name,
-    np.ndarray[double, ndim=1] grid_x,
-    np.ndarray[double, ndim=1] grid_y,
-    np.ndarray[double, ndim=1] grid_z,
-    np.ndarray[double, ndim=1] origin_crd,
-    np.ndarray[double, ndim=1] upper_most_corner_crd,
-    np.ndarray[int64_t, ndim=1] upper_most_corner,
-    np.ndarray[double, ndim=1] spacing,
-    np.ndarray[int64_t, ndim=2] eight_corner_shifts,
-    np.ndarray[int64_t, ndim=2] six_corner_shifts
+        np.ndarray[double, ndim=2] crd,
+        np.ndarray[double, ndim=1] charges,
+        str name,
+        np.ndarray[double, ndim=1] grid_x,
+        np.ndarray[double, ndim=1] grid_y,
+        np.ndarray[double, ndim=1] grid_z,
+        np.ndarray[double, ndim=1] origin_crd,
+        np.ndarray[double, ndim=1] upper_most_corner_crd,
+        np.ndarray[int64_t, ndim=1] upper_most_corner,
+        np.ndarray[double, ndim=1] spacing,
+        np.ndarray[int64_t, ndim=2] eight_corner_shifts,
+        np.ndarray[int64_t, ndim=2] six_corner_shifts
 ):
     cdef vector[vector[double]] crd_cpp = crd
     cdef vector[double] charges_cpp = charges
@@ -99,7 +100,7 @@ def py_cal_charge_grid(
     cdef vector[double] upper_most_corner_crd_cpp = upper_most_corner_crd
     cdef vector[int64_t] upper_most_corner_cpp = upper_most_corner
     cdef vector[double] spacing_cpp = spacing
-    
+
     # Convert eight_corner_shifts to vector[vector[int64_t]]
     cdef vector[vector[int64_t]] eight_corner_shifts_cpp
     cdef vector[int64_t] temp_vector
@@ -109,7 +110,7 @@ def py_cal_charge_grid(
         temp_vector.push_back(eight_corner_shifts[i, 1])
         temp_vector.push_back(eight_corner_shifts[i, 2])
         eight_corner_shifts_cpp.push_back(temp_vector)
-    
+
     # Convert six_corner_shifts to vector[vector[int64_t]]
     cdef vector[vector[int64_t]] six_corner_shifts_cpp
     for i in range(six_corner_shifts.shape[0]):
