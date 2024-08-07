@@ -578,12 +578,12 @@ if __name__ == "__main__":
     # output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
     ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
-    if os.path.exists(output_nc):
-        rot_index = netCDF4.Dataset(output_nc, "r").variables["current_rotation_index"][0]
-    else:
-        rot_index = 0
+    # if os.path.exists(output_nc):
+    #     rot_index = netCDF4.Dataset(output_nc, "r").variables["current_rotation_index"][0]
+    # else:
+    #     rot_index = 0
     # uncomment this to start over
-    # rot_index = 0
+    rot_index = 0
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][rot_index : rot_index + 1]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,

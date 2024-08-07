@@ -32,17 +32,13 @@ def py_cal_solvent_grid(np.ndarray[np.float64_t, ndim=3] crd,
                         np.ndarray[np.float64_t, ndim=1] upper_most_corner_crd,
                         np.ndarray[np.int64_t, ndim=1] grid_counts,
                         np.ndarray[np.float64_t, ndim=1] vdw_radii):
-    printf("Starting py_cal_solvent_grid\n")
-    printf("crd shape: (%d, %d, %d)\n", crd.shape[0], crd.shape[1], crd.shape[2])
-    printf("grid_x shape: (%d)\n", grid_x.shape[0])
     cdef vector[vector[double]] crd_cpp
     cdef int i, j
     for i in range(crd.shape[1]):  # Iterate over atoms
         crd_cpp.push_back(vector[double]())
         for j in range(crd.shape[2]):  # Iterate over coordinates (x, y, z)
             crd_cpp[i].push_back(crd[0, i, j])
-    printf("Converted crd to C++ vector\n")
-    printf("Calling cal_solvent_grid\n")
+
     
     # Ensure grid_counts is treated as vector[int64_t]
     cdef vector[int64_t] grid_counts_cpp = grid_counts
@@ -55,8 +51,7 @@ def py_cal_solvent_grid(np.ndarray[np.float64_t, ndim=3] crd,
                               upper_most_corner_crd,
                               grid_counts_cpp,
                               vdw_radii)
-    
-    printf("cal_solvent_grid completed\n")
+
     return np.array(result)
 
 cdef extern from "charge_grid.h":

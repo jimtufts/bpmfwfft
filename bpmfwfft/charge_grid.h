@@ -55,7 +55,7 @@ bool is_in_grid(
 std::vector<std::vector<std::vector<double>>> cal_charge_grid(
     const std::vector<std::vector<double>>& crd,
     const std::vector<double>& charges,
-    const std::string&,
+    const std::string& name,
     const std::vector<double>& grid_x,
     const std::vector<double>& grid_y,
     const std::vector<double>& grid_z,

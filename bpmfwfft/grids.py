@@ -221,7 +221,7 @@ class Grid(object):
 
     def __init__(self):
         self._grid = {}
-        self._grid_func_names = ("occupancy", "LJr", "LJa", "electrostatic", "sasa", "water")  # calculate all grids
+        self._grid_func_names = ("occupancy", "electrostatic", "LJr", "LJa", "sasa", "water")  # calculate all grids
         # self._grid_func_names = ("occupancy", "LJr", "LJa", "sasa", "water")  # don't calculate electrostatic
         # self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
@@ -588,7 +588,7 @@ class LigGrid(Grid):
             raise RuntimeError("%s is unknown" % name)
 
     def _cal_charge_grid(self, name):
-
+        start_time = time.time()
         clash_radii = np.copy(self._prmtop["VDW_RADII"])
 
         clash_scale = {"C": 0.75, "CA++": 0.48, "CD": 0.75, "CD1": 0.73,
@@ -636,6 +636,8 @@ class LigGrid(Grid):
 
         upper_most_corner_crd = origin_crd + (grid_counts - 1.) * grid_spacing
         upper_most_corner = (grid_counts - 1)
+
+
         if name == "sasa":
            radii = np.copy(self._prmtop["VDW_RADII"]) + probe_size
            atom_selection_mask = np.ones(self._crd.shape[0], dtype=np.int32)
@@ -643,7 +645,7 @@ class LigGrid(Grid):
                                  radii.astype(np.float32), n_sphere_points, atom_selection_mask, self._grid["counts"], self._spacing[0])
         elif name == "water":
             radii = np.copy(self._prmtop["VDW_RADII"]) + probe_size
-            grid = py_cal_solvent_grid(self._crd, grid_x, grid_y, grid_z, origin_crd,
+            grid = py_cal_solvent_grid(self._crd[np.newaxis, :, :], grid_x, grid_y, grid_z, origin_crd,
                                        upper_most_corner_crd, grid_counts, radii)
         elif name == "occupancy":
             atom_list = []
@@ -655,20 +657,27 @@ class LigGrid(Grid):
                     atom_list.append(i)
                 # apply scaling factors to clash radii
             bonds = self._get_bond_list()
-            print(bonds)
             bonds = np.array(self._get_bond_list()).reshape(-1, self._crd.shape[1])
             combined_crd = np.concatenate((np.copy(self._crd[atom_list]), np.array(bonds)))
             combined_radii = np.concatenate((np.copy(clash_radii[atom_list]), np.ones(bonds.shape[0])))
 
-            grid = py_cal_solvent_grid(np.copy(self._crd[atom_list])[np.newaxis, :, :], grid_x, grid_y, grid_z, origin_crd,
+            grid = py_cal_solvent_grid(self._crd[atom_list][np.newaxis, :, :], self._grid["x"], self._grid["y"], self._grid["z"], origin_crd,
                                        upper_most_corner_crd, grid_counts, clash_radii[atom_list])
         else:
             charges = self._get_charges(name)
-            py_cal_charge_grid(
-                crd, charges, name, grid_x, grid_y, grid_z,
-                origin_crd, upper_most_corner_crd, upper_most_corner,
-                grid_spacing, self._eight_corner_shifts, self._six_corner_shifts
-            )
+            assert len(self._crd) > 0, "crd is empty"
+            assert len(charges) == len(self._crd), "charges and crd have different lengths"
+            assert isinstance(name, str) and len(name) > 0, "name is not a non-empty string"
+            assert len(origin_crd) == 3, "origin_crd does not have 3 elements"
+            assert len(upper_most_corner_crd) == 3, "upper_most_corner_crd does not have 3 elements"
+            assert len(upper_most_corner) == 3, "upper_most_corner does not have 3 elements"
+            assert len(grid_spacing) == 3, "grid_spacing does not have 3 elements"
+
+            grid = py_cal_charge_grid(
+                    self._crd, charges, name, grid_x, grid_y, grid_z,
+                    origin_crd, upper_most_corner_crd, upper_most_corner,
+                    grid_spacing, self._eight_corner_shifts, self._six_corner_shifts
+                 )
         print("--- %s calculated in %s seconds ---" % (name, time.time() - start_time))
         return grid
 
@@ -802,16 +811,15 @@ class LigGrid(Grid):
         :param grid_name: str
         :return: fft correlation function
         """
-        grid = self._cal_charge_grid("sasa")
+        grid = self._cal_charge_grid("sasa")[0]
         self._set_grid_key_value("sasa", grid)
         lsasa_fft = np.fft.fftn(self._grid["sasa"])
         self._set_grid_key_value("sasa", None)  # to save memory
         del grid
-        grid = self._cal_charge_grid("water")
+        grid = self._cal_charge_grid("water")[0]
         grid[grid > 0.] = 1.
         self._set_grid_key_value("water", grid)
         lwater_fft = np.fft.fftn(self._grid["water"])
-        # print(self._grid["water"].sum())
         self._set_grid_key_value("water", None)
         del grid
         lsasa_fft = lsasa_fft.conjugate()
@@ -884,27 +892,30 @@ class LigGrid(Grid):
         TODO
         """
         max_i, max_j, max_k = self._max_grid_indices
+
         corr_func = self._cal_corr_func("occupancy")
+
         self._free_of_clash = (corr_func < 0.001)
-        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j,
-                              0:max_k]  # exclude positions where ligand crosses border
+
+        self._free_of_clash = self._free_of_clash[0:max_i, 0:max_j, 0:max_k]
+
         print("Ligand positions excluding border crossers", self._free_of_clash.shape)
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
+        print(f"meaningful_energies shape: {self._meaningful_energies.shape}")
+
         if np.any(self._free_of_clash):
             grid_names = [name for name in self._grid_func_names if name not in ["occupancy", "water", "sasa"]]
-            print(grid_names)
             for name in grid_names:
                 self._meaningful_energies += self._cal_corr_func(name)
-            # Add in energy for buried surface area E=SA*GAMMA, SA = SC*SLOPE + B
+
             if "sasa" in self._grid_func_names:
                 bsa_energy = self._cal_delta_sasa_func(corr_func)
-                print("max dSASA:", bsa_energy.max(), bsa_energy[0:max_i, 0:max_j,
-                                                      0:max_k][self._free_of_clash].max())
+                # print("max dSASA:", bsa_energy[0:max_i, 0:max_j, 0:max_k][self._free_of_clash].max())
                 bsa_energy = bsa_energy * -GAMMA
                 self._meaningful_energies += bsa_energy
                 del bsa_energy
-        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j,
-                                    0:max_k]  # exclude positions where ligand crosses border
+
+        self._meaningful_energies = self._meaningful_energies[0:max_i, 0:max_j, 0:max_k]  # exclude positions where ligand crosses border
         # get crystal pose here, use i,j,k of crystal pose
         self._native_pose_energy = self._meaningful_energies[
             self._native_translation[0], self._native_translation[1], self._native_translation[2]]
@@ -931,7 +942,6 @@ class LigGrid(Grid):
         self._meaningful_energies = np.zeros(self._grid["counts"], dtype=float)
         if np.any(self._free_of_clash):
             grid_names = [name for name in self._grid_func_names if name not in ["occupancy", "water", "sasa"]]
-            print(grid_names)
             for name in grid_names:
                 grid_func_energy = self._cal_corr_func(name)
                 self._meaningful_energies += grid_func_energy
@@ -1474,7 +1484,6 @@ class RecGrid(Grid):
 
         # Calculate the total grid count
         total_grid_count = np.ceil((self._uper_most_corner_crd + spacing) / spacing)
-        print(total_grid_count)
 
         # Calculate the grid center
         grid_center = (self._origin_crd + self._uper_most_corner_crd) / 2.0
@@ -1835,7 +1844,7 @@ if __name__ == "__main__":
                         rec_inpcrd_file,
                         bsite_file,
                         grid_nc_file,
-                        new_calculation=False,
+                        new_calculation=True,
                         spacing=spacing,
                         extra_buffer=total_buffer,
                         radii_type="VDW_RADII")
@@ -1860,9 +1869,8 @@ if __name__ == "__main__":
     lig_grid = LigGrid(lig_prmtop_file, lj_sigma_scaling_factor,
                        lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
                        lig_inpcrd_file, rec_grid)
-    print(lig_grid._grid_func_names)
-    print(lig_grid._get_bond_list())
     lig_grid.cal_grids()
+
     print(lig_grid._cal_sasa_grid(1.4, 960).sum())
     # native_pose = lig_grid._native_translation
     # lig_grid.translate_ligand(native_pose*lig_grid._spacing[0])
@@ -1878,4 +1886,6 @@ if __name__ == "__main__":
     print("Receptor SASA", rec_grid._get_molecule_sasa(0.14, 960).sum())
     print("Ligand SASA", lig_grid._get_molecule_sasa(0.14, 960).sum())
     # print("Ligand SASA grid", lig_grid._grid["sasa"].sum())
+    grid1 = lig_grid._cal_charge_grid("LJr")
+    grid2 = lig_grid._cal_charge_grid_old("LJr")
 

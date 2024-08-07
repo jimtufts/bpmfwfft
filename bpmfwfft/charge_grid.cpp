@@ -30,14 +30,9 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
     const std::vector<double>& upper_most_corner_crd,
     const std::vector<int64_t>& grid_counts,
     const std::vector<double>& vdw_radii) {
-    
-    print_omp_info();
-    printf("Starting cal_solvent_grid\n");
-    printf("crd size: %zu\n", crd.size());
-    printf("grid_x size: %zu\n", grid_x.size());
 
-    if (crd.empty() || grid_x.empty() || grid_y.empty() || grid_z.empty() || 
-        origin_crd.size() != 3 || upper_most_corner_crd.size() != 3 || 
+    if (crd.empty() || grid_x.empty() || grid_y.empty() || grid_z.empty() ||
+        origin_crd.size() != 3 || upper_most_corner_crd.size() != 3 ||
         grid_counts.size() != 3 || vdw_radii.size() != crd.size()) {
         throw std::runtime_error("Invalid input parameters");
     }
@@ -46,8 +41,6 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
     int j_max = grid_counts[1];
     int k_max = grid_counts[2];
 
-    printf("Grid dimensions: %d x %d x %d\n", i_max, j_max, k_max);
-
     std::vector<std::vector<std::vector<double>>> grid(i_max, std::vector<std::vector<double>>(j_max, std::vector<double>(k_max, 0.0)));
 
     std::vector<double> spacing(3);
@@ -55,12 +48,9 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
         spacing[i] = (upper_most_corner_crd[i] - origin_crd[i]) / (grid_counts[i] - 1);
     }
 
-    printf("Processing atoms\n");
     #ifdef _OPENMP
     #pragma omp parallel
     {
-        #pragma omp single
-        std::cout << "Number of threads: " << omp_get_num_threads() << std::endl;        
         std::vector<std::vector<std::vector<double>>> local_grid(i_max, std::vector<std::vector<double>>(j_max, std::vector<double>(k_max, 0.0)));
 
         #pragma omp for schedule(dynamic)
@@ -115,7 +105,6 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
         }
     #endif
 
-    printf("cal_solvent_grid completed\n");
     return grid;
 }
 
@@ -200,17 +189,19 @@ std::vector<std::vector<std::vector<double>>> cal_charge_grid(
     const std::vector<std::vector<int64_t>>& eight_corner_shifts,
     const std::vector<std::vector<int64_t>>& six_corner_shifts) {
 
-    if (crd.empty() || charges.empty() || name.empty() ||
-        grid_x.empty() || grid_y.empty() || grid_z.empty() ||
-        origin_crd.size() != 3 || upper_most_corner_crd.size() != 3 ||
-        upper_most_corner.size() != 3 || spacing.size() != 3 ||
-        crd.size() != charges.size() || crd.size() != name.size()) {
-        throw std::runtime_error("Invalid input parameters");
-    }
+    if (crd.empty()) throw std::runtime_error("crd is empty");
+    if (charges.empty()) throw std::runtime_error("charges is empty");
+    if (name.empty()) throw std::runtime_error("name is empty");
+    if (grid_x.empty() || grid_y.empty() || grid_z.empty()) throw std::runtime_error("grid_x, grid_y, or grid_z is empty");
+    if (origin_crd.size() != 3) throw std::runtime_error("origin_crd does not have 3 elements");
+    if (upper_most_corner_crd.size() != 3) throw std::runtime_error("upper_most_corner_crd does not have 3 elements");
+    if (upper_most_corner.size() != 3) throw std::runtime_error("upper_most_corner does not have 3 elements");
+    if (spacing.size() != 3) throw std::runtime_error("spacing does not have 3 elements");
+    if (crd.size() != charges.size()) throw std::runtime_error("crd and charges have different sizes");
 
-    int64_t i_max = upper_most_corner[0];
-    int64_t j_max = upper_most_corner[1];
-    int64_t k_max = upper_most_corner[2];
+    int64_t i_max = upper_most_corner[0]+1;
+    int64_t j_max = upper_most_corner[1]+1;
+    int64_t k_max = upper_most_corner[2]+1;
 
     std::vector<std::vector<std::vector<double>>> grid(i_max,
         std::vector<std::vector<double>>(j_max,
@@ -516,7 +507,12 @@ std::vector<std::vector<int64_t>> get_ten_corners(
         eight_corner_shifts, grid_x, grid_y, grid_z);
     
     if (eight_corners.empty()) {
-        throw std::runtime_error("Atom is outside the grid");
+        std::stringstream ss;
+        ss << "Atom at (" << atom_coordinate[0] << ", " << atom_coordinate[1] << ", " << atom_coordinate[2]
+           << ") is outside the grid. Grid bounds: ("
+           << origin_crd[0] << ", " << origin_crd[1] << ", " << origin_crd[2] << ") to ("
+           << upper_most_corner_crd[0] << ", " << upper_most_corner_crd[1] << ", " << upper_most_corner_crd[2] << ")";
+        throw std::runtime_error(ss.str());
     }
     
     const auto& nearest_corner = eight_corners[nearest_ind];
