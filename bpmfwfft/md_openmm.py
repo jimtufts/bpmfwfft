@@ -280,7 +280,7 @@ def openmm_energy(prmtop_file, crd, phase, getComponents=False):
     system = prmtop.createSystem(nonbondedMethod=openmm.app.NoCutoff,
                                  constraints=None, implicitSolvent=selected_solvent)
     dummy_integrator = openmm.VerletIntegrator(0.002*openmm.unit.picoseconds)
-    simulation = openmm.app.Simulation(prmtop.topology, system, dummy_integrator)
+    simulation = openmm.app.Simulation(prmtop.topology, system, dummy_integrator, platform="CUDA")
     
     pot_energies = []
     for conf in crd_ensemble:

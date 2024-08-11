@@ -107,7 +107,9 @@ class PostProcess(object):
         self._nc_handle = netCDF4.Dataset(sampling_nc_file, "r")
         self._check_number_resampled_energy(nr_resampled_complexes)
         self._resampled_energy_shape = self._nc_handle.variables[e_string][start:end].shape
-        print(f"Using {end-start} energies from index {start} to {end}")
+        if end != None:
+            print(f"Using {end-start} energies from index {start} to {end}")
+
         self._estimate_gas_bpmf()
         if self._no_sample:
             self._cal_rec_desolv_no_sample()
