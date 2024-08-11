@@ -4,11 +4,17 @@ import os
 import re
 import concurrent.futures
 import time
+import multiprocessing
 
 import numpy as np
 import netCDF4
 from mdtraj.geometry import _geometry
 from mdtraj.geometry.sasa import _ATOMIC_RADII
+import pyfftw.interfaces.numpy_fft as fftw
+import pyfftw
+
+omp_num_threads = int(os.environ.get('OMP_NUM_THREADS', multiprocessing.cpu_count()))
+pyfftw.config.NUM_THREADS = omp_num_threads
 
 try:
     from bpmfwfft import IO
@@ -798,11 +804,11 @@ class LigGrid(Grid):
         assert grid_name in self._grid_func_names, "%s is not an allowed grid name" % grid_name
         corr_func = self._cal_charge_grid(grid_name)
         self._set_grid_key_value(grid_name, corr_func)
-        corr_func = np.fft.fftn(self._grid[grid_name])
+        corr_func = fftw.fftn(self._grid[grid_name])
         self._set_grid_key_value(grid_name, None)  # to save memory
 
         corr_func = corr_func.conjugate()
-        corr_func = np.fft.ifftn(self._rec_FFTs[grid_name] * corr_func)
+        corr_func = fftw.ifftn(self._rec_FFTs[grid_name] * corr_func)
         corr_func = np.real(corr_func)
         return corr_func
 
@@ -813,18 +819,18 @@ class LigGrid(Grid):
         """
         grid = self._cal_charge_grid("sasa")[0]
         self._set_grid_key_value("sasa", grid)
-        lsasa_fft = np.fft.fftn(self._grid["sasa"])
+        lsasa_fft = fftw.fftn(self._grid["sasa"])
         self._set_grid_key_value("sasa", None)  # to save memory
         del grid
         grid = self._cal_charge_grid("water")[0]
         grid[grid > 0.] = 1.
         self._set_grid_key_value("water", grid)
-        lwater_fft = np.fft.fftn(self._grid["water"])
+        lwater_fft = fftw.fftn(self._grid["water"])
         self._set_grid_key_value("water", None)
         del grid
         lsasa_fft = lsasa_fft.conjugate()
         lwater_fft = lwater_fft.conjugate()
-        dsasa_score = np.fft.ifftn(self._rec_FFTs["sasa"] * lwater_fft).real + np.fft.ifftn(
+        dsasa_score = fftw.ifftn(self._rec_FFTs["sasa"] * lwater_fft).real + fftw.ifftn(
             self._rec_FFTs["water"] * lsasa_fft).real
         max_i, max_j, max_k = self._max_grid_indices
         # dsasa_score = dsasa_score[0:max_i,0:max_j,0:max_k]
@@ -845,14 +851,14 @@ class LigGrid(Grid):
 
         # self._set_grid_key_value(grid_name, lig_sasa_grid)
         # crucially takes the conjugate of the complex ligand grid BEFORE FFT
-        corr_func = np.fft.fftn(lig_sasa_grid.conjugate())
+        corr_func = fftw.fftn(lig_sasa_grid.conjugate())
         # self._set_grid_key_value(grid_name, None)           # to save memory
 
         rec_sasa_grid = self._rec_FFTs["SASA"]
 
-        rec_sasa_fft = np.fft.fftn(rec_sasa_grid)
+        rec_sasa_fft = fftw.fftn(rec_sasa_grid)
 
-        corr_func = np.fft.ifftn(rec_sasa_fft * corr_func.conjugate())  # * (1/(np.prod(counts)))
+        corr_func = fftw.ifftn(rec_sasa_fft * corr_func.conjugate())  # * (1/(np.prod(counts)))
         corr_func = np.real(np.real(corr_func) - np.imag(corr_func))
         # self._shape_complementarity_func = corr_func
         return corr_func
@@ -861,7 +867,7 @@ class LigGrid(Grid):
         assert grid_name in self._grid_func_names, "%s is not an allowed grid name" % grid_name
         grid = self._cal_charge_grid(grid_name)
         self._set_grid_key_value(grid_name, grid)
-        forward_fft = np.fft.fftn(self._grid[grid_name])
+        forward_fft = fftw.fftn(self._grid[grid_name])
         self._set_grid_key_value(grid_name, None)  # to save memory
         return forward_fft
 
@@ -880,7 +886,7 @@ class LigGrid(Grid):
             forward_fft = self._do_forward_fft(grid_name)
             corr_func += self._rec_FFTs[grid_name] * forward_fft.conjugate()
 
-        corr_func = np.fft.ifftn(corr_func)
+        corr_func = fftw.ifftn(corr_func)
         corr_func = np.real(corr_func)
         return corr_func
 
@@ -1346,9 +1352,9 @@ class RecGrid(Grid):
         if name == "water":
             grid = self._grid[name]
             grid[grid > 0] = 1.
-            FFT = np.fft.fftn(grid)
+            FFT = fftw.fftn(grid)
         else:
-            FFT = np.fft.fftn(self._grid[name])
+            FFT = fftw.fftn(self._grid[name])
         return FFT
 
     def _cal_SASA_FFT(self):
@@ -1356,7 +1362,7 @@ class RecGrid(Grid):
         sasai_grid = self._grid["SASAi"]
         sasar_grid = self._grid["SASAr"]
         sasa_grid = np.add(sasar_grid, sasai_grid * 1.j)
-        FFT = np.fft.fftn(sasa_grid)
+        FFT = fftw.fftn(sasa_grid)
         return FFT
 
     def _write_to_nc(self, nc_handle, key, value):
@@ -1808,7 +1814,7 @@ class RecGrid(Grid):
 
 if __name__ == "__main__":
     # do some test
-    test_dir = "/home/jtufts/Desktop"
+    test_dir = "/mnt/fft"
     # rec_prmtop_file = "../examples/amber/ubiquitin_ligase/receptor.prmtop"
     # rec_inpcrd_file = "../examples/amber/ubiquitin_ligase/receptor.inpcrd"
     # grid_nc_file = "../examples/grid/ubiquitin_ligase/grid.nc"
@@ -1822,7 +1828,7 @@ if __name__ == "__main__":
     lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
-    spacing = 0.5
+    spacing = 0.25
     rec_core_scaling = 0.760000
     rec_surface_scaling = 0.530000
     rec_metal_scaling = 0.550000

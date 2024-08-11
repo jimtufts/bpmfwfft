@@ -7,6 +7,8 @@ from __future__ import print_function
 import numpy as np
 import netCDF4
 import os
+import time
+import multiprocessing
 
 try:
     from bpmfwfft.grids import RecGrid
@@ -18,6 +20,7 @@ except:
 
 KB = 0.001987204134799235  # kcal/mol*K
 
+omp_num_threads = int(os.environ.get('OMP_NUM_THREADS', multiprocessing.cpu_count()))
 
 class Sampling(object):
     def __init__(self, rec_prmtop, lj_sigma_scal_fact,
@@ -286,7 +289,8 @@ class Sampling(object):
                 self._save_sub_data_to_nc(name, step)
 
     def _do_fft(self, step):
-        print(f"Doing FFT for step {self._start_index + step}")
+        start_time_fft = time.time()
+        print(f"Doing FFT for step {self._start_index + step}, with {omp_num_threads} threads")
         lig_conf = self._lig_coord_ensemble[step]
         self._lig_grid._place_ligand_crd_in_grid(molecular_coord=lig_conf)
         self._cal_free_of_clash()
@@ -339,6 +343,8 @@ class Sampling(object):
         self._resampled_trans_vectors = np.array(self._resampled_trans_vectors, dtype=int)
 
         self._save_data_to_nc(step)
+
+        print(f"--- FFT step {step} calculated in {(time.time() - start_time_fft)} seconds ---", flush=True)
 
         return None
 
@@ -578,12 +584,12 @@ if __name__ == "__main__":
     # output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
     ligand_md_trj_file = f"{test_dir}/FFT_PPI/2.redock/3.ligand_rand_rot/2OOB_A:B/rotation.nc"
-    # if os.path.exists(output_nc):
-    #     rot_index = netCDF4.Dataset(output_nc, "r").variables["current_rotation_index"][0]
-    # else:
-    #     rot_index = 0
+    if os.path.exists(output_nc):
+        rot_index = netCDF4.Dataset(output_nc, "r").variables["current_rotation_index"][0]
+    else:
+        rot_index = 0
     # uncomment this to start over
-    rot_index = 0
+    # rot_index = 0
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][rot_index : rot_index + 1]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
