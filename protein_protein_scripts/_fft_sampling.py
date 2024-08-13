@@ -65,31 +65,36 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
     return None
 
 
-def is_sampling_nc_good(nc_file, nr_extracted_lig_conf):
+def is_sampling_nc_good(nc_file, rotation_nc_file, nr_expected_lig_conf):
     if not os.path.exists(nc_file):
-        print(f"{nc_file} doesn't exist")
+        print(f"Error: {nc_file} doesn't exist")
+        return False
+
+    if not os.path.exists(rotation_nc_file):
+        print(f"Error: {rotation_nc_file} doesn't exist")
         return False
 
     try:
-        nc_handle = netCDF4.Dataset(nc_file, "r")
-    except RuntimeError as e:
-        print(nc_file)
-        print(e)
-        return True
-    else:
-        pass
-    cond1 = nc_handle.variables["lig_positions"][:].shape[0] == nr_extracted_lig_conf
-    if not cond1:
-        print(f"cond1 is false, lig_positions doesn't match {nr_extracted_lig_conf}")
-        return False
-    lig_pos_type = type(nc_handle.variables["lig_positions"][:])
-    lig_pos_0 = nc_handle.variables["lig_positions"][:][0][0]
-    cond2 = lig_pos_type == np.ndarray
-    if not cond2:
-        print(f"lig_positions: {lig_pos_type} is not an ndarray, cond2 failed.")
-        return True 
+        with netCDF4.Dataset(nc_file, "r") as nc_handle, \
+                netCDF4.Dataset(rotation_nc_file, "r") as rotation_nc_handle:
 
-    return True
+            lig_positions = nc_handle.variables["lig_positions"][:]
+            rotation_positions = rotation_nc_handle.variables["positions"][:]
+
+            if lig_positions.shape[0] < rotation_positions.shape[0]:
+                print(f"Error: Number of ligand positions ({lig_positions.shape[0]}) "
+                      f"is less than number of rotation positions ({rotation_positions.shape[0]})")
+                return False
+
+            return True  # All checks passed
+
+    except Exception as e:
+        print(f"Error opening or reading NC files: {str(e)}")
+        return False
+
+    except Exception as e:
+        print(f"Error opening or reading {nc_file}: {str(e)}")
+        return False
 
 
 def parse_nr_ligand_confs(submit_file):

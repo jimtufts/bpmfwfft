@@ -102,7 +102,7 @@ if args.pbs:
 
     pwd = os.getcwd()
     complex_names = [c for c in complex_names if not is_sampling_nc_good(
-        os.path.join(pwd, c, FFT_SAMPLING_NC), args.nr_lig_conf)]
+        os.path.join(pwd, c, FFT_SAMPLING_NC), os.path.join(out_dir, c, LIG_COOR_NC))]
 
     if args.max_jobs > 0:
         max_jobs = args.max_jobs
@@ -197,7 +197,7 @@ elif args.slurm:
 
     pwd = os.getcwd()
     complex_names = [c for c in complex_names if not is_sampling_nc_good(
-        os.path.join(out_dir, c, FFT_SAMPLING_NC), args.nr_lig_conf)]
+        os.path.join(out_dir, c, FFT_SAMPLING_NC), os.path.join(out_dir, c, LIG_COOR_NC))]
 
     if args.max_jobs > 0:
         max_jobs = args.max_jobs

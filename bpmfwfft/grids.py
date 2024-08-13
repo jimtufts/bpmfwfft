@@ -1617,7 +1617,8 @@ class RecGrid(Grid):
                     atom_list.append(i)
             else:
                 atom_list.append(i)
-        bond_list = self._get_bond_list()
+        # bond_list = self._get_bond_list()
+        bond_list = [] # temporarily disable bond list to match old behavior.
         if platform == 'CPU':
             task_divisor = 16
             for name in self._grid_func_names:
