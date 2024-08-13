@@ -56,10 +56,7 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
 
         sampler.run_sampling()
         if start_index + nr_lig_conf >= total_rotations:
-            with open(output_dir+"DONE") as done_file:
-                print("All rotations completed")
-                done_file.write("Sampling Done")
-        print("Sampling Done")
+            print("Sampling Done")
     else:
         print("Sampling Done")
     return None
