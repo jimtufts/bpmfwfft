@@ -62,7 +62,7 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
     return None
 
 
-def is_sampling_nc_good(nc_file, rotation_nc_file, nr_expected_lig_conf):
+def is_sampling_nc_good(nc_file, rotation_nc_file):
     if not os.path.exists(nc_file):
         print(f"Error: {nc_file} doesn't exist")
         return False
@@ -79,11 +79,11 @@ def is_sampling_nc_good(nc_file, rotation_nc_file, nr_expected_lig_conf):
             rotation_positions = rotation_nc_handle.variables["positions"][:]
 
             if lig_positions.shape[0] < rotation_positions.shape[0]:
-                print(f"Error: Number of ligand positions ({lig_positions.shape[0]}) "
-                      f"is less than number of rotation positions ({rotation_positions.shape[0]})")
+                print(f"Current completed rotations: ({lig_positions.shape[0]}) "
+                      f"is less than number of precalculated rotation positions: ({rotation_positions.shape[0]})")
                 return False
 
-            return True  # All checks passed
+            return True
 
     except Exception as e:
         print(f"Error opening or reading NC files: {str(e)}")
