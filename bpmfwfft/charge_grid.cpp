@@ -51,7 +51,7 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
     #ifdef _OPENMP
     #pragma omp parallel
     {
-        std::vector<std::vector<std::vector<double>>> local_grid(i_max, std::vector<std::vector<double>>(j_max, std::vector<double>(k_max, 0.0)));
+        std::vector<std::vector<std::vector<bool>>> local_grid(i_max, std::vector<std::vector<bool>>(j_max, std::vector<bool>(k_max, false)));
 
         #pragma omp for schedule(dynamic)
         for (size_t atom_ind = 0; atom_ind < crd.size(); ++atom_ind) {
@@ -68,7 +68,7 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
                 int j = corner[1];
                 int k = corner[2];
                 if (i >= 0 && i < i_max && j >= 0 && j < j_max && k >= 0 && k < k_max) {
-                    local_grid[i][j][k] += 1.0;
+                    local_grid[i][j][k] = true;
                 }
             }
         }
@@ -78,31 +78,33 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
             for (int i = 0; i < i_max; ++i) {
                 for (int j = 0; j < j_max; ++j) {
                     for (int k = 0; k < k_max; ++k) {
-                        grid[i][j][k] += local_grid[i][j][k];
+                        if (local_grid[i][j][k]) {
+                            grid[i][j][k] = 1.0;
+                        }
                     }
                 }
             }
         }
     }
     #else
-        for (size_t atom_ind = 0; atom_ind < crd.size(); ++atom_ind) {
-            const std::vector<double>& atom_coordinate = crd[atom_ind];
-            double lj_diameter = vdw_radii[atom_ind];
+    for (size_t atom_ind = 0; atom_ind < crd.size(); ++atom_ind) {
+        const std::vector<double>& atom_coordinate = crd[atom_ind];
+        double lj_diameter = vdw_radii[atom_ind];
 
-            double surface_layer = lj_diameter + 1.4;
-            auto corners = corners_within_radius(atom_coordinate, surface_layer, origin_crd,
-                                                 upper_most_corner_crd, grid_counts,
-                                                 spacing, grid_x, grid_y, grid_z);
+        double surface_layer = lj_diameter + 1.4;
+        auto corners = corners_within_radius(atom_coordinate, surface_layer, origin_crd,
+                                             upper_most_corner_crd, grid_counts,
+                                             spacing, grid_x, grid_y, grid_z);
 
-            for (const auto& corner : corners) {
-                int i = corner[0];
-                int j = corner[1];
-                int k = corner[2];
-                if (i >= 0 && i < i_max && j >= 0 && j < j_max && k >= 0 && k < k_max) {
-                    grid[i][j][k] += 1.0;
-                }
+        for (const auto& corner : corners) {
+            int i = corner[0];
+            int j = corner[1];
+            int k = corner[2];
+            if (i >= 0 && i < i_max && j >= 0 && j < j_max && k >= 0 && k < k_max) {
+                grid[i][j][k] = 1.0;
             }
         }
+    }
     #endif
 
     return grid;

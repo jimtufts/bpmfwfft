@@ -589,7 +589,7 @@ if __name__ == "__main__":
     else:
         rot_index = 0
     # uncomment this to start over
-    # rot_index = 0
+    rot_index = 0
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][rot_index : rot_index + 1]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,

@@ -1829,7 +1829,7 @@ if __name__ == "__main__":
     lj_sigma_scaling_factor = 1.0
     # bsite_file = "../examples/amber/t4_lysozyme/measured_binding_site.py"
     bsite_file = None
-    spacing = 0.25
+    spacing = 0.5
     rec_core_scaling = 0.760000
     rec_surface_scaling = 0.530000
     rec_metal_scaling = 0.550000
