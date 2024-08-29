@@ -651,6 +651,7 @@ class LigGrid(Grid):
                                  radii.astype(np.float32), n_sphere_points, atom_selection_mask, self._grid["counts"], self._spacing[0])
         elif name == "water":
             radii = np.copy(self._prmtop["VDW_RADII"]) + probe_size
+            print(radii)
             grid = py_cal_solvent_grid(self._crd[np.newaxis, :, :], grid_x, grid_y, grid_z, origin_crd,
                                        upper_most_corner_crd, grid_counts, radii)
         elif name == "occupancy":
@@ -661,12 +662,11 @@ class LigGrid(Grid):
                         atom_list.append(i)
                 else:
                     atom_list.append(i)
-                # apply scaling factors to clash radii
             bonds = self._get_bond_list()
             bonds = np.array(self._get_bond_list()).reshape(-1, self._crd.shape[1])
             combined_crd = np.concatenate((np.copy(self._crd[atom_list]), np.array(bonds)))
             combined_radii = np.concatenate((np.copy(clash_radii[atom_list]), np.ones(bonds.shape[0])))
-
+            print(clash_radii)
             grid = py_cal_solvent_grid(self._crd[atom_list][np.newaxis, :, :], self._grid["x"], self._grid["y"], self._grid["z"], origin_crd,
                                        upper_most_corner_crd, grid_counts, clash_radii[atom_list])
         else:
@@ -764,6 +764,7 @@ class LigGrid(Grid):
                         else:
                             atom_list.append(i)
                     bond_list = self._get_bond_list()
+                    print(clash_radii)
                     futures_array.append(executor.submit(
                         process_charge_grid_function,
                         name,
@@ -1894,6 +1895,10 @@ if __name__ == "__main__":
     print("Receptor SASA", rec_grid._get_molecule_sasa(0.14, 960).sum())
     print("Ligand SASA", lig_grid._get_molecule_sasa(0.14, 960).sum())
     # print("Ligand SASA grid", lig_grid._grid["sasa"].sum())
-    grid1 = lig_grid._cal_charge_grid("LJr")
-    grid2 = lig_grid._cal_charge_grid_old("LJr")
+    grid1 = lig_grid._cal_charge_grid("occupancy")
+    grid2 = lig_grid._cal_charge_grid_old("occupancy")
+    print(grid1.max(), grid2.max())
+    grid1 = lig_grid._cal_charge_grid("occupancy")
+    grid2 = lig_grid._cal_charge_grid_old("occupancy")
+    print(grid1.max(), grid2.max())
 
