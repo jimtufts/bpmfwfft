@@ -58,7 +58,6 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
             const std::vector<double>& atom_coordinate = crd[atom_ind];
             double lj_diameter = vdw_radii[atom_ind];
 
-            // double surface_layer = lj_diameter + 1.4;
             auto corners = corners_within_radius(atom_coordinate, lj_diameter, origin_crd,
                                                  upper_most_corner_crd, grid_counts,
                                                  spacing, grid_x, grid_y, grid_z);
@@ -91,7 +90,6 @@ std::vector<std::vector<std::vector<double>>> cal_solvent_grid(
         const std::vector<double>& atom_coordinate = crd[atom_ind];
         double lj_diameter = vdw_radii[atom_ind];
 
-//        double surface_layer = lj_diameter + 1.4;
         auto corners = corners_within_radius(atom_coordinate, lj_diameter, origin_crd,
                                              upper_most_corner_crd, grid_counts,
                                              spacing, grid_x, grid_y, grid_z);
