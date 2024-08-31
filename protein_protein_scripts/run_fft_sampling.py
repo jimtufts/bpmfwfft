@@ -37,15 +37,7 @@ parser.add_argument("--lc_scale",                      type=float, default=0.81)
 parser.add_argument("--ls_scale",                      type=float, default=0.50)
 parser.add_argument("--lm_scale",                      type=float, default=0.54)
 parser.add_argument("--rho",                           type=float, default=9.0)
-
-def valid_time(time_str):
-    try:
-        datetime.datetime.strptime(time_str, "%H:%M:%S")
-        return time_str
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"Invalid time format: {time_str}. Expected HH:MM:SS")
-
-parser.add_argument("--walltime",                      type=valid_time, default="24:00:00")
+parser.add_argument("--walltime",                      type=str, default="24:00:00")
 parser.add_argument("--pbs",   action="store_true", default=False)
 parser.add_argument("--slurm",   action="store_true", default=False)
 args = parser.parse_args()
