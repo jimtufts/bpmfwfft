@@ -9,14 +9,22 @@ import urllib
 
 from _affinity_data import AffinityData
 
-AFFINITY_DATA_FILES = ["affinity_v1.tsv",  "affinity_v2.tsv"]
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--affinity_data_dir", type=str, default="affinity")
+parser.add_argument("--benchmark", type=str, default="affinity")
 
 args = parser.parse_args()
 
-PDB_URL = "http://www.rcsb.org/pdb/files"
+benchmark = args.benchmark
+
+if benchmark == "docking":
+    AFFINITY_DATA_FILES = ["docking_v5.tsv"]
+else:
+    AFFINITY_DATA_FILES = ["affinity_v1.tsv",  "affinity_v2.tsv"]
+
+PDB_URL = "https://files.rcsb.org/download"
 NOT_AVAIL_MESSAGE = "the requested file is not available"
 
 
@@ -24,7 +32,7 @@ def download_coord(id):
     """
     download pdb with id and save it with id.pdb (lower case)
     """
-    pdb_file = id.lower() + ".pdb"
+    pdb_file = id.upper() + ".pdb"
     url = os.path.join(PDB_URL, pdb_file)
     data = urllib.urlopen(url).read()
     if NOT_AVAIL_MESSAGE in data:
