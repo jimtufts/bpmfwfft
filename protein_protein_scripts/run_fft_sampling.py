@@ -37,6 +37,7 @@ parser.add_argument("--lc_scale",                      type=float, default=0.81)
 parser.add_argument("--ls_scale",                      type=float, default=0.50)
 parser.add_argument("--lm_scale",                      type=float, default=0.54)
 parser.add_argument("--rho",                           type=float, default=9.0)
+parser.add_argument("--walltime",                      type=str, default="24:00:00")
 parser.add_argument("--pbs",   action="store_true", default=False)
 parser.add_argument("--slurm",   action="store_true", default=False)
 args = parser.parse_args()
@@ -52,7 +53,6 @@ LIG_COOR_NC = "rotation.nc"
 # GRID_NC = "all_grid_noH.nc"
 GRID_NC = args.grid_name
 FFT_SAMPLING_NC = args.result_name
-
 
 def is_running_slurm(idx, out_dir):
     # if os.path.exists(qsub_file) and os.path.exists(nc_file) and (not os.path.exists(log_file)):
@@ -102,7 +102,7 @@ if args.pbs:
 
     pwd = os.getcwd()
     complex_names = [c for c in complex_names if not is_sampling_nc_good(
-        os.path.join(pwd, c, FFT_SAMPLING_NC), args.nr_lig_conf)]
+        os.path.join(pwd, c, FFT_SAMPLING_NC), os.path.join(lig_ensemble_dir, c, LIG_COOR_NC))]
 
     if args.max_jobs > 0:
         max_jobs = args.max_jobs
@@ -131,7 +131,7 @@ if args.pbs:
 #PBS -S /bin/bash
 #PBS -o {log_file}
 #PBS -j oe
-#PBS -l nodes=1:ppn=3,walltime=300:00:00,mem=16gb
+#PBS -l nodes=1:ppn=3,walltime={args.walltime},mem=16gb
 
 source /home/jtufts/opt/module/anaconda.sh
 date
@@ -197,7 +197,7 @@ elif args.slurm:
 
     pwd = os.getcwd()
     complex_names = [c for c in complex_names if not is_sampling_nc_good(
-        os.path.join(pwd, c, FFT_SAMPLING_NC), args.nr_lig_conf)]
+        os.path.join(out_dir, c, FFT_SAMPLING_NC), os.path.join(lig_ensemble_dir, c, LIG_COOR_NC))]
 
     if args.max_jobs > 0:
         max_jobs = args.max_jobs
@@ -238,7 +238,7 @@ elif args.slurm:
 #SBATCH --mem={int(memory_amt)}M
 #SBATCH --account=iit103
 #SBATCH --export=ALL
-#SBATCH -t 48:00:00
+#SBATCH -t {args.walltime}
 #SBATCH --constraint="lustre"
 module purge 
 module load cpu
@@ -293,6 +293,7 @@ echo "File copied to $source_file from $destination_directory" \n'''
             open(qsub_file, "w").write(qsub_script)
             os.system("sbatch %s" % qsub_file)
             job_count += 1
+
             if job_count == max_jobs:
                 print("Max number of jobs %d reached." % job_count)
                 break

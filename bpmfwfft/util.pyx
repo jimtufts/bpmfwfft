@@ -1,4 +1,4 @@
-
+# cython: language_level=2
 cimport cython
 import numpy as np
 cimport numpy as np
@@ -749,41 +749,36 @@ def c_cal_potential_grid_pp(   str name,
     return grid
 
 @cython.boundscheck(False)
-def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
-                            np.ndarray[np.float64_t, ndim=1] atom_radii,
-                            np.ndarray[np.float64_t, ndim=1] spacing,
-                            np.ndarray[np.float64_t, ndim=2] sphere_points,
-                            int n_sphere_points,
-                            int natoms_i,
-                            int atomind
-                            ):
+@cython.wraparound(False)
+@cython.cdivision(True)
+def c_asa_frame(double[:, ::1] crd,
+                double[::1] atom_radii,
+                double[::1] spacing,
+                double[:, ::1] sphere_points,
+                int n_sphere_points,
+                int natoms_i,
+                int atomind):
 
     cdef:
         Py_ssize_t i, j, k, index
         int natoms = crd.shape[0]
         Py_ssize_t n_neighbor_indices, k_closest_neighbor, k_prime
-        float atom_radius_i, atom_radius_j
-        float radius_cutoff, radius_cutoff2, r2, r
-        float constant = 4.0 * np.pi / n_sphere_points
+        double atom_radius_i, atom_radius_j
+        double radius_cutoff, radius_cutoff2, r2, r
+        double constant = 4.0 * M_PI / n_sphere_points
         bint is_accessible
-        double[:,:] crd_view = crd
-        np.ndarray[np.int64_t, ndim=1] grid_crd = np.empty(3, dtype=np.int64)
-        np.ndarray[np.float64_t, ndim=1] sphere_point_coordinate
-        np.ndarray[np.float64_t, ndim=1] r_i = np.zeros([3], dtype=np.float64)
-        np.ndarray[np.float64_t, ndim=1] r_j = np.zeros([3], dtype=np.float64)
-        np.ndarray[np.float64_t, ndim=1] r_ij = np.zeros([3], dtype=np.float64)
-        np.ndarray[np.float64_t, ndim=1] r_jk = np.zeros([3], dtype=np.float64)
-        double[:] r_iv = r_i
-        double[:] r_jv = r_j
-        double[:] r_ijv = r_ij
-        double[:] r_jkv = r_jk
-        np.ndarray[np.int64_t, ndim = 1] neighbor_indices = np.empty(natoms, dtype=np.int64)
-        np.ndarray[np.float64_t, ndim = 3] centered_sphere_points = np.zeros([natoms,n_sphere_points, 3], dtype=np.float64)
-        np.ndarray[np.float64_t, ndim = 3] accessible_sphere_points = np.zeros([natoms_i, n_sphere_points, 4], dtype=np.float64)
+        double[3] r_i, r_j, r_ij, r_jk
+        Py_ssize_t[3] grid_crd
+        double[3] sphere_point_coordinate
+        Py_ssize_t[::1] neighbor_indices = np.empty(natoms, dtype=np.intp)
+        double[:, :, ::1] centered_sphere_points = np.zeros((natoms, n_sphere_points, 3), dtype=np.float64)
+        double[:, :, ::1] accessible_sphere_points = np.zeros((natoms_i, n_sphere_points, 4), dtype=np.float64)
 
-    for i in range(natoms)[atomind:atomind+natoms_i]:
+    for i in range(atomind, atomind + natoms_i):
         atom_radius_i = atom_radii[i]
-        r_iv = crd_view[i]
+        r_i[0] = crd[i, 0]
+        r_i[1] = crd[i, 1]
+        r_i[2] = crd[i, 2]
 
         # Get all the atoms close to atom i
         n_neighbor_indices = 0
@@ -791,18 +786,18 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
             if i == j:
                 continue
 
-            r_jv[0] = crd_view[j][0]
-            r_jv[1] = crd_view[j][1]
-            r_jv[2] = crd_view[j][2]
-            r_ijv[0] = r_iv[0]-r_jv[0]
-            r_ijv[1] = r_iv[1]-r_jv[1]
-            r_ijv[2] = r_iv[2]-r_jv[2]
+            r_j[0] = crd[j, 0]
+            r_j[1] = crd[j, 1]
+            r_j[2] = crd[j, 2]
+            r_ij[0] = r_i[0] - r_j[0]
+            r_ij[1] = r_i[1] - r_j[1]
+            r_ij[2] = r_i[2] - r_j[2]
             atom_radius_j = atom_radii[j]
 
             # look for atoms j around atom i
-            radius_cutoff = atom_radius_i+atom_radius_j
-            radius_cutoff2 = radius_cutoff*radius_cutoff
-            r2 = cdot(r_ijv, r_ijv)
+            radius_cutoff = atom_radius_i + atom_radius_j
+            radius_cutoff2 = radius_cutoff * radius_cutoff
+            r2 = r_ij[0] * r_ij[0] + r_ij[1] * r_ij[1] + r_ij[2] * r_ij[2]
 
             if r2 < radius_cutoff2:
                 neighbor_indices[n_neighbor_indices] = j
@@ -810,11 +805,12 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
             if r2 < 1e-10:
                 print("This code is known to fail when atoms are too close")
                 break
+
         # Center the sphere points on atom i
         for j in range(n_sphere_points):
-            centered_sphere_points[i, j, 0] = crd_view[i, 0] + atom_radius_i*sphere_points[j, 0]
-            centered_sphere_points[i, j, 1] = crd_view[i, 1] + atom_radius_i*sphere_points[j, 1]
-            centered_sphere_points[i, j, 2] = crd_view[i, 2] + atom_radius_i*sphere_points[j, 2]
+            centered_sphere_points[i, j, 0] = r_i[0] + atom_radius_i * sphere_points[j, 0]
+            centered_sphere_points[i, j, 1] = r_i[1] + atom_radius_i * sphere_points[j, 1]
+            centered_sphere_points[i, j, 2] = r_i[2] + atom_radius_i * sphere_points[j, 2]
 
         # Check if these points are accessible
         k_closest_neighbor = 0
@@ -823,26 +819,26 @@ def c_asa_frame(      np.ndarray[np.float64_t, ndim=2] crd,
             r_j[0] = centered_sphere_points[i, j, 0]
             r_j[1] = centered_sphere_points[i, j, 1]
             r_j[2] = centered_sphere_points[i, j, 2]
-            for k in range(n_neighbor_indices + k_closest_neighbor)[k_closest_neighbor:]:
+            for k in range(k_closest_neighbor, n_neighbor_indices + k_closest_neighbor):
                 k_prime = k % n_neighbor_indices
                 r = atom_radii[neighbor_indices[k_prime]]
                 index = neighbor_indices[k_prime]
-                r_jk[0] = r_j[0] - crd_view[index][0]
-                r_jk[1] = r_j[1] - crd_view[index][1]
-                r_jk[2] = r_j[2] - crd_view[index][2]
-                if cdot(r_jkv,r_jkv) < r*r:
+                r_jk[0] = r_j[0] - crd[index, 0]
+                r_jk[1] = r_j[1] - crd[index, 1]
+                r_jk[2] = r_j[2] - crd[index, 2]
+                if r_jk[0] * r_jk[0] + r_jk[1] * r_jk[1] + r_jk[2] * r_jk[2] < r * r:
                     k_closest_neighbor = k
                     is_accessible = False
-                    break;
-            if(is_accessible):
+                    break
+            if is_accessible:
                 accessible_sphere_points[i - atomind, j, 0] = centered_sphere_points[i, j, 0]
                 accessible_sphere_points[i - atomind, j, 1] = centered_sphere_points[i, j, 1]
                 accessible_sphere_points[i - atomind, j, 2] = centered_sphere_points[i, j, 2]
                 accessible_sphere_points[i - atomind, j, 3] = atom_radius_i
 
-    return accessible_sphere_points
+    return np.asarray(accessible_sphere_points)
 
-@cython.boundscheck(True)
+@cython.boundscheck(False)
 def c_generate_sphere_points(int n_points):
     cdef:
         int i

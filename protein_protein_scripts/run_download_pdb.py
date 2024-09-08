@@ -9,13 +9,17 @@ import urllib
 
 from _affinity_data import AffinityData
 
-
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--affinity_data_dir", type=str, default="affinity")
 parser.add_argument("--benchmark", type=str, default="affinity")
 
 args = parser.parse_args()
+data_set = args.benchmark
+
+if data_set == "affinity":
+    AFFINITY_DATA_FILES = ["affinity_v1.tsv",  "affinity_v2.tsv"]
+elif data_set == "docking":
+    AFFINITY_DATA_FILES = ["docking_v5.tsv"]
 
 benchmark = args.benchmark
 
@@ -43,7 +47,7 @@ def download_coord(id):
 
 affinity_data_files = [os.path.join(args.affinity_data_dir, file) for file in AFFINITY_DATA_FILES]
 
-aff_data = AffinityData(affinity_data_files)
+aff_data = AffinityData(affinity_data_files, data_set)
 pdb_ids = aff_data.unique_pdb_ids()
 
 for pdb_id in pdb_ids:

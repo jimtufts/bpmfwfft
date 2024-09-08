@@ -1,15 +1,14 @@
 #!/usr/bin/env python
-
 """
 BPMFwFFT
 Calculate the binding potential of mean force (BPMF) using the FFT.
 """
-
-#!/usr/bin/env python
-
 import sys
+import os
+import platform
 from setuptools import setup, Extension, find_packages
 import versioneer
+import numpy as np
 
 short_description = __doc__.split("\n")
 
@@ -24,19 +23,38 @@ except:
     long_description = "\n".join(short_description[2:])
 
 try:
-    from setuptools import setup
-    from setuptools import Extension
-    from setuptools import find_packages
+    from setuptools import setup, Extension, find_packages
     from Cython.Build import cythonize
 except ImportError:
     from distutils.core import setup
     from distutils.extension import Extension
-
 from Cython.Distutils import build_ext
-import numpy
 
-metadata = \
-    dict(name='bpmfwfft',
+# Detect the system and set appropriate flags
+extra_compile_args=["-std=c++17", "-fopenmp"]
+extra_link_args = ["-fopenmp"]
+
+# Get the conda prefix (where Anaconda is installed)
+conda_prefix = sys.prefix
+
+# Construct the path to Eigen
+eigen_include = os.path.join(conda_prefix, 'include', 'eigen3')
+
+if platform.machine() in ['x86_64', 'AMD64']:
+    extra_compile_args.extend(["-msse2", "-msse3"])
+elif platform.machine().startswith('arm'):
+    extra_compile_args.append("-mfpu=neon")
+
+if os.name == 'posix':  # For Linux and macOS
+    extra_compile_args.extend(["-fopenmp", "-O3", "-march=native", "-DNDEBUG", "-DEIGEN_NO_DEBUG"])
+    if platform.machine() in ['x86_64', 'AMD64']:
+        extra_compile_args.extend(["-mavx", "-mavx2"])
+elif os.name == 'nt':   # For Windows
+    extra_compile_args.extend(["/openmp", "/O2", "/DNDEBUG", "/DEIGEN_NO_DEBUG"])
+
+
+metadata = dict(
+    name='bpmfwfft',
     author='Trung Hai Nguyen, Jim Tufts',
     author_email='jtufts@hawk.iit.edu',
     description=short_description[0],
@@ -45,21 +63,44 @@ metadata = \
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     license='MIT',
-    ext_modules = cythonize("bpmfwfft/util.pyx", compiler_directives={'language_level' : "2"}),
-    include_dirs=[numpy.get_include()],
     packages=find_packages(),
     include_package_data=True,
     setup_requires=[] + pytest_runner,
     zip_safe=False,
-    )
+)
 
 def extension():
-    return [
-            Extension('bpmfwfft.util',
-                sources=['bpmfwfft/util.pyx',],
-                include_dirs=[numpy.get_include()],
-                language='c'),
-        ]
+    util_extension = Extension('bpmfwfft.util',
+        sources=['bpmfwfft/util.pyx'],
+        include_dirs=[np.get_include()],
+        language='c',
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args)
+    
+    sasa_extension = Extension(
+        "bpmfwfft.sasa_wrapper",
+        sources=["bpmfwfft/sasa_wrapper.pyx", "bpmfwfft/sasa.cpp"],
+        include_dirs=[np.get_include(), "bpmfwfft"],
+        language="c++",
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args)
+    
+    charge_extension = Extension(
+        "bpmfwfft.charge_grid_wrapper",
+        sources=["bpmfwfft/charge_grid_wrapper.pyx", "bpmfwfft/charge_grid.cpp"],
+        include_dirs=[np.get_include(), "bpmfwfft", eigen_include],
+        language="c++",
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args)
+    
+    extensions = [util_extension, sasa_extension]
+    
+    # Apply different language levels
+    util_extension = cythonize(util_extension, compiler_directives={'language_level': "2"})[0]
+    sasa_extension = cythonize(sasa_extension, compiler_directives={'language_level': "3"})[0]
+    charge_extension = cythonize(charge_extension, compiler_directives={'language_level': "3"})[0]
+    
+    return [util_extension, sasa_extension, charge_extension]
 
 if __name__ == '__main__':
     run_build = True
@@ -67,8 +108,6 @@ if __name__ == '__main__':
         extensions = extension()
         try:
             import Cython as _c
-            from Cython.Build import cythonize
-
             if _c.__version__ < '0.29':
                 raise ImportError("Too old")
         except ImportError as e:
@@ -82,15 +121,6 @@ if __name__ == '__main__':
             sys.exit(1)
         for e in extensions:
             e.include_dirs.append(np.get_include())
-        metadata['ext_modules'] = cythonize(extensions, language_level=sys.version_info[0])
-
+        # Remove the cythonize call here since we've already done it in the extension() function
+        metadata['ext_modules'] = extensions
     setup(**metadata)
-# from setuptools import find_packages, setup
-# from Cython.Build import cythonize
-# import numpy as np
-
-# with open("README.md", 'r') as f:
-#     long_description = f.read()
-
-# if __name__ == "__main__":
-#     setuptools.setup()
