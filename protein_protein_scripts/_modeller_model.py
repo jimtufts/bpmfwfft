@@ -30,7 +30,7 @@ def run_modeller(id, chain, missing_res_ranges, sequence_len, align_file):
     
     modifying_string = _redefine_loopmodel_string(missing_res_ranges, sequence_len)
 
-    exec(modifying_string)
+    exec(modifying_string, globals())
     model = MyModel(env, alnfile=align_file, knowns=(id), sequence = id+chain+"_full")
     model.make()
 

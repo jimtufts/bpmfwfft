@@ -18,6 +18,7 @@ class AddMissing(object):
         self._file = pdb_file
         self._check_pdb()
         self._id = pdb_file[:-4]
+        print(":::::::ID NAME:::::::", self._id)
         self._text_lines = open(pdb_file, "r").readlines()
 
         self._structureX_seq_header = self._structureX_seq_from_modeller()
@@ -60,7 +61,7 @@ class AddMissing(object):
 
     def do_auto_modeller(self):
         for chain in self._chains_list:
-            run_modeller(self._id, chain, self._missing_res_ranges[chain], 
+            run_modeller(self._id, chain, self._missing_res_ranges[chain],
                     self._seq_lengths[chain], self._alignment_files[chain] )
         return None
 

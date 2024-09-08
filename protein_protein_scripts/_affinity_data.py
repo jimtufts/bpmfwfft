@@ -19,13 +19,14 @@ class AffinityData(object):
         :param affinity_data_files: list of str
         """
         self._data_frame = self._load_tsvfiles(affinity_data_files)
+        self._column_tags = ["Complex PDB", "Unbound PDB Protein A", "Unbound PDB Protein B"]
 
     def unique_pdb_ids(self):
         """
         return a set of unique pdb ids to be downloaded
         """
         ids = []
-        for col in ["Complex PDB", "Unbound PDB Protein A", "Unbound PDB Protein B"]:
+        for col in self._column_tags:
             ids.extend( list(self._data_frame[col].values) )
         ids = [id.split("_")[0].lower() for id in ids]
         return set(ids)
@@ -39,7 +40,7 @@ class AffinityData(object):
         return a dic { name:(pdb_id (str), chains1, chains2 ) }
                     name: str; chains1:  list of str; chains2:  list of str
         """
-        names = list(self._data_frame["Complex PDB"])
+        names = list(self._data_frame[self._column_tags[0]])
         complex_chains = {}
         for name in names:
             pdb_id, chains = name.split("_")
@@ -56,10 +57,10 @@ class AffinityData(object):
         return list(self._data_frame.columns)
 
     def get_data_from_col(self, col_name):
-        complex_names = list(self._data_frame["Complex PDB"])
+        complex_names = list(self._data_frame[self._column_tags[0]])
         col = {}
         for name in complex_names:
-            row = self._data_frame["Complex PDB"] == name
+            row = self._data_frame[self._column_tags[0]] == name
             value = self._data_frame[col_name][row].values
             if value.shape != (1,):
                 raise RuntimeError("There are more than one %s at %s"%(col_name, name))
@@ -84,9 +85,9 @@ class AffinityData(object):
         """
         with open(file) as tsvfile:
             tsvreader = csv.reader(tsvfile, delimiter="\t")
-            tsvreader.next()                            # ignore the first line
-            data_fields = tsvreader.next()
-            # in the file, there are two columns with the same name "Unbound PDB"
+            next(tsvreader)                            # ignore the first line
+            data_fields = next(tsvreader)
+            # in the the file, there are two columns with the same name "Unbound PDB"
             # make each field in data_fields unique
             for i in range(len(data_fields)):
                 if data_fields[i] == "Unbound PDB":

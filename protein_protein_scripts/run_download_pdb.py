@@ -21,7 +21,14 @@ if data_set == "affinity":
 elif data_set == "docking":
     AFFINITY_DATA_FILES = ["docking_v5.tsv"]
 
-PDB_URL = "http://www.rcsb.org/pdb/files"
+benchmark = args.benchmark
+
+if benchmark == "docking":
+    AFFINITY_DATA_FILES = ["docking_v5.tsv"]
+else:
+    AFFINITY_DATA_FILES = ["affinity_v1.tsv",  "affinity_v2.tsv"]
+
+PDB_URL = "https://files.rcsb.org/download"
 NOT_AVAIL_MESSAGE = "the requested file is not available"
 
 
