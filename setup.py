@@ -48,7 +48,7 @@ elif platform.machine().startswith('arm'):
 if os.name == 'posix':  # For Linux and macOS
     extra_compile_args.extend(["-fopenmp", "-O3", "-march=native", "-DNDEBUG", "-DEIGEN_NO_DEBUG"])
     if platform.machine() in ['x86_64', 'AMD64']:
-        extra_compile_args.extend(["-mavx", "-mavx2"])
+        extra_compile_args.extend(["-mavx"])
 elif os.name == 'nt':   # For Windows
     extra_compile_args.extend(["/openmp", "/O2", "/DNDEBUG", "/DEIGEN_NO_DEBUG"])
 
