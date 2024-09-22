@@ -30,6 +30,7 @@ parser.add_argument("--out_dir", type=str, default="out")
 parser.add_argument("--check_convergence", action="store_true", default=False)
 parser.add_argument("--pbs",   action="store_true", default=False)
 parser.add_argument("--slurm",   action="store_true", default=False)
+parser.add_argument("--ccb",   action="store_true", default=False)
 args = parser.parse_args()
 
 RECEPTOR_PRMTOP = "receptor.prmtop"
@@ -158,6 +159,69 @@ source /cm/shared/apps/spack/cpu/opt/spack/linux-centos8-zen/gcc-8.3.1/anaconda3
 conda activate fft
 date
 #SET the number of openmp threads
+
+#Run the job
+python {this_script} \
+--amber_dir {amber_sub_dir} \
+--sampling_dir {sampling_sub_dir} \
+--out_dir {com_dir} \
+--nr_resample {args.nr_resample} \
+--start {args.start} \
+--end {args.end} \n'''
+
+        bpmf_out = os.path.join(com_dir, BPMF_OUT)
+        if not os.path.exists(bpmf_out):
+            open(sbatch_file, "w").write(sbatch_script)
+            print("Submiting " + sbatch_file)
+            os.system("sbatch %s" % sbatch_file)
+            job_count += 1
+            if job_count == max_jobs:
+                print("Max number of jobs %d reached." % job_count)
+                break
+
+elif args.ccb:
+    this_script = os.path.abspath(sys.argv[0])
+    amber_dir = os.path.abspath(args.amber_dir)
+    sampling_dir = os.path.abspath(args.sampling_dir)
+    out_dir = os.path.abspath(args.out_dir)
+
+    complex_names = glob.glob(os.path.join(sampling_dir, "*"))
+    complex_names = [os.path.basename(d) for d in complex_names if os.path.isdir(d)]
+    complex_names = [c for c in complex_names if is_sampling_good(os.path.join(sampling_dir, c))]
+    print(complex_names)
+
+    if args.max_jobs > 0:
+        max_jobs = args.max_jobs
+    else:
+        max_jobs = len(complex_names)
+    print("max_jobs = %d" % max_jobs)
+
+    job_count = 0
+
+    for complex_name in complex_names:
+        com_dir = os.path.join(out_dir, complex_name)
+        if not os.path.isdir(com_dir):
+            os.makedirs(com_dir)
+
+        idx = complex_name[:4].lower()
+        amber_sub_dir = os.path.join(amber_dir, complex_name)
+        sampling_sub_dir = os.path.join(sampling_dir, complex_name)
+        sbatch_file = os.path.join(com_dir, idx + "_post_slurm.job")
+        log_file = os.path.join(com_dir, idx + "_post.log")
+        sbatch_script = f'''#!/bin/bash
+#SBATCH --job-name={idx}
+#SBATCH --output={log_file}
+#SBATCH --partition=normal
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+#SBATCH -t 48:00:00
+
+source /home/jtufts/opt/module/anaconda.sh
+conda activate fft
+date
 
 #Run the job
 python {this_script} \
