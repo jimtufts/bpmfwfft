@@ -5,9 +5,9 @@ from __future__ import print_function
 import os
 
 import numpy as np
-import simtk.openmm
-import simtk.openmm.app
-import simtk.unit
+import openmm
+import openmm.app
+import openmm.unit
 import mdtraj
 
 REC_MIN_LIST = "receptor_minimize_list.dat"
