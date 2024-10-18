@@ -9,6 +9,7 @@ import platform
 from setuptools import setup, Extension, find_packages
 import versioneer
 import numpy as np
+import subprocess
 
 short_description = __doc__.split("\n")
 
@@ -30,8 +31,9 @@ except ImportError:
     from distutils.extension import Extension
 from Cython.Distutils import build_ext
 
+
 # Detect the system and set appropriate flags
-extra_compile_args=["-std=c++17", "-fopenmp"]
+extra_compile_args = ["-std=c++17", "-fopenmp"]
 extra_link_args = ["-fopenmp"]
 
 # Get the conda prefix (where Anaconda is installed)
@@ -47,10 +49,33 @@ elif platform.machine().startswith('arm'):
 
 if os.name == 'posix':  # For Linux and macOS
     extra_compile_args.extend(["-fopenmp", "-O3", "-march=native", "-DNDEBUG", "-DEIGEN_NO_DEBUG"])
-    if platform.machine() in ['x86_64', 'AMD64']:
-        extra_compile_args.extend(["-mavx", "-mavx2"])
+
+    # Check for AVX2 support
+    try:
+        output = subprocess.check_output(['gcc', '-mavx2', '-dM', '-E', '-'], input=b'').decode()
+        if '__AVX2__' in output:
+            extra_compile_args.append("-mavx2")
+        elif platform.machine() in ['x86_64', 'AMD64']:
+            extra_compile_args.append("-mavx")
+    except subprocess.CalledProcessError:
+        # If the check fails, fall back to AVX for x86_64 or AMD64
+        if platform.machine() in ['x86_64', 'AMD64']:
+            extra_compile_args.append("-mavx")
+
 elif os.name == 'nt':   # For Windows
     extra_compile_args.extend(["/openmp", "/O2", "/DNDEBUG", "/DEIGEN_NO_DEBUG"])
+
+    # Check for AVX2 support on Windows
+    try:
+        output = subprocess.check_output(['cl', '/Zs', '/arch:AVX2'], stderr=subprocess.STDOUT).decode()
+        if "error" not in output.lower():
+            extra_compile_args.append("/arch:AVX2")
+        elif platform.machine() in ['x86_64', 'AMD64']:
+            extra_compile_args.append("/arch:AVX")
+    except subprocess.CalledProcessError:
+        # If the check fails, fall back to AVX for x86_64 or AMD64
+        if platform.machine() in ['x86_64', 'AMD64']:
+            extra_compile_args.append("/arch:AVX")
 
 
 metadata = dict(

@@ -137,7 +137,7 @@ class AffinityData(object):
         """
         with open(file) as tsvfile:
             tsvreader = csv.reader(tsvfile, delimiter="\t")
-            # next(tsvreader)                            # ignore the first line
+            next(tsvreader)                            # ignore the first line
             data_fields = next(tsvreader)
             # in the the file, there are two columns with the same name "Unbound PDB"
             # make each field in data_fields unique
