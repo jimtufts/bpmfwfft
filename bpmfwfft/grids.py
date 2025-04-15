@@ -537,9 +537,9 @@ class LigGrid(Grid):
         max_edge_radii = self._prmtop["VDW_RADII"][max_edge_ind].astype(float)
 
         # Calculate lower and upper ligand corners
-        lower_ligand_corner = (self._crd.min(axis=0) - min_edge_radii - 2.8 * spacing).astype(float)
+        lower_ligand_corner = (self._crd.min(axis=0) - min_edge_radii - 1.4).astype(float)
         print("lower ligand corner print", lower_ligand_corner)
-        upper_ligand_corner = (self._crd.max(axis=0) + max_edge_radii + 2.8 * spacing).astype(float)
+        upper_ligand_corner = (self._crd.max(axis=0) + max_edge_radii + 1.4).astype(float)
 
         # Align lower and upper ligand corners with the grid #FIXME: DEBUG np.ceil for lower corner
         lower_ligand_corner_grid_aligned = (np.floor((lower_ligand_corner - spacing) / spacing) * spacing).astype(float)
