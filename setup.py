@@ -69,7 +69,7 @@ def get_extensions():
                   language='c'),
         Extension("bpmfwfft.sasa_wrapper",
                   sources=["bpmfwfft/sasa_wrapper.pyx", "bpmfwfft/sasa.cpp"],
-                  include_dirs=[np.get_include(), "bpmfwfft"],
+                  include_dirs=[np.get_include(), "bpmfwfft", eigen_include],
                   language="c++"),
         Extension("bpmfwfft.charge_grid_wrapper",
                   sources=["bpmfwfft/charge_grid_wrapper.pyx", "bpmfwfft/charge_grid.cpp"],

@@ -537,9 +537,9 @@ class LigGrid(Grid):
         max_edge_radii = self._prmtop["VDW_RADII"][max_edge_ind].astype(float)
 
         # Calculate lower and upper ligand corners
-        lower_ligand_corner = (self._crd.min(axis=0) - min_edge_radii - 1.4).astype(float)
+        lower_ligand_corner = (self._crd.min(axis=0) - min_edge_radii - 2.8).astype(float)
         print("lower ligand corner print", lower_ligand_corner)
-        upper_ligand_corner = (self._crd.max(axis=0) + max_edge_radii + 1.4).astype(float)
+        upper_ligand_corner = (self._crd.max(axis=0) + max_edge_radii + 2.8).astype(float)
 
         # Align lower and upper ligand corners with the grid #FIXME: DEBUG np.ceil for lower corner
         lower_ligand_corner_grid_aligned = (np.floor((lower_ligand_corner - spacing) / spacing) * spacing).astype(float)
@@ -820,7 +820,7 @@ class LigGrid(Grid):
         lsasa_fft = fftw.fftn(self._grid["sasa"])
         self._set_grid_key_value("sasa", None)  # to save memory
         del grid
-        grid = self._cal_charge_grid("water")[0]
+        grid = self._cal_charge_grid("water")
         grid[grid > 0.] = 1.
         self._set_grid_key_value("water", grid)
         lwater_fft = fftw.fftn(self._grid["water"])
@@ -831,9 +831,7 @@ class LigGrid(Grid):
         dsasa_score = fftw.ifftn(self._rec_FFTs["sasa"] * lwater_fft).real + fftw.ifftn(
             self._rec_FFTs["water"] * lsasa_fft).real
         max_i, max_j, max_k = self._max_grid_indices
-        # dsasa_score = dsasa_score[0:max_i,0:max_j,0:max_k]
-        # dsasa_score = dsasa_score[free_of_clash]
-        # dsasa_score[~free_of_clash] = 0.
+        
         return dsasa_score
 
     def _cal_shape_complementarity(self):
