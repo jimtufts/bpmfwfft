@@ -46,7 +46,7 @@ jobs:
         # conda setup requires this special shell
         shell: bash -l {0}
         run: |
-          pip install .
+          python -m pip install -v .
           micromamba list
 
       - name: Run tests

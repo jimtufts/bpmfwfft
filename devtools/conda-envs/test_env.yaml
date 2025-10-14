@@ -8,6 +8,7 @@ dependencies:
     # Base depends
   - python
   - pip
+  - setuptools
 
     # Testing
   - pytest
@@ -22,6 +23,7 @@ dependencies:
   - pyfftw
   - openmm
   - eigen
+  - versioneer
 
     # Pip-only installs
   #- pip:
