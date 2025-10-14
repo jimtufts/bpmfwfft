@@ -10,6 +10,11 @@ dependencies:
   - pip
   - setuptools
 
+    # Build tools
+  - c-compiler
+  - cxx-compiler
+  - make
+
     # Testing
   - pytest
   - pytest-cov

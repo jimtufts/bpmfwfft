@@ -46,7 +46,13 @@ jobs:
         # conda setup requires this special shell
         shell: bash -l {0}
         run: |
-          python -m pip install -v .
+          which python
+          python --version
+          which gcc || which clang
+          gcc --version || clang --version
+          python -m pip install -v --no-build-isolation .
+          python -c "import bpmfwfft; print('Import successful')"
+          python -c "import bpmfwfft.util; print('util module loaded')"
           micromamba list
 
       - name: Run tests
