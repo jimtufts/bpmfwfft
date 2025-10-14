@@ -21,6 +21,7 @@ dependencies:
   - mdtraj
   - pyfftw
   - openmm
+  - eigen
 
     # Pip-only installs
   #- pip:
