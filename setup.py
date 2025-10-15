@@ -75,8 +75,15 @@ class CUDA_build_ext(build_ext):
         super().run()
 
     def build_extension(self, ext):
-        ext.extra_compile_args = extra_compile_args
-        ext.extra_link_args = extra_link_args
+        # Apply C++ flags only to C++ extensions
+        if ext.language == 'c++':
+            ext.extra_compile_args = extra_compile_args
+            ext.extra_link_args = extra_link_args
+        else:
+            # For C extensions, use a subset of flags (no -std=c++17)
+            c_compile_args = [arg for arg in extra_compile_args if not arg.startswith('-std=c++')]
+            ext.extra_compile_args = c_compile_args
+            ext.extra_link_args = extra_link_args
         super().build_extension(ext)
 
 def get_extensions():
