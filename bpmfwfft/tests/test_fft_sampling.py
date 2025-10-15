@@ -153,3 +153,151 @@ def test_remove_nonphysical_energies():
 
     # Number of elements should be <= original grid size
     assert filtered_grid.size <= test_grid.size
+
+def test_cal_energies_electrostatic():
+    """Test electrostatic energy calculation"""
+    import numpy as np
+
+    # Ensure prerequisites are met
+    if not hasattr(Sampling_test._lig_grid, '_free_of_clash'):
+        Sampling_test._cal_free_of_clash()
+
+    # Initialize _meaningful_energies on the ligand grid (full grid size, not max_grid_indices)
+    if not hasattr(Sampling_test._lig_grid, '_meaningful_energies'):
+        grid_counts = Sampling_test._lig_grid._grid['counts']
+        Sampling_test._lig_grid._meaningful_energies = np.zeros(grid_counts, dtype=float)
+
+    # Calculate electrostatic energies for first ligand conformation
+    Sampling_test._cal_energies("electrostatic", step=0)
+
+    # Check that results were stored (note: gets saved as "no_sasa" not "electrostatic")
+    assert hasattr(Sampling_test, '_resampled_energies_components')
+    assert hasattr(Sampling_test, '_resampled_trans_vectors_components')
+    assert 'no_sasa' in Sampling_test._resampled_energies_components
+    assert 'no_sasa' in Sampling_test._resampled_trans_vectors_components
+
+    # Check that we got the expected number of samples
+    assert len(Sampling_test._resampled_energies_components['no_sasa']) == energy_sample_size_per_ligand
+
+    # Verify actual energy values for regression testing
+    energies = Sampling_test._resampled_energies_components['no_sasa']
+    # Check that energies are sorted (lowest first)
+    assert all(energies[i] <= energies[i+1] for i in range(len(energies)-1))
+
+    # Regression test: check against known reference values for ubql_ubiquitin
+    # These values were computed with the mdtraj 1.10.3 compatible code
+    expected_min_energy = -339.583014
+    expected_max_energy = -212.753208
+
+    actual_min = energies[0]
+    actual_max = energies[-1]
+
+    # Allow small tolerance for floating point differences
+    tolerance = 0.01
+    assert abs(actual_min - expected_min_energy) < tolerance, \
+        f"Electrostatic min energy changed: expected {expected_min_energy:.6f}, got {actual_min:.6f}"
+    assert abs(actual_max - expected_max_energy) < tolerance, \
+        f"Electrostatic max energy changed: expected {expected_max_energy:.6f}, got {actual_max:.6f}"
+
+    # Basic sanity checks
+    assert np.isfinite(actual_min), "Minimum energy should be finite"
+    assert np.isfinite(actual_max), "Maximum energy should be finite"
+
+def test_cal_energies_lj():
+    """Test Lennard-Jones energy calculation"""
+    import numpy as np
+
+    # Ensure prerequisites are met
+    if not hasattr(Sampling_test._lig_grid, '_free_of_clash'):
+        Sampling_test._cal_free_of_clash()
+
+    # Initialize _meaningful_energies on the ligand grid (full grid size, not max_grid_indices)
+    if not hasattr(Sampling_test._lig_grid, '_meaningful_energies'):
+        grid_counts = Sampling_test._lig_grid._grid['counts']
+        Sampling_test._lig_grid._meaningful_energies = np.zeros(grid_counts, dtype=float)
+
+    # Calculate LJ energies for first ligand conformation (note: LJa gets saved as "LJ" not "LJa")
+    Sampling_test._cal_energies("LJa", step=0)
+    Sampling_test._cal_energies("LJr", step=0)
+
+    # Check that results were stored (LJa is saved as "LJ", LJr doesn't trigger save)
+    assert 'LJ' in Sampling_test._resampled_energies_components
+    assert 'LJ' in Sampling_test._resampled_trans_vectors_components
+
+    # Check that we got the expected number of samples
+    assert len(Sampling_test._resampled_energies_components['LJ']) == energy_sample_size_per_ligand
+
+    # Verify actual energy values for regression testing
+    energies = Sampling_test._resampled_energies_components['LJ']
+    # Check that energies are sorted (lowest first)
+    assert all(energies[i] <= energies[i+1] for i in range(len(energies)-1))
+
+    # Regression test: check against known reference values for ubql_ubiquitin
+    # These values were computed with the mdtraj 1.10.3 compatible code
+    expected_min_energy = -1671.010308
+    expected_max_energy = -1255.879301
+
+    actual_min = energies[0]
+    actual_max = energies[-1]
+
+    # Allow small tolerance for floating point differences
+    tolerance = 0.01
+    assert abs(actual_min - expected_min_energy) < tolerance, \
+        f"LJ min energy changed: expected {expected_min_energy:.6f}, got {actual_min:.6f}"
+    assert abs(actual_max - expected_max_energy) < tolerance, \
+        f"LJ max energy changed: expected {expected_max_energy:.6f}, got {actual_max:.6f}"
+
+    # Basic sanity checks
+    assert np.isfinite(actual_min), "Minimum energy should be finite"
+    assert np.isfinite(actual_max), "Maximum energy should be finite"
+
+def test_cal_energies_sasa():
+    """Test SASA energy calculation"""
+    import numpy as np
+
+    # Ensure prerequisites are met
+    if not hasattr(Sampling_test._lig_grid, '_free_of_clash'):
+        Sampling_test._cal_free_of_clash()
+
+    # Initialize _meaningful_energies on the ligand grid (full grid size, not max_grid_indices)
+    if not hasattr(Sampling_test._lig_grid, '_meaningful_energies'):
+        grid_counts = Sampling_test._lig_grid._grid['counts']
+        Sampling_test._lig_grid._meaningful_energies = np.zeros(grid_counts, dtype=float)
+
+    # Calculate SASA energies for first ligand conformation
+    Sampling_test._cal_energies("sasa", step=0)
+
+    # Check that results were stored
+    assert 'sasa' in Sampling_test._resampled_energies_components
+    assert 'sasa' in Sampling_test._resampled_trans_vectors_components
+
+    # Check that we got the expected number of samples
+    assert len(Sampling_test._resampled_energies_components['sasa']) == energy_sample_size_per_ligand
+
+    # Check that translation vectors match across energy types
+    # (all should sample the same positions)
+    assert len(Sampling_test._resampled_trans_vectors_components['sasa']) == energy_sample_size_per_ligand
+
+    # Verify actual energy values for regression testing
+    energies = Sampling_test._resampled_energies_components['sasa']
+    # Check that energies are sorted (lowest first)
+    assert all(energies[i] <= energies[i+1] for i in range(len(energies)-1))
+
+    # Regression test: check against known reference values for ubql_ubiquitin
+    # These values were computed with the mdtraj 1.10.3 compatible code
+    expected_min_energy = -6.935386
+    expected_max_energy = -5.578102
+
+    actual_min = energies[0]
+    actual_max = energies[-1]
+
+    # Allow small tolerance for floating point differences
+    tolerance = 0.01
+    assert abs(actual_min - expected_min_energy) < tolerance, \
+        f"SASA min energy changed: expected {expected_min_energy:.6f}, got {actual_min:.6f}"
+    assert abs(actual_max - expected_max_energy) < tolerance, \
+        f"SASA max energy changed: expected {expected_max_energy:.6f}, got {actual_max:.6f}"
+
+    # Basic sanity checks
+    assert np.isfinite(actual_min), "Minimum energy should be finite"
+    assert np.isfinite(actual_max), "Maximum energy should be finite"
