@@ -26,7 +26,9 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
                 output_nc, output_dir):
     lig_nc_handle = netCDF4.Dataset(lig_coor_nc, "r")
     if os.path.exists(output_nc):
-        start_index = netCDF4.Dataset(output_nc, "r").variables["current_rotation_index"][:][0]
+        temp_nc = netCDF4.Dataset(output_nc, "r")
+        start_index = temp_nc.variables["current_rotation_index"][:][0]
+        temp_nc.close()
     else:
         start_index = 0
 
@@ -54,36 +56,42 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
 
         sampler.run_sampling()
         if start_index + nr_lig_conf >= total_rotations:
-            with open(output_dir+"DONE") as done_file:
-                print("All rotations completed")
-                done_file.write("Sampling Done")
-        print("Sampling Done")
+            print("Sampling Done")
     else:
         print("Sampling Done")
     return None
 
 
-def is_sampling_nc_good(nc_file, nr_extracted_lig_conf):
+def is_sampling_nc_good(nc_file, rotation_nc_file):
     if not os.path.exists(nc_file):
+        print(f"Error: {nc_file} doesn't exist")
+        return False
+
+    if not os.path.exists(rotation_nc_file):
+        print(f"Error: {rotation_nc_file} doesn't exist")
         return False
 
     try:
-        nc_handle = netCDF4.Dataset(nc_file, "r")
-    except RuntimeError as e:
-        print(nc_file)
-        print(e)
-        return True
-    else:
-        pass
-    cond1 = nc_handle.variables["lig_positions"][:].shape[0] == nr_extracted_lig_conf
-    if not cond1:
+        with netCDF4.Dataset(nc_file, "r") as nc_handle, \
+                netCDF4.Dataset(rotation_nc_file, "r") as rotation_nc_handle:
+
+            lig_positions = nc_handle.variables["lig_positions"][:]
+            rotation_positions = rotation_nc_handle.variables["positions"][:]
+
+            if lig_positions.shape[0] < rotation_positions.shape[0]:
+                print(f"Current completed rotations: ({lig_positions.shape[0]}) "
+                      f"is less than number of precalculated rotation positions: ({rotation_positions.shape[0]})")
+                return False
+
+            return True
+
+    except Exception as e:
+        print(f"Error opening or reading NC files: {str(e)}")
         return False
 
-    cond2 = type(nc_handle.variables["lig_positions"][:]) == np.ndarray
-    if not cond2:
+    except Exception as e:
+        print(f"Error opening or reading {nc_file}: {str(e)}")
         return False
-
-    return True
 
 
 def parse_nr_ligand_confs(submit_file):

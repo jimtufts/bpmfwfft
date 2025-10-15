@@ -8,6 +8,12 @@ dependencies:
     # Base depends
   - python
   - pip
+  - setuptools
+
+    # Build tools
+  - c-compiler
+  - cxx-compiler
+  - make
 
     # Testing
   - pytest
@@ -21,6 +27,8 @@ dependencies:
   - mdtraj
   - pyfftw
   - openmm
+  - eigen
+  - versioneer
 
     # Pip-only installs
   #- pip:

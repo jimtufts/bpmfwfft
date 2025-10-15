@@ -67,9 +67,9 @@ def _write_tleap_script(ligand_pdb, receptor_pdb, cofactors_prep, out_dir,
     cofactor_names = set(cofactor_names_lig + cofactor_names_rec)
 
     script = "\n"
-    script += "source leaprc.ff14SB\n"
+    script += "source oldff/leaprc.ff14SB\n"
     script += "set default PBRadii mbondi2\n"
-    script += "loadamberparams frcmod.ionslm_1264_tip3p\n"
+    script += "loadamberparams frcmod.ions234lm_1264_tip3p\n"
 
     if len(cofactor_names) > 0:
         for name in cofactor_names:
@@ -150,12 +150,7 @@ RECEPTOR_OUT_PREFIX = "receptor"
 COMPLEX_OUT_PREFIX = "complex"
 TLEAP = "setup.tleap"
 
-
 def generate_prmtop(cofactors_frcmod_dir):
-    """
-    :param cofactors_prep_dir: str
-    :return: None
-    """
     complex_names = glob.glob("*")
     complex_names = [os.path.basename(d) for d in complex_names if os.path.isdir(d)]
 
@@ -168,6 +163,19 @@ def generate_prmtop(cofactors_frcmod_dir):
     for complex_name in complex_names:
         print(complex_name)
         out_dir = os.path.abspath(complex_name)
+        
+        # Check if input PDB files exist and are not empty
+        ligand_pdb = os.path.join(out_dir, LIGAND_PDB_INP)
+        receptor_pdb = os.path.join(out_dir, RECEPTOR_PDB_INP)
+        
+        if not os.path.exists(ligand_pdb) or os.path.getsize(ligand_pdb) == 0:
+            print(f"Warning: Ligand PDB file for {complex_name} is missing or empty. Skipping.")
+            continue
+        
+        if not os.path.exists(receptor_pdb) or os.path.getsize(receptor_pdb) == 0:
+            print(f"Warning: Receptor PDB file for {complex_name} is missing or empty. Skipping.")
+            continue
+        
         _write_tleap_script(LIGAND_PDB_INP, RECEPTOR_PDB_INP, cofactors_prep, out_dir,
                             LIGAND_OUT_PREFIX, RECEPTOR_OUT_PREFIX, COMPLEX_OUT_PREFIX, TLEAP)
 
@@ -180,4 +188,3 @@ def generate_prmtop(cofactors_frcmod_dir):
         if os.path.exists(os.path.join(complex_name, TLEAP_FAILED)):
             print(complex_name, TLEAP_FAILED)
     return None
-

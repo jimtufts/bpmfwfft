@@ -10,6 +10,10 @@ from __future__ import print_function
 import os
 import copy
 import glob
+import traceback
+import logging
+import re
+import sys
 
 MODELLED_PDB_SUBFIX = "_modelled.pdb"
 MODELLED_RESIDUES = "REMARK  MODELLED RESIDUES:"
@@ -17,34 +21,50 @@ ATOM = "ATOM"
 HETATM = "HETATM"
 TER = "TER"
 
+LIGAND_OUT = "ligand_modelled.pdb"
+RECEPTOR_OUT = "receptor_modelled.pdb"
+LIGAND_RES_MINIMIZE = "ligand_minimize_list.dat"
+RECEPTOR_RES_MINIMIZE = "receptor_minimize_list.dat"
 
 class ChainCombine(object):
-    def __init__(self, pdb_id, chains, modelling_dir, ions_cofactors_files):
-        """
-        :param pdb_id: str
-        :param chains: list of str; e.g., ["A", "B"]
-        :param modelling_dir: str; the directory where modeller was done for missing residues.
-        :param ions_cofactors_files: list of str
-        """
+    def __init__(self, pdb_id, chains, modelling_dir, ions_cofactors_files, unbound_pdbs=None, is_ligand=False):
         self._pdb_id = pdb_id
         self._chains = chains
         self._ions_cofactors_files = ions_cofactors_files
+        self._unbound_pdbs = unbound_pdbs
+        self._is_ligand = is_ligand
 
-        # dict of dic which is returned  by self._load_chain
-        self._original_pdb_data = self._load_chains(pdb_id, chains, modelling_dir)
-        
-    def trim_residues(self, ter_cutoff, loop_cutoff):
+        if unbound_pdbs:
+            logging.info(f"Loading unbound PDBs for {pdb_id}")
+            self._original_pdb_data = self._load_unbound_pdbs(unbound_pdbs, chains, chains if is_ligand else [])
+        else:
+            logging.info(f"Loading bound chains for {pdb_id}")
+            self._original_pdb_data = self._load_chains(pdb_id, chains, modelling_dir)
+        for chain, data in self._original_pdb_data.items():
+            logging.debug(f"Loaded data for chain {chain}: {data.keys()}")
+            logging.debug(f"modelled_residues for chain {chain}: {data['modelled_residues']}")
+
+        # Initialize _trimed_pdb_data
         self._trimed_pdb_data = {}
+
+    def trim_residues(self, ter_cutoff, loop_cutoff):
         for chain in self._chains:
+            logging.debug(f"Processing chain: {chain}")
             original_modelled_residues = self._original_pdb_data[chain]["modelled_residues"]
+            logging.debug(f"Original modelled_residues: {original_modelled_residues}")
             modelled_residues = self._trim_residues(original_modelled_residues, ter_cutoff, loop_cutoff) 
-            self._trimed_pdb_data[chain] = {"modelled_residues":modelled_residues}
-
+            logging.debug(f"Trimmed modelled_residues: {modelled_residues}")
+            self._trimed_pdb_data[chain] = {"modelled_residues": modelled_residues}
+    
             self._trimed_pdb_data[chain]["residues_to_minimize"] = self._residues_to_minimize(modelled_residues)
-
+    
+            logging.debug(f"Atoms before trimming: {len(self._original_pdb_data[chain]['atoms'])}")
             self._trimed_pdb_data[chain]["atoms"] = self._trim_atoms(modelled_residues, 
                     self._original_pdb_data[chain]["atoms"], self._original_pdb_data[chain]["residues"])
+            logging.debug(f"Atoms after trimming: {len(self._trimed_pdb_data[chain]['atoms'])}")
+            
             self._trimed_pdb_data[chain]["residues"] = self._count_residues(self._trimed_pdb_data[chain]["atoms"])
+            logging.debug(f"Residues after trimming: {len(self._trimed_pdb_data[chain]['residues'])}")
         return None
 
     def combine(self):
@@ -117,40 +137,89 @@ class ChainCombine(object):
             chains_pdb_data[chain] = self._load_chain(pdb_id, chain, modelling_dir)
         return chains_pdb_data
 
-    def _load_chain(self, pdb_id, chain, modelling_dir):
-        """
-        :param pdb_id: str
-        :param chain: one-letter str
-        :param modelling_dir: str, path to modeller results for pdb_id
-        :return: dict with keys: "modelled_residues" -> dict {"nter" : [], "loops" : [], "cter" : []}
-                                "atoms" -> list of ATOM lines
-                                "residues" -> list of residue id
-        """
+    def is_empty(self):
+        return self._combined_pdb_data["natoms"] == 0 or self._combined_pdb_data["nresidues"] == 0
+
+    def _load_chain(self, pdb_id, chain, modelling_dir, is_unbound=False, is_ligand=False):
         assert len(chain) == 1, "chain must be a single letter"
-        infile = os.path.join(modelling_dir, pdb_id + chain + MODELLED_PDB_SUBFIX)
-        pdb_data = {}
+        if is_unbound:
+            prefix = 'l' if is_ligand else 'r'
+            infile = os.path.join(modelling_dir, f"{pdb_id}_{prefix}_u{chain}_modelled.pdb")
+        else:
+            infile = os.path.join(modelling_dir, f"{pdb_id}{chain}_modelled.pdb")
+
+        logging.debug(f"Loading {'unbound' if is_unbound else 'bound'} {'ligand' if is_ligand else 'receptor'} chain {chain} for PDB {pdb_id} from file: {infile}")
+
+        if not os.path.exists(infile):
+            logging.error(f"File not found: {infile}")
+            return None
+
+        pdb_data = {"modelled_residues": {"nter": [], "loops": [], "cter": []}}
+        
         with open(infile, "r") as F:
+            lines = F.readlines()  # Read all lines at once
+        
+        for line in lines:
+            if MODELLED_RESIDUES in line:
+                modelled_res = eval(line.strip(MODELLED_RESIDUES))
+                logging.debug(f"Parsed modelled_residues: {modelled_res}")
+                if isinstance(modelled_res, list):
+                    pdb_data["modelled_residues"]["loops"] = modelled_res
+                elif isinstance(modelled_res, dict):
+                    pdb_data["modelled_residues"] = modelled_res
+                else:
+                    logging.error(f"Unexpected modelled_residues format: {type(modelled_res)}")
+                break
+        
+        pdb_data["atoms"] = [line.strip() for line in lines if line.startswith(ATOM)]
+        
+        res_list = self._count_residues(pdb_data["atoms"])
+        
+        # Adjust N-terminal and C-terminal residues if necessary
+        if pdb_data["modelled_residues"]["loops"]:
+            if pdb_data["modelled_residues"]["loops"][0][0] == res_list[0]:
+                pdb_data["modelled_residues"]["nter"].append(pdb_data["modelled_residues"]["loops"].pop(0))
+            if pdb_data["modelled_residues"]["loops"] and pdb_data["modelled_residues"]["loops"][-1][-1] == res_list[-1]:
+                pdb_data["modelled_residues"]["cter"].append(pdb_data["modelled_residues"]["loops"].pop())
+        
+        logging.debug(f"Final modelled_residues: {pdb_data['modelled_residues']}")
+        
+        pdb_data["residues"] = res_list
+        return pdb_data
+
+    def _load_unbound_pdbs(self, unbound_pdbs, receptor_chains, ligand_chains):
+        """
+        Load data from multiple unbound PDB files
+        """
+        pdb_data = {}
+        for pdb_file, chain in zip(unbound_pdbs, self._chains):
+            if os.path.exists(pdb_file):
+                pdb_id = os.path.basename(pdb_file)[:4]
+                is_ligand = chain in ligand_chains
+                pdb_data[chain] = self._load_chain(pdb_id, chain, os.path.dirname(pdb_file), is_unbound=True, is_ligand=is_ligand)
+                if pdb_data[chain] is None:
+                    logging.error(f"Failed to load data for unbound PDB {pdb_file}")
+                    return None
+            else:
+                logging.error(f"PDB file not found: {pdb_file}")
+                return None
+        return pdb_data
+
+    def _process_pdb_file(self, pdb_file):
+        """
+        Process a single PDB file and extract relevant information
+        """
+        pdb_data = {"modelled_residues": {"nter": [], "loops": [], "cter": []}, "atoms": [], "residues": []}
+        
+        with open(pdb_file, "r") as F:
             for line in F:
-                if MODELLED_RESIDUES in line:
+                if line.startswith(MODELLED_RESIDUES):
                     pdb_data["modelled_residues"] = eval(line.strip(MODELLED_RESIDUES))
-                    break
-            pdb_data["atoms"] = [ line.strip() for line in F if line.startswith(ATOM)]
+                elif line.startswith(ATOM):
+                    pdb_data["atoms"].append(line.strip())
 
-            res_list = self._count_residues(pdb_data["atoms"])
-            modelled_residues = {"nter" : [], "loops" : [], "cter" : []}
+        pdb_data["residues"] = self._count_residues(pdb_data["atoms"])
 
-            if len(pdb_data["modelled_residues"]) > 0 and pdb_data["modelled_residues"][0][0] == res_list[0]:
-                modelled_residues["nter"].append(pdb_data["modelled_residues"][0])
-                pdb_data["modelled_residues"].pop(0)
-
-            if len(pdb_data["modelled_residues"]) > 0 and pdb_data["modelled_residues"][-1][-1] == res_list[-1]:
-                modelled_residues["cter"].append(pdb_data["modelled_residues"][-1])
-                pdb_data["modelled_residues"].pop(-1)
-
-            modelled_residues["loops"] = pdb_data["modelled_residues"]
-            pdb_data["modelled_residues"] = modelled_residues
-
-            pdb_data["residues"] = res_list
         return pdb_data
 
     def _count_residues(self, atom_list):
@@ -166,25 +235,41 @@ class ChainCombine(object):
         return count
 
     def _trim_residues(self, original_modelled_residues, ter_cutoff, loop_cutoff):
-        modelled_residues  = copy.deepcopy(original_modelled_residues)
-
-        for begin, end in modelled_residues["nter"]:
+        logging.debug(f"Entering _trim_residues with: {original_modelled_residues}")
+        
+        if not isinstance(original_modelled_residues, dict):
+            logging.error(f"modelled_residues is not a dictionary: {type(original_modelled_residues)}")
+            # Convert list to expected dictionary structure
+            modelled_residues = {"nter": [], "loops": original_modelled_residues, "cter": []}
+        else:
+            modelled_residues = copy.deepcopy(original_modelled_residues)
+    
+        # Process N-terminal residues
+        if "nter" in modelled_residues and modelled_residues["nter"]:
+            begin, end = modelled_residues["nter"][0]
             if end - begin + 1 > ter_cutoff:
                 modelled_residues["nter"] = [(end - ter_cutoff + 1, end)]
-
-        for begin, end in modelled_residues["cter"]:
+    
+        # Process C-terminal residues
+        if "cter" in modelled_residues and modelled_residues["cter"]:
+            begin, end = modelled_residues["cter"][0]
             if end - begin + 1 > ter_cutoff:
                 modelled_residues["cter"] = [(begin, begin + ter_cutoff - 1)]
-
+    
+        # Process loops
         missing_loops = []
         modelled_loops = []
-        for begin, end in modelled_residues["loops"]:
-            if end - begin + 1 > loop_cutoff:
-                 missing_loops.append((begin, end))
-            else:
-                modelled_loops.append((begin, end))
+        if "loops" in modelled_residues:
+            for begin, end in modelled_residues["loops"]:
+                if end - begin + 1 > loop_cutoff:
+                    missing_loops.append((begin, end))
+                else:
+                    modelled_loops.append((begin, end))
+        
         modelled_residues["loops"] = modelled_loops
         modelled_residues["missing_loops"] = missing_loops
+    
+        logging.debug(f"Exiting _trim_residues with: {modelled_residues}")
         return modelled_residues
 
     def _trim_atoms(self, modelled_residues, atoms, residue_list):
@@ -195,15 +280,16 @@ class ChainCombine(object):
         :return:
         """
         missing_res = []
-        for missing in modelled_residues["missing_loops"]:
-            missing_res.extend(range(missing[0], missing[1]+1))
+        if "missing_loops" in modelled_residues:
+            for missing in modelled_residues["missing_loops"]:
+                missing_res.extend(range(missing[0], missing[1]+1))
 
-        if len(modelled_residues["nter"]) == 1:
+        if len(modelled_residues.get("nter", [])) == 1:
             first_res_id = modelled_residues["nter"][0][0]
         else:
             first_res_id = 1
 
-        if len(modelled_residues["cter"]) == 1:
+        if len(modelled_residues.get("cter", [])) == 1:
             last_res_id  = modelled_residues["cter"][0][1]
         else:
             last_res_id  = len(residue_list)
@@ -344,23 +430,22 @@ def parse_modelling_dir(complex_id, modeller_dir):
 
     return pdb_id, chains1, chains2, modelling_dir
 
-
-LIGAND_OUT = "ligand_modelled.pdb"
-RECEPTOR_OUT = "receptor_modelled.pdb"
-
-LIGAND_RES_MINIMIZE = "ligand_minimize_list.dat"
-RECEPTOR_RES_MINIMIZE = "receptor_minimize_list.dat"
-
+def clean_chain_id(chain):
+    """Remove NMR structure indicators from chain IDs"""
+    return re.sub(r'\([0-9]+\)', '', chain)
 
 def write_b_receptor_ligand_pdbs(complexes, modeller_dir, ions_cofactors_dir, ter_cutoff=10, loop_cutoff=20):
     """
     complexes:  dict returned by _affinity_data.AffinityData.get_bound_complexes
     """
-    print("Combinning chains to form ligands and receptors for ...")
+    print("Combining chains to form ligands and receptors for ...")
     for name, complex_id in complexes.items():
+        # Do bound structures
         print(name)
+
         if not os.path.isdir(name):
             os.makedirs(name)
+
         pdb_id, chains1, chains2, modelling_dir = parse_modelling_dir(complex_id, modeller_dir)
 
         ic_dir = os.path.join(ions_cofactors_dir, name)
@@ -380,7 +465,81 @@ def write_b_receptor_ligand_pdbs(complexes, modeller_dir, ions_cofactors_dir, te
         partners[1].write_pdb(out = os.path.join(name, RECEPTOR_OUT))
         partners[1].write_residues_to_minimize(os.path.join(name, RECEPTOR_RES_MINIMIZE))
 
-    print("Done combinning chains")
+    print("Done combining chains")
     print("")
     return None
 
+def write_u_receptor_ligand_pdbs(complexes, modeller_dir, ions_cofactors_dir, ter_cutoff=10, loop_cutoff=20):
+    logging.info("Combining chains to form ligands and receptors for unbound structures...")
+    empty_structures = []
+
+    for name, complex_data in complexes.items():
+        logging.info(f"Processing unbound complex: {name}")
+        try:
+            bound_name, receptor_pdb, receptor_chains, ligand_pdb, ligand_chains = complex_data
+            bound_name = bound_name[:4].lower()
+
+            receptor_chains = [clean_chain_id(chain) for chain in receptor_chains]
+            ligand_chains = [clean_chain_id(chain) for chain in ligand_chains]
+
+            unbound_name = f"{name}_U"
+            if not os.path.isdir(unbound_name):
+                os.makedirs(unbound_name)
+
+            receptor_pdbs = [os.path.join(modeller_dir, f"{bound_name}_u", f"{bound_name}_r_u{chain}_modelled.pdb") for chain in receptor_chains]
+            ligand_pdbs = [os.path.join(modeller_dir, f"{bound_name}_u", f"{bound_name}_l_u{chain}_modelled.pdb") for chain in ligand_chains]
+
+            logging.debug(f"Receptor PDBs: {receptor_pdbs}")
+            logging.debug(f"Ligand PDBs: {ligand_pdbs}")
+
+            if not all(os.path.exists(pdb) for pdb in receptor_pdbs + ligand_pdbs):
+                missing_pdbs = [pdb for pdb in receptor_pdbs + ligand_pdbs if not os.path.exists(pdb)]
+                logging.warning(f"Warning: Not all unbound PDB files found for {name}. Missing: {missing_pdbs}")
+                continue
+
+            ic_dir = os.path.join(ions_cofactors_dir, name)
+            ions_cofactors_files = glob.glob(os.path.join(ic_dir, f"{bound_name}*.pdb")) if os.path.isdir(ic_dir) else []
+
+            receptor = ChainCombine(receptor_pdb, receptor_chains, modeller_dir, ions_cofactors_files, unbound_pdbs=receptor_pdbs, is_ligand=False)
+            receptor.trim_residues(ter_cutoff, loop_cutoff)
+            receptor.combine()
+
+            ligand = ChainCombine(ligand_pdb, ligand_chains, modeller_dir, ions_cofactors_files, unbound_pdbs=ligand_pdbs, is_ligand=True)
+            ligand.trim_residues(ter_cutoff, loop_cutoff)
+            ligand.combine()
+
+            if receptor.is_empty() or ligand.is_empty():
+                empty_structures.append({
+                    "name": name,
+                    "receptor_empty": receptor.is_empty(),
+                    "ligand_empty": ligand.is_empty(),
+                    "receptor_pdbs": receptor_pdbs,
+                    "ligand_pdbs": ligand_pdbs
+                })
+                logging.warning(f"Empty structure detected for {name}. Skipping...")
+                continue
+
+            receptor.write_pdb(out=os.path.join(unbound_name, RECEPTOR_OUT))
+            receptor.write_residues_to_minimize(os.path.join(unbound_name, RECEPTOR_RES_MINIMIZE))
+
+            ligand.write_pdb(out=os.path.join(unbound_name, LIGAND_OUT))
+            ligand.write_residues_to_minimize(os.path.join(unbound_name, LIGAND_RES_MINIMIZE))
+
+            logging.info(f"Successfully processed {name}")
+
+        except Exception as e:
+            logging.error(f"Error processing complex {name}: {str(e)}")
+            logging.debug(traceback.format_exc())
+
+    logging.info("Done combining chains for unbound structures")
+
+    if empty_structures:
+        logging.warning(f"Found {len(empty_structures)} complexes with empty structures:")
+        for struct in empty_structures:
+            logging.warning(f"Complex: {struct['name']}")
+            logging.warning(f"  Receptor empty: {struct['receptor_empty']}")
+            logging.warning(f"  Ligand empty: {struct['ligand_empty']}")
+            logging.warning(f"  Receptor PDBs: {struct['receptor_pdbs']}")
+            logging.warning(f"  Ligand PDBs: {struct['ligand_pdbs']}")
+
+    return empty_structures

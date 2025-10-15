@@ -37,8 +37,10 @@ def _rotation_matrix(u):
     return rotMat
 
 
-def _random_rotation_matrix():
-    u = np.random.uniform(size=3)
+def _random_rotation_matrix(rng=None):
+    if rng is None:
+        rng = np.random
+    u = rng.uniform(size=3)
     return _rotation_matrix(u)
 
 
@@ -83,9 +85,9 @@ def systematic_gen_rotation(ligand_crd, total_count, output_nc):
     output_nc:      str, name of output file
     """
     initial_crd = InpcrdLoad(ligand_crd).get_coordinates()
-    initial_crd = _move_molecule_to_origin(initial_crd)
+    initial_crd, displacement = _move_molecule_to_origin(initial_crd)
 
-    total_count = np.ceil( total_count**(1./3) )
+    total_count = int(np.ceil( total_count**(1./3) ))
     u = np.linspace(0., 1., total_count+2)
     u = u[1:-1]
     print("Generating total %d rotations"%(len(u)**3))
@@ -108,12 +110,19 @@ def systematic_gen_rotation(ligand_crd, total_count, output_nc):
     return None
 
 
-def random_gen_rotation(ligand_crd, total_count, output_nc):
+def random_gen_rotation(ligand_crd, total_count, output_nc, seed=None):
     """
     ligand_crd:    str, file name
     total_count:    int, total number of rotations
     output_nc:      str, name of output file
+    seed:          int or None, random seed for reproducibility
     """
+    # Create random number generator with optional seed
+    if seed is not None:
+        rng = np.random.RandomState(seed)
+    else:
+        rng = np.random
+
     initial_crd = InpcrdLoad(ligand_crd).get_coordinates()
     initial_crd, displacement = _move_molecule_to_origin(initial_crd)
 
@@ -124,7 +133,7 @@ def random_gen_rotation(ligand_crd, total_count, output_nc):
     for i in range(total_count):
         if (i%100) == 0:
             print("Doing %d-th"%i)
-        A = _random_rotation_matrix()
+        A = _random_rotation_matrix(rng)
         crd = _rotate_molecule(A, initial_crd)
         nc_handle.variables["positions"][i+1,:,:] = _move_molecule_to_original_position(crd, displacement)
     nc_handle.close()
@@ -132,12 +141,19 @@ def random_gen_rotation(ligand_crd, total_count, output_nc):
     return None
 
 
-def random_rotation(inpcrd):
+def random_rotation(inpcrd, seed=None):
     """
     inpcrd: np.array of shape (natoms, 3)
+    seed: int or None, random seed for reproducibility
     """
-    initial_crd = _move_molecule_to_origin(inpcrd)
-    A = _random_rotation_matrix()
+    # Create random number generator with optional seed
+    if seed is not None:
+        rng = np.random.RandomState(seed)
+    else:
+        rng = np.random
+
+    initial_crd, displacement = _move_molecule_to_origin(inpcrd)
+    A = _random_rotation_matrix(rng)
     crd = _rotate_molecule(A, initial_crd)
     return crd
 

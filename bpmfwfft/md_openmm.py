@@ -41,7 +41,7 @@ class OpenMM_MD(object):
                 constraints = openmm.app.HBonds, implicitSolvent = selected_solvent)
         integrator = openmm.LangevinIntegrator(temperature*openmm.unit.kelvin, 1/openmm.unit.picosecond, 0.002*openmm.unit.picoseconds)
         
-        self._simulation = openmm.app.Simulation(self._prmtop.topology, system, integrator)
+        self._simulation = openmm.app.Simulation(self._prmtop.topology, system, integrator, platform="CUDA")
         self._simulation.context.setPositions(inpcrd.positions)
         print("Energy minimizing")
         self._simulation.minimizeEnergy()
@@ -280,7 +280,8 @@ def openmm_energy(prmtop_file, crd, phase, getComponents=False):
     system = prmtop.createSystem(nonbondedMethod=openmm.app.NoCutoff,
                                  constraints=None, implicitSolvent=selected_solvent)
     dummy_integrator = openmm.VerletIntegrator(0.002*openmm.unit.picoseconds)
-    simulation = openmm.app.Simulation(prmtop.topology, system, dummy_integrator)
+    platform = openmm.Platform.getPlatformByName('CUDA')
+    simulation = openmm.app.Simulation(topology=prmtop.topology, system=system, integrator=dummy_integrator, platform=platform)
     
     pot_energies = []
     for conf in crd_ensemble:

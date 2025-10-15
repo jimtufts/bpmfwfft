@@ -7,6 +7,8 @@ from __future__ import print_function
 import numpy as np
 import netCDF4
 import os
+import time
+import multiprocessing
 
 try:
     from bpmfwfft.grids import RecGrid
@@ -18,6 +20,7 @@ except:
 
 KB = 0.001987204134799235  # kcal/mol*K
 
+omp_num_threads = int(os.environ.get('OMP_NUM_THREADS', multiprocessing.cpu_count()))
 
 class Sampling(object):
     def __init__(self, rec_prmtop, lj_sigma_scal_fact,
@@ -286,7 +289,8 @@ class Sampling(object):
                 self._save_sub_data_to_nc(name, step)
 
     def _do_fft(self, step):
-        print(f"Doing FFT for step {self._start_index + step}")
+        start_time_fft = time.time()
+        print(f"Doing FFT for step {self._start_index + step}, with {omp_num_threads} threads")
         lig_conf = self._lig_coord_ensemble[step]
         self._lig_grid._place_ligand_crd_in_grid(molecular_coord=lig_conf)
         self._cal_free_of_clash()
@@ -328,7 +332,7 @@ class Sampling(object):
         if step == 0:
             # get crystal pose here, use i,j,k of crystal pose
             self._native_translation = ((self._rec_grid_displacement - self._lig_grid._new_displacement) / self._lig_grid._spacing).astype(int)
-            in_bounds = self._native_translation < (i_max, j_max, k_max)
+            in_bounds = np.all(self._native_translation >= 0) and np.all(self._native_translation < (i_max, j_max, k_max))
             
             if np.all(in_bounds):
                 self._lig_grid._native_pose_energy = self._lig_grid._meaningful_energies[0:i_max, 0:j_max, 0:k_max][
@@ -339,6 +343,8 @@ class Sampling(object):
         self._resampled_trans_vectors = np.array(self._resampled_trans_vectors, dtype=int)
 
         self._save_data_to_nc(step)
+
+        print(f"--- FFT step {step} calculated in {(time.time() - start_time_fft)} seconds ---", flush=True)
 
         return None
 
@@ -573,7 +579,7 @@ if __name__ == "__main__":
     lig_prmtop = f"{test_dir}/FFT_PPI/2.redock/1.amber/2OOB_A:B/ligand.prmtop"
     lig_inpcrd = f"{test_dir}/FFT_PPI/2.redock/2.minimize/2OOB_A:B/ligand.inpcrd"
 
-    energy_sample_size_per_ligand = 1000
+    energy_sample_size_per_ligand = 300
     output_nc = f"{test_dir}/FFT_PPI/2.redock/5.fft_sampling/2OOB_A:B/fft_sampling_maintest.nc"
     # output_nc = "/home/jim/Desktop/test_results/fft_2oob.nc"
 
@@ -583,7 +589,7 @@ if __name__ == "__main__":
     else:
         rot_index = 0
     # uncomment this to start over
-    # rot_index = 0
+    rot_index = 0
     lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positions"][rot_index : rot_index + 1]
 
     rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
