@@ -103,3 +103,53 @@ def test_rec_coordinates_shape():
     assert Sampling_test._rec_crd is not None
     assert len(Sampling_test._rec_crd.shape) == 2  # (n_atoms, 3)
     assert Sampling_test._rec_crd.shape[1] == 3  # x, y, z coordinates
+
+def test_free_of_clash_calculation():
+    """Test clash detection calculation"""
+    # Call the method to calculate free of clash
+    Sampling_test._cal_free_of_clash()
+
+    # Check that the free_of_clash array was created
+    assert hasattr(Sampling_test._lig_grid, '_free_of_clash')
+    assert Sampling_test._lig_grid._free_of_clash is not None
+
+    # Should be a boolean array
+    assert Sampling_test._lig_grid._free_of_clash.dtype == bool
+
+    # Should be 3D
+    assert len(Sampling_test._lig_grid._free_of_clash.shape) == 3
+
+def test_netcdf_variables():
+    """Test that NetCDF output has expected structure"""
+    nc = Sampling_test._nc_handle
+
+    # Check for expected variables
+    assert 'rec_positions' in nc.variables
+    assert 'lig_positions' in nc.variables
+    assert 'resampled_energies' in nc.variables
+
+    # Check for expected dimensions
+    assert 'rec_natoms' in nc.dimensions
+    assert 'lig_natoms' in nc.dimensions
+
+def test_remove_nonphysical_energies():
+    """Test filtering of nonphysical energies"""
+    import numpy as np
+
+    # First ensure free_of_clash is calculated
+    if not hasattr(Sampling_test._lig_grid, '_free_of_clash'):
+        Sampling_test._cal_free_of_clash()
+
+    # Create a test grid with same shape as max_grid_indices
+    max_i, max_j, max_k = Sampling_test._lig_grid._max_grid_indices
+    test_grid = np.ones((max_i, max_j, max_k))
+
+    # Apply the filter
+    filtered_grid = Sampling_test._remove_nonphysical_energies(test_grid)
+
+    # Result should be 1D array of non-clashing positions
+    assert filtered_grid is not None
+    assert len(filtered_grid.shape) == 1
+
+    # Number of elements should be <= original grid size
+    assert filtered_grid.size <= test_grid.size
