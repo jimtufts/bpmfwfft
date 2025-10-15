@@ -14,13 +14,24 @@ conda_prefix = sys.prefix
 eigen_include = os.path.join(conda_prefix, 'include', 'eigen3')
 
 # Set compiler flags
-extra_compile_args = ["-std=c++17", "-fopenmp", "-O3", "-march=native", "-DNDEBUG", "-DEIGEN_NO_DEBUG"]
-extra_link_args = ["-fopenmp"]
+extra_compile_args = ["-std=c++17", "-O3", "-DNDEBUG", "-DEIGEN_NO_DEBUG"]
+extra_link_args = []
+
+# Add OpenMP support if available
+if platform.system() != 'Darwin':  # Not macOS
+    extra_compile_args.append("-fopenmp")
+    extra_link_args.append("-fopenmp")
+
+# Add architecture-specific flags
+if platform.system() != 'Darwin':
+    extra_compile_args.append("-march=native")
 
 if platform.machine() in ['x86_64', 'AMD64']:
-    extra_compile_args.extend(["-msse2", "-msse3", "-mavx", "-mavx2"])
+    if platform.system() != 'Darwin':
+        extra_compile_args.extend(["-msse2", "-msse3", "-mavx", "-mavx2"])
 elif platform.machine().startswith('arm'):
-    extra_compile_args.append("-mfpu=neon")
+    if platform.system() != 'Darwin':
+        extra_compile_args.append("-mfpu=neon")
 
 # CUDA setup
 cuda_toolkit_path = os.getenv('CUDA_HOME', '/usr/local/cuda')
