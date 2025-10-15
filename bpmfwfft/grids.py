@@ -335,14 +335,15 @@ class Grid(object):
         xyz = self._crd
         xyz = np.expand_dims(xyz, 0)
         # convert coordinates to nanometers for mdtraj
-        xyz = xyz.astype(np.float32) / 10.
-        atom_radii = np.copy(self._prmtop["VDW_RADII"]) / 10.
+        xyz = (xyz / 10.).astype(np.float32)
+        atom_radii = (np.copy(self._prmtop["VDW_RADII"]) / 10.).astype(np.float32)
 
-        radii = np.array(atom_radii, np.float32) + probe_radius
+        radii = atom_radii + np.float32(probe_radius)
         dim1 = xyz.shape[1]
         atom_mapping = np.arange(dim1, dtype=np.int32)
+        atom_selection_mask = np.ones(dim1, dtype=np.int32)
         out = np.zeros((xyz.shape[0], dim1), dtype=np.float32)
-        _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
+        _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, atom_selection_mask, out)
         # convert values from nm^2 to A^2
         out = out
         return out
@@ -355,13 +356,14 @@ class Grid(object):
         xyz = self._crd
         xyz = np.expand_dims(xyz, 0)
         # convert coordinates to nanometers for mdtraj
-        xyz = xyz.astype(np.float32) / 10.
-        atom_radii = np.copy(self._prmtop["VDW_RADII"]) / 10.
-        radii = np.array(atom_radii, np.float32) + probe_radius
+        xyz = (xyz / 10.).astype(np.float32)
+        atom_radii = (np.copy(self._prmtop["VDW_RADII"]) / 10.).astype(np.float32)
+        radii = atom_radii + np.float32(probe_radius)
         dim1 = xyz.shape[1]
         atom_mapping = np.arange(dim1, dtype=np.int32)
+        atom_selection_mask = np.ones(dim1, dtype=np.int32)
         out = np.zeros((xyz.shape[0], dim1), dtype=np.float32)
-        _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
+        _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, atom_selection_mask, out)
         # out, centered_sphere_points = c_sasa(xyz, radii, int(n_sphere_points))
         # convert values from nm^2 to A^2
         out = out * 100.
