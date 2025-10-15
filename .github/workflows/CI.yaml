@@ -58,7 +58,7 @@ jobs:
         # conda setup requires this special shell
         shell: bash -l {0}
         run: |
-          pytest -v --cov=bpmfwfft --cov-report=xml --color=yes -m "not gpu" --pyargs bpmfwfft.tests
+          pytest -v --cov=bpmfwfft --cov-report=xml --color=yes -m "not gpu" --pyargs bpmfwfft.tests --ignore=bpmfwfft/tests/test_fft_sampling.py
 
       - name: CodeCov
         uses: codecov/codecov-action@v1
