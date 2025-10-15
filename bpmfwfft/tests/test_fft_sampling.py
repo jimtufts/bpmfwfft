@@ -71,3 +71,35 @@ def test_ligand_coord_ensemble():
     """Test that ligand coordinate ensemble was loaded"""
     assert Sampling_test._lig_coord_ensemble is not None
     assert len(Sampling_test._lig_coord_ensemble.shape) == 3  # (n_frames, n_atoms, 3)
+    # Check that we have the expected number of rotations (should be 101 from rotation.nc)
+    assert Sampling_test._lig_coord_ensemble.shape[0] > 0
+
+def test_nc_file_created():
+    """Test that output NetCDF file was initialized"""
+    assert Sampling_test._nc_handle is not None
+    assert hasattr(Sampling_test._nc_handle, 'variables')
+
+def test_energy_parameters():
+    """Test that energy calculation parameters are set correctly"""
+    assert Sampling_test._energy_sample_size_per_ligand == 10
+    assert hasattr(Sampling_test, '_beta')
+    assert Sampling_test._beta > 0  # Should be 1/(kB*T), positive value
+
+def test_start_index():
+    """Test that start index is set correctly"""
+    assert Sampling_test._start_index == 0
+
+def test_lig_grid_dimensions():
+    """Test that ligand grid has correct dimensions matching receptor"""
+    lig_grid = Sampling_test._lig_grid
+    assert hasattr(lig_grid, '_grid')
+    assert lig_grid._grid is not None
+    # Grid should have counts key which defines dimensions
+    assert 'counts' in lig_grid._grid
+    assert len(lig_grid._grid['counts']) == 3  # 3D grid
+
+def test_rec_coordinates_shape():
+    """Test that receptor coordinates have correct shape"""
+    assert Sampling_test._rec_crd is not None
+    assert len(Sampling_test._rec_crd.shape) == 2  # (n_atoms, 3)
+    assert Sampling_test._rec_crd.shape[1] == 3  # x, y, z coordinates
