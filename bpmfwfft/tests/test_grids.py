@@ -22,14 +22,7 @@ rho = 9.0                      # water density parameter
 spacing = 2.0                  # grid spacing in Angstroms (larger for faster tests)
 bsite_file = None
 
-# Ligand scaling parameters (same as receptor for protein-protein)
-lig_core_scaling = 0.76
-lig_surface_scaling = 0.53
-lig_metal_scaling = 0.55
-
 rec_grid = bpmfwfft.grids.RecGrid(rec_prmtop_file, lj_sigma_scaling_factor,
-                        rec_core_scaling, rec_surface_scaling, rec_metal_scaling,
-                        rho,
                         rec_inpcrd_file,
                         bsite_file,
                         grid_nc_file,
@@ -38,7 +31,6 @@ rec_grid = bpmfwfft.grids.RecGrid(rec_prmtop_file, lj_sigma_scaling_factor,
 lig_prmtop_file = (mod_path / "../../examples/amber/ubql_ubiquitin/ligand.prmtop").resolve()
 lig_inpcrd_file = (mod_path / "../../examples/amber/ubql_ubiquitin/ligand.inpcrd").resolve()
 lig_grid = bpmfwfft.grids.LigGrid(lig_prmtop_file, lj_sigma_scaling_factor,
-                        lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
                         lig_inpcrd_file, rec_grid)
 
 print(lig_grid.get_initial_com())
@@ -223,10 +215,6 @@ def test_get_charges():
     assert charges is not None
     assert isinstance(charges, dict)
     assert "CHARGE_E_UNIT" in charges
-
-def test_get_rho():
-    rho = rec_grid.get_rho()
-    assert rho == 9.0
 
 def test_exact_values():
     origin = rec_grid._get_origin_crd()

@@ -16,11 +16,8 @@ BSITE_FILE = None
 
 
 def sampling(rec_prmtop, lj_sigma_scal_fact,
-                rc_scale, rs_scale, rm_scale,
-                lc_scale, ls_scale, lm_scale,
-                rho,
                 rec_inpcrd, grid_nc_file,
-                lig_prmtop, lig_inpcrd, 
+                lig_prmtop, lig_inpcrd,
                 lig_coor_nc, nr_lig_conf,
                 energy_sample_size_per_ligand,
                 output_nc, output_dir):
@@ -43,9 +40,6 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
         lig_nc_handle.close()
 
         sampler = Sampling(rec_prmtop, lj_sigma_scal_fact,
-                            rc_scale, rs_scale, rm_scale,
-                            lc_scale, ls_scale, lm_scale,
-                            rho,
                             rec_inpcrd,
                             BSITE_FILE, grid_nc_file, lig_prmtop, lig_inpcrd,
                             lig_coord_ensemble,

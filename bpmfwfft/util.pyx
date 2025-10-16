@@ -651,12 +651,7 @@ def c_cal_potential_grid_pp(   str name,
                             np.ndarray[np.float64_t, ndim=1] clash_radii,
                             list bond_list,
                             list atom_list,
-                            np.ndarray[float, ndim=2] molecule_sasa,
-                            np.ndarray[float, ndim=2] sasa_cutoffs,
-                            list rec_res_names,
-                            float rec_core_scaling,
-                            float rec_surface_scaling,
-                            float rec_metal_scaling):
+                            np.ndarray[float, ndim=2] molecule_sasa):
 
     cdef:
         list corners
@@ -898,12 +893,7 @@ def c_cal_charge_grid_pp_mp(  str name,
                         list atom_list,
                         int natoms_i,
                         int atomind,
-                        np.ndarray[float, ndim=2] molecule_sasa,
-                        np.ndarray[float, ndim=2] sasa_cutoffs,
-                        list lig_res_names,
-                        float lig_core_scaling,
-                        float lig_surface_scaling,
-                        float lig_metal_scaling):
+                        np.ndarray[float, ndim=2] molecule_sasa):
 
     cdef:
         list corners

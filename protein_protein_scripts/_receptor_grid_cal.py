@@ -45,15 +45,12 @@ def _max_box_edge(inpcrd):
     return max([dx, dy, dz])
 
 
-def rec_grid_cal(prmtop, lj_scale, sc_scale, ss_scale, sm_scale, rho,
+def rec_grid_cal(prmtop, lj_scale,
                  rec_inpcrd, lig_inpcrd, spacing, buffer,
                  grid_out, pdb_out, box_out, radii_type, exclude_H):
     """
     prmtop: str, prmtop file for receptor
     lj_scale:   float, 0 < lj_scale <=1
-    rc_scale:   float, 0 < rc_scale
-    rs_scale:   float, 0 < rs_scale
-    rm_scale:   float, 0 < rm_scale
     rec_inpcrd: str, inpcrd file for receptor
     lig_inpcrd: str, inpcrd file for ligand, used to determine grid size
     spacing:    float, distance between grid points in Angstroms
@@ -75,10 +72,6 @@ def rec_grid_cal(prmtop, lj_scale, sc_scale, ss_scale, sm_scale, rho,
     bsite_file = None
     potential_grid = RecGrid(prmtop,
                              lj_scale,
-                             sc_scale,
-                             ss_scale,
-                             sm_scale,
-                             rho,
                              rec_inpcrd,
                              bsite_file,
                              grid_out,

@@ -37,9 +37,6 @@ lig_coord_ensemble = netCDF4.Dataset(ligand_md_trj_file, "r").variables["positio
 
 Sampling_test = bpmfwfft.fft_sampling.Sampling(
     rec_prmtop, lj_sigma_scal_fact,
-    rc_scale, rs_scale, rm_scale,
-    lc_scale, ls_scale, lm_scale,
-    rho,
     rec_inpcrd, bsite_file, grid_nc_file,
     lig_prmtop, lig_inpcrd,
     lig_coord_ensemble,

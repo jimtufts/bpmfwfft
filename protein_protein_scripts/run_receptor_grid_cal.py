@@ -22,10 +22,6 @@ parser.add_argument("--grid_file_name",     type=str, default="grid.nc")
 parser.add_argument("--radii_type",         type=str, default="VDW_RADII")
 
 parser.add_argument("--lj_scale",    type=float, default=1.0)
-parser.add_argument("--rc_scale",    type=float, default=0.76)
-parser.add_argument("--rs_scale",    type=float, default=0.53)
-parser.add_argument("--rm_scale",    type=float, default=0.55)
-parser.add_argument("--rho",         type=float, default=9.0)
 parser.add_argument("--spacing",     type=float, default=0.5)
 parser.add_argument("--buffer",      type=float, default=1.0)
 
@@ -106,9 +102,6 @@ python ''' + this_script + \
         ''' --out_dir '''   + com_dir + \
         ''' --grid_file_name ''' + args.grid_file_name + \
         ''' --lj_scale %f'''%args.lj_scale + \
-        ''' --rc_scale %f''' % args.rc_scale + \
-        ''' --rs_scale %f''' % args.rs_scale + \
-        ''' --rm_scale %f''' % args.rm_scale + \
         ''' --spacing %f'''%args.spacing + \
         ''' --buffer %f'''%args.buffer + \
         ''' --exclude_H %f''' % args.exclude_H + '''\n'''
@@ -195,9 +188,6 @@ python {this_script} \
         --out_dir {com_dir} \
         --grid_file_name {args.grid_file_name} \
         --lj_scale {args.lj_scale:.6f} \
-        --rc_scale {args.rc_scale:.6f} \
-        --rs_scale {args.rs_scale:.6f} \
-        --rm_scale {args.rm_scale:.6f} \
         --spacing {args.spacing:.6f} \
         --buffer {args.buffer:.6f} \
         --radii_type {args.radii_type} \
@@ -216,12 +206,8 @@ python {this_script} \
 else:
     prmtop = os.path.join(args.amber_dir, RECEPTOR_PRMTOP)
     lj_scale = args.lj_scale
-    rc_scale = args.rc_scale
-    rs_scale = args.rs_scale
-    rm_scale = args.rm_scale
     rec_inpcrd = os.path.join(args.coord_dir, RECEPTOR_INPCRD)
     lig_inpcrd = os.path.join(args.coord_dir, LIGAND_INPCRD)
-    rho = args.rho
     exclude_H = args.exclude_H
 
     spacing = args.spacing
@@ -232,6 +218,6 @@ else:
     pdb_out = os.path.join(args.out_dir, PDB_OUT)
     box_out = os.path.join(args.out_dir, BOX_OUT)
     print()
-    rec_grid_cal(prmtop, lj_scale, rc_scale, rs_scale, rm_scale, rho,
+    rec_grid_cal(prmtop, lj_scale,
                  rec_inpcrd, lig_inpcrd, spacing, buffer, grid_out, pdb_out, box_out, radii_type, exclude_H)
 

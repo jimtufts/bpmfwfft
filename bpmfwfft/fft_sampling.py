@@ -24,9 +24,6 @@ omp_num_threads = int(os.environ.get('OMP_NUM_THREADS', multiprocessing.cpu_coun
 
 class Sampling(object):
     def __init__(self, rec_prmtop, lj_sigma_scal_fact,
-                 rc_scale, rs_scale, rm_scale,
-                 lc_scale, ls_scale, lm_scale,
-                 rho,
                  rec_inpcrd, bsite_file,
                  grid_nc_file,
                  lig_prmtop, lig_inpcrd,
@@ -52,14 +49,12 @@ class Sampling(object):
         self._energy_sample_size_per_ligand = energy_sample_size_per_ligand
         self._beta = 1. / temperature / KB
 
-        rec_grid = self._create_rec_grid(rec_prmtop, lj_sigma_scal_fact, rc_scale,
-                                         rs_scale, rm_scale, rho, rec_inpcrd,
+        rec_grid = self._create_rec_grid(rec_prmtop, lj_sigma_scal_fact, rec_inpcrd,
                                          bsite_file, grid_nc_file)
         self._rec_grid_displacement = rec_grid._displacement
         self._rec_crd = rec_grid.get_crd()
 
         self._lig_grid = self._create_lig_grid(lig_prmtop, lj_sigma_scal_fact,
-                                               lc_scale, ls_scale, lm_scale,
                                                lig_inpcrd, rec_grid)
 
         self._lig_coord_ensemble = self._load_ligand_coor_ensemble(lig_coord_ensemble)
@@ -70,15 +65,14 @@ class Sampling(object):
         self._resampled_trans_vectors_components = {}
 
     def _create_rec_grid(self, rec_prmtop, lj_sigma_scal_fact,
-                         rc_scale, rs_scale, rm_scale, rho,
                          rec_inpcrd, bsite_file, grid_nc_file):
-        rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact, rc_scale, rs_scale, rm_scale,
-                           rho, rec_inpcrd, bsite_file, grid_nc_file, new_calculation=False)
+        rec_grid = RecGrid(rec_prmtop, lj_sigma_scal_fact,
+                           rec_inpcrd, bsite_file, grid_nc_file, new_calculation=False)
         return rec_grid
 
-    def _create_lig_grid(self, lig_prmtop, lj_sigma_scal_fact, lc_scale, ls_scale, lm_scale,
+    def _create_lig_grid(self, lig_prmtop, lj_sigma_scal_fact,
                          lig_inpcrd, rec_grid):
-        lig_grid = LigGrid(lig_prmtop, lj_sigma_scal_fact, lc_scale, ls_scale, lm_scale, lig_inpcrd, rec_grid)
+        lig_grid = LigGrid(lig_prmtop, lj_sigma_scal_fact, lig_inpcrd, rec_grid)
         return lig_grid
 
     def _load_ligand_coor_ensemble(self, lig_coord_ensemble):

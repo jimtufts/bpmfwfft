@@ -66,11 +66,6 @@ def process_potential_grid_function(
         bond_list,
         atom_list,
         molecule_sasa,
-        sasa_cutoffs,
-        rec_res_names,
-        rec_core_scaling,
-        rec_surface_scaling,
-        rec_metal_scaling,
 ):
     """
     gets called by cal_potential_grid and assigned to a new python process
@@ -99,9 +94,7 @@ def process_potential_grid_function(
                                    grid_x, grid_y, grid_z,
                                    origin_crd, uper_most_corner_crd, uper_most_corner,
                                    grid_spacing, grid_counts, charges, prmtop_ljsigma, prmtop_vdwradii,
-                                   clash_radii, bond_list, atom_list, molecule_sasa, sasa_cutoffs,
-                                   rec_res_names, rec_core_scaling, rec_surface_scaling,
-                                   rec_metal_scaling)
+                                   clash_radii, bond_list, atom_list, molecule_sasa)
     return grid
 
 
@@ -122,11 +115,6 @@ def process_charge_grid_function(
         natoms_i,
         atomind,
         molecule_sasa,
-        sasa_cutoffs,
-        lig_res_names,
-        lig_core_scaling,
-        lig_surface_scaling,
-        lig_metal_scaling
 ):
     """
     gets called by cal_charge_grid and assigned to a new python process
@@ -157,8 +145,7 @@ def process_charge_grid_function(
                                    grid_spacing, eight_corner_shifts, six_corner_shifts,
                                    grid_counts, charges, prmtop_ljsigma, prmtop_vdwradii, clash_radii,
                                    bond_list, atom_list,
-                                   natoms_i, atomind, molecule_sasa, sasa_cutoffs, lig_res_names,
-                                   lig_core_scaling, lig_surface_scaling, lig_metal_scaling)
+                                   natoms_i, atomind, molecule_sasa)
 
     return grid
 
@@ -238,8 +225,7 @@ class Grid(object):
         # self._grid_func_names = ()  # don't calculate any grids, but make grid objects for testing
         cartesian_axes = ("x", "y", "z")
         box_dim_names = ("d0", "d1", "d2")
-        others = ("spacing", "counts", "origin", "lj_sigma_scaling_factor", "rec_core_scaling",
-                  "rec_surface_scaling", "rec_metal_scaling")
+        others = ("spacing", "counts", "origin", "lj_sigma_scaling_factor")
         self._grid_allowed_keys = self._grid_func_names + cartesian_axes + box_dim_names + others
 
         self._eight_corner_shifts = [np.array([i, j, k], dtype=int) for i in range(2) for j in range(2) for k in
@@ -483,14 +469,10 @@ class LigGrid(Grid):
     """
 
     def __init__(self, prmtop_file_name, lj_sigma_scaling_factor,
-                 lig_core_scaling, lig_surface_scaling, lig_metal_scaling,
                  inpcrd_file_name, receptor_grid):
         """
         :param prmtop_file_name: str, name of AMBER prmtop file
         :param lj_sigma_scaling_factor: float
-        :param lig_core_scaling: float
-        :param lig_surface_scaling: float
-        :param lig_metal_scaling: float
         :param inpcrd_file_name: str, name of AMBER coordinate file
         :param receptor_grid: an instance of RecGrid class.
         """
@@ -513,11 +495,6 @@ class LigGrid(Grid):
         self._move_ligand_to_lower_corner()
         self._displacement = self._new_displacement
         self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
-        self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
-        self._lig_core_scaling = lig_core_scaling
-        self._lig_surface_scaling = lig_surface_scaling
-        self._lig_metal_scaling = lig_metal_scaling
-        self._rho = receptor_grid.get_rho()
         self._native_translation = ((receptor_grid._displacement - self._new_displacement) / self._spacing).astype(int)
 
     def _move_ligand_to_lower_corner(self):
@@ -782,11 +759,6 @@ class LigGrid(Grid):
                         natoms_i,
                         atomind,
                         self._molecule_sasa,
-                        self._sasa_cutoffs,
-                        self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
-                        self._lig_core_scaling,
-                        self._lig_surface_scaling,
-                        self._lig_metal_scaling
                     ))
                 grid = np.zeros(grid_counts, dtype=np.float64)
                 for i in range(task_divisor):
@@ -1241,8 +1213,6 @@ class RecGrid(Grid):
     """
 
     def __init__(self, prmtop_file_name, lj_sigma_scaling_factor,
-                 rec_core_scaling, rec_surface_scaling, rec_metal_scaling,
-                 rho,
                  inpcrd_file_name,
                  bsite_file,
                  grid_nc_file,
@@ -1268,22 +1238,9 @@ class RecGrid(Grid):
         if new_calculation:
             self._load_inpcrd(inpcrd_file_name)
             self._molecule_sasa = self._get_molecule_sasa(0.14, 960)
-            self._sasa_cutoffs = self._get_molecule_sasa(0.086, 960)
-            self._rho = rho
-            self._rec_core_scaling = rec_core_scaling
-            self._rec_surface_scaling = rec_surface_scaling
-            self._rec_metal_scaling = rec_metal_scaling
             nc_handle = netCDF4.Dataset(grid_nc_file, "w", format="NETCDF4")
             self._write_to_nc(nc_handle, "lj_sigma_scaling_factor",
                               np.array([lj_sigma_scaling_factor], dtype=float))
-            self._write_to_nc(nc_handle, "rec_core_scaling",
-                              np.array([rec_core_scaling], dtype=float))
-            self._write_to_nc(nc_handle, "rec_surface_scaling",
-                              np.array([rec_surface_scaling], dtype=float))
-            self._write_to_nc(nc_handle, "rec_metal_scaling",
-                              np.array([rec_metal_scaling], dtype=float))
-            self._write_to_nc(nc_handle, "rho",
-                              np.array([rho], dtype=float))
             self._write_to_nc(nc_handle, "molecule_sasa",
                               np.array(self._molecule_sasa, dtype=float))
 
@@ -1331,7 +1288,9 @@ class RecGrid(Grid):
         if natoms != nc_handle.variables["trans_crd"].shape[0]:
             raise RuntimeError("Number of atoms is wrong in %s %nc_file_name")
         self._crd = nc_handle.variables["trans_crd"][:]
-        self._rho = nc_handle.variables["rho"][:]
+        # Backward compatibility: read old parameters if present but don't use them
+        # if "rho" in nc_handle.variables:
+        #     _ = nc_handle.variables["rho"][:]  # Read but ignore
         self._displacement = nc_handle.variables["displacement"][:]
 
         # for key in self._grid_func_names:
@@ -1647,11 +1606,6 @@ class RecGrid(Grid):
                                 bond_list,
                                 atom_list,
                                 self._molecule_sasa,
-                                self._sasa_cutoffs,
-                                self._prmtop["PDB_TEMPLATE"]["RES_NAME"],
-                                self._rec_core_scaling,
-                                self._rec_surface_scaling,
-                                self._rec_metal_scaling,
                             ))
                         grid_array = []
                         for i in range(task_divisor):
@@ -1788,9 +1742,6 @@ class RecGrid(Grid):
 
     def get_FFTs(self):
         return self._FFTs
-
-    def get_rho(self):
-        return self._rho
 
     def get_initial_displacement(self):
         return self._displacement

@@ -31,13 +31,6 @@ parser.add_argument("--nr_lig_conf",                   type=int, default=100)
 parser.add_argument("--out_dir",                       type=str, default="out")
 
 parser.add_argument("--lj_scale",                      type=float, default=1.0)
-parser.add_argument("--rc_scale",                      type=float, default=0.76)
-parser.add_argument("--rs_scale",                      type=float, default=0.53)
-parser.add_argument("--rm_scale",                      type=float, default=0.55)
-parser.add_argument("--lc_scale",                      type=float, default=0.81)
-parser.add_argument("--ls_scale",                      type=float, default=0.50)
-parser.add_argument("--lm_scale",                      type=float, default=0.54)
-parser.add_argument("--rho",                           type=float, default=9.0)
 parser.add_argument("--walltime",                      type=str, default="24:00:00")
 parser.add_argument("--pbs",   action="store_true", default=False)
 parser.add_argument("--slurm",   action="store_true", default=False)
@@ -158,12 +151,6 @@ python {this_script}  \
         --lig_ensemble_dir {lig_ensemble_sub_dir} \
 	    --out_dir {com_dir} \
         --lj_scale {args.lj_scale:.6f} \
-        --rc_scale {args.rc_scale:.6f} \
-        --rs_scale {args.rs_scale:.6f} \
-        --rm_scale {args.rm_scale:.6f} \
-        --lc_scale {args.lc_scale:.6f} \
-        --ls_scale {args.ls_scale:.6f} \
-        --lm_scale {args.lm_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
 
@@ -278,12 +265,6 @@ python {this_script}  \
         --lig_ensemble_dir {lig_ensemble_sub_dir} \
         --out_dir /scratch/$USER/job_$SLURM_JOB_ID \
         --lj_scale {args.lj_scale:.6f} \
-        --rc_scale {args.rc_scale:.6f} \
-        --rs_scale {args.rs_scale:.6f} \
-        --rm_scale {args.rm_scale:.6f} \
-        --lc_scale {args.lc_scale:.6f} \
-        --ls_scale {args.ls_scale:.6f} \
-        --lm_scale {args.lm_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n
 mv "$destination_directory" "$source_file" \n
@@ -407,12 +388,6 @@ python {this_script}  \
         --lig_ensemble_dir {lig_ensemble_sub_dir} \
         --out_dir /scratch/$USER/job_$SLURM_JOB_ID \
         --lj_scale {args.lj_scale:.6f} \
-        --rc_scale {args.rc_scale:.6f} \
-        --rs_scale {args.rs_scale:.6f} \
-        --rm_scale {args.rm_scale:.6f} \
-        --lc_scale {args.lc_scale:.6f} \
-        --ls_scale {args.ls_scale:.6f} \
-        --lm_scale {args.lm_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
         --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n
 mv "$destination_directory" "$source_file" \n
@@ -471,9 +446,6 @@ else:
     output_dir = args.out_dir
 
     sampling(rec_prmtop, lj_sigma_scal_fact,
-             rc_scale, rs_scale, rm_scale,
-             lc_scale, ls_scale, lm_scale,
-             rho,
              rec_inpcrd, grid_nc_file,
              lig_prmtop, lig_inpcrd,
              lig_coor_nc, nr_lig_conf,
