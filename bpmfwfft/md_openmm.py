@@ -256,31 +256,32 @@ class OpenMM_TREMD(object):
         return nc_handle
 
 
-def openmm_energy(prmtop_file, crd, phase, getComponents=False):
+def openmm_energy(prmtop_file, crd, phase, getComponents=False, platform_name='CUDA'):
     """
     crd in angstroms
     crd can be an inpcrd file name, a array with shape (natom, 3) or shape (nframe, natom, 3)
+    platform_name: str, OpenMM platform to use ('CUDA', 'CPU', 'OpenCL', 'Reference')
     """
     implicit_solvents = openmm_solvent_models
     selected_solvent = implicit_solvents[phase]
-    
+
     if type(crd) == str:
         inpcrd = openmm.app.AmberInpcrdFile(crd)
         position = inpcrd.positions
         crd = position.value_in_unit(openmm.unit.angstrom)
-    
+
     crd_ensemble = np.array(crd, dtype=float)
     if len(crd_ensemble.shape) == 2:
         crd_ensemble = np.array([crd_ensemble], dtype=float)
-    
+
     if len(crd_ensemble.shape) != 3:
         raise RuntimeError("crd_ensemble has wrong shape")
-    
+
     prmtop = openmm.app.AmberPrmtopFile(prmtop_file)
     system = prmtop.createSystem(nonbondedMethod=openmm.app.NoCutoff,
                                  constraints=None, implicitSolvent=selected_solvent)
     dummy_integrator = openmm.VerletIntegrator(0.002*openmm.unit.picoseconds)
-    platform = openmm.Platform.getPlatformByName('CUDA')
+    platform = openmm.Platform.getPlatformByName(platform_name)
     simulation = openmm.app.Simulation(topology=prmtop.topology, system=system, integrator=dummy_integrator, platform=platform)
     
     pot_energies = []

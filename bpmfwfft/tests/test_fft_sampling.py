@@ -298,3 +298,53 @@ def test_cal_energies_sasa():
     # Basic sanity checks
     assert np.isfinite(actual_min), "Minimum energy should be finite"
     assert np.isfinite(actual_max), "Maximum energy should be finite"
+
+def test_run_sampling_generates_valid_data():
+    """Test that run_sampling() actually populates the NC file with valid data"""
+    import numpy as np
+    import tempfile
+    import os
+
+    # Create a temporary filename (but don't create the file yet - let Sampling create it)
+    fd, test_output_path = tempfile.mkstemp(suffix='.nc')
+    os.close(fd)
+    os.remove(test_output_path)  # Remove the empty file so Sampling creates it properly
+
+    try:
+        # Use only first 2 ligand conformations for fast testing
+        small_lig_ensemble = lig_coord_ensemble[:2]
+
+        sampler = bpmfwfft.fft_sampling.Sampling(
+            rec_prmtop, lj_sigma_scal_fact,
+            rec_inpcrd, bsite_file, grid_nc_file,
+            lig_prmtop, lig_inpcrd,
+            small_lig_ensemble,
+            energy_sample_size_per_ligand,
+            test_output_path,
+            start_index=0,
+            temperature=300.)
+
+        # Actually run the sampling
+        sampler.run_sampling()
+
+        # Now verify the NC file has valid (non-masked) data
+        nc = netCDF4.Dataset(test_output_path, 'r')
+
+        # Check that ligand positions were written (at least for first rotation)
+        lig_pos = nc.variables['lig_positions'][0, 0, :]
+        assert not np.ma.is_masked(lig_pos), "lig_positions should not be masked after run_sampling()"
+        assert np.all(np.isfinite(lig_pos)), "lig_positions should contain finite values"
+
+        # Check that resampled energies were written
+        resampled_e = nc.variables['resampled_energies'][0, :]
+        assert not np.ma.is_masked(resampled_e[0]), "resampled_energies should not be masked after run_sampling()"
+        # Only check the first energy_sample_size_per_ligand values (rest may be fill values)
+        valid_energies = resampled_e[:energy_sample_size_per_ligand]
+        assert np.all(np.isfinite(valid_energies)), "resampled_energies should contain finite values"
+
+        nc.close()
+
+    finally:
+        # Clean up temporary file
+        if os.path.exists(test_output_path):
+            os.remove(test_output_path)

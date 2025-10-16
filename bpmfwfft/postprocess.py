@@ -23,13 +23,14 @@ KB = 0.001987204134799235       # kcal/mol/K
 t_string = "resampled_trans_vectors"
 e_string = "resampled_energies"
 
-def cal_pot_energy(prmtop_file, crd, phase, tmp_dir):
+def cal_pot_energy(prmtop_file, crd, phase, tmp_dir, openmm_platform='CUDA'):
     """
     combine openmm_energy() and sander_energy()
+    openmm_platform: str, OpenMM platform to use ('CUDA', 'CPU', 'OpenCL', 'Reference')
     """
     phase_prefix = phase.split("_")[0]
     if phase_prefix == "OpenMM":
-        return openmm_energy(prmtop_file, crd, phase)
+        return openmm_energy(prmtop_file, crd, phase, platform_name=openmm_platform)
     elif phase_prefix == "sander":
         return sander_energy(prmtop_file, crd, phase, tmp_dir, no_bonded=True)
     else:
@@ -66,7 +67,7 @@ def select_rotation_ind(data, nrepetitions):
 
 class PostProcess(object):
     def __init__(self, rec_prmtop, lig_prmtop, complex_prmtop,
-                        sampling_nc_file, 
+                        sampling_nc_file,
                         solvent_phases,
                         nr_resampled_complexes,
                         start,
@@ -74,7 +75,8 @@ class PostProcess(object):
                         randomly_translate_complex,
                         temperature,
                         sander_tmp_dir,
-                        rotation_indexes=None):
+                        rotation_indexes=None,
+                        openmm_platform='CUDA'):
         """
         :param rec_prmtop: str, name of receptor prmtop file
         :param lig_prmtop: str, name of ligand prmtop file
@@ -86,11 +88,13 @@ class PostProcess(object):
         :param temperature: float
         :param sander_tmp_dir: str, output dir, needed to put temp files to run sander
         :param check_convergence: bool, collect data for running exp avg wrt num rotations
+        :param openmm_platform: str, OpenMM platform to use ('CUDA', 'CPU', 'OpenCL', 'Reference')
         """
         self._rec_prmtop = rec_prmtop
         self._lig_prmtop = lig_prmtop
         self._complex_prmtop = complex_prmtop
         self._sander_tmp_dir = sander_tmp_dir
+        self._openmm_platform = openmm_platform
         self._rotation_indexes = rotation_indexes
         self._start = start
         self._end = end
@@ -149,7 +153,7 @@ class PostProcess(object):
 
         self._rec_energies = {}
         for p in self._gas_phases + self._solvent_phases:
-            e = cal_pot_energy(self._rec_prmtop, rec_conf, p, self._sander_tmp_dir)
+            e = cal_pot_energy(self._rec_prmtop, rec_conf, p, self._sander_tmp_dir, self._openmm_platform)
             self._rec_energies[p] = e[0]
         print("Receptor potential energies")
         print(self._rec_energies)
@@ -192,7 +196,7 @@ class PostProcess(object):
         lig_confs = self._nc_handle.variables["lig_positions"][:][self._start:self._end]
         self._lig_energies = {}
         for p in self._gas_phases + self._solvent_phases:
-            self._lig_energies[p] = cal_pot_energy(self._lig_prmtop, lig_confs, p, self._sander_tmp_dir)
+            self._lig_energies[p] = cal_pot_energy(self._lig_prmtop, lig_confs, p, self._sander_tmp_dir, self._openmm_platform)
         print("Ligand potential energies")
         print(self._lig_energies)
 
@@ -337,7 +341,7 @@ class PostProcess(object):
 
         complex_energies = {}
         for p in self._gas_phases + self._solvent_phases:
-            complex_energies[p] = cal_pot_energy(self._complex_prmtop, complex_confs, p, self._sander_tmp_dir)
+            complex_energies[p] = cal_pot_energy(self._complex_prmtop, complex_confs, p, self._sander_tmp_dir, self._openmm_platform)
         print("Complex potential energies")
         print(complex_energies)
 
@@ -616,7 +620,7 @@ class PostProcess_PL(PostProcess):
 
             complex_energies = {}
             for p in self._gas_phases + self._solvent_phases:
-                complex_energies[p] = cal_pot_energy(self._complex_prmtop, complex_confs, p, self._sander_tmp_dir)
+                complex_energies[p] = cal_pot_energy(self._complex_prmtop, complex_confs, p, self._sander_tmp_dir, self._openmm_platform)
             print("Complex potential energies", complex_energies)
 
             for p in self._gas_phases + self._solvent_phases:
