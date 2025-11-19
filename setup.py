@@ -43,7 +43,7 @@ class CUDA_build_ext(build_ext):
         cuda_lib = os.path.join("bpmfwfft", "libcharge_grid_cuda.so")
         cuda_sources = [
             os.path.join("bpmfwfft", "charge_grid_cuda.cu"),
-            os.path.join("bpmfwfft", "nnls_small_cusolver.cu")
+            os.path.join("bpmfwfft", "nnls_cusolver.cu")
         ]
 
         # Compile CUDA source only if nvcc is available

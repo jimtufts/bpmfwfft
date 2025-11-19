@@ -6,6 +6,7 @@
 #include <vector>
 #include <iostream>
 #include <cusolverDn.h>
+#include "nnls_cusolver.cuh"
 
 // Error checking macro for CUDA calls
 #define CHECK_CUDA(call) { \
@@ -398,27 +399,20 @@ extern "C" void cuda_cal_charge_grid(
     CHECK_CUDA(cudaDeviceSynchronize());
 
     if (use_nnls_solver) {
-        // Allocate additional memory for NNLS solver
-        double *d_At, *d_x, *d_R;
-        int *d_nnlsIters, *d_lsIters;
-        CHECK_CUDA(cudaMalloc(&d_At, num_atoms * 10 * 10 * sizeof(double)));
-        CHECK_CUDA(cudaMalloc(&d_x, num_atoms * 10 * sizeof(double)));
-        CHECK_CUDA(cudaMalloc(&d_R, num_atoms * 10 * 10 * sizeof(double)));
-        CHECK_CUDA(cudaMalloc(&d_nnlsIters, num_atoms * sizeof(int)));
-        CHECK_CUDA(cudaMalloc(&d_lsIters, num_atoms * sizeof(int)));
-        
-	size_t size_A = num_atoms * 10 * 10 * sizeof(double);
-        size_t size_x = num_atoms * 10 * sizeof(double);
-        size_t size_b = num_atoms * 10 * sizeof(double);
-        size_t size_R = num_atoms * 10 * 10 * sizeof(double);
-        
-        printf("Allocated sizes:\n");
-        printf("d_At: %zu bytes\n", size_A);
-        printf("d_x: %zu bytes\n", size_x);
-        printf("d_b_vectors: %zu bytes\n", size_b);
-        printf("d_R: %zu bytes\n", size_R);
-        // Implementation not yet working
-        	
+        // Use cuSOLVER QR-based NNLS solver for small 10x10 systems
+        // This enforces non-negativity constraints (needed for LJr/LJa charge types)
+        // More numerically stable than normal equations approach
+        // printf("Using NNLS solver for %d atoms\n", num_atoms);
+        cuda_nnls_10x10_cusolver(
+            d_a_matrices,     // Input: 10x10 matrices
+            d_b_vectors,      // Input: RHS vectors
+            d_b_vectors,      // Output: Solutions (reuse d_b_vectors for output)
+            num_atoms,        // Number of systems
+            10000             // Max iterations
+        );
+        CHECK_CUDA(cudaGetLastError());
+        CHECK_CUDA(cudaDeviceSynchronize());
+        // printf("NNLS solver completed\n");
     } else {
         // Setup array of pointers for cuBLAS
         createPointerArray<<<blocksPerGrid, threadsPerBlock>>>(
@@ -444,6 +438,7 @@ extern "C" void cuda_cal_charge_grid(
         }
 
         // Solve the systems using the LU factorization
+        // Note: CUBLAS_OP_T because matrix is stored in row-major but cuBLAS expects column-major
         CHECK_CUBLAS(cublasDgetrsBatched(handle, CUBLAS_OP_T, 10, 1,
                             (const double**)d_a_array, 10,
                             d_pivots,
