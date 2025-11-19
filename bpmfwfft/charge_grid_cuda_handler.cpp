@@ -53,7 +53,8 @@ void ChargeGridCUDAHandler::calculateChargeGrid(
     const double* spacing,
     const std::int64_t* eight_corner_shifts,
     const std::int64_t* six_corner_shifts,
-    double* output_grid)
+    double* output_grid,
+    bool use_nnls_solver)
 {
     if (!is_initialized) {
         throw std::runtime_error("ChargeGridCUDAHandler not initialized");
@@ -68,9 +69,9 @@ void ChargeGridCUDAHandler::calculateChargeGrid(
             d_atom_coordinates, d_charges, d_grid_x, d_grid_y, d_grid_z,
             d_origin_crd, d_upper_most_corner_crd, d_upper_most_corner,
             d_spacing, d_eight_corner_shifts, d_six_corner_shifts,
-            static_cast<int>(num_atoms), static_cast<int>(grid_size), 
+            static_cast<int>(num_atoms), static_cast<int>(grid_size),
             static_cast<int>(grid_size), static_cast<int>(grid_size),
-            d_output_grid, false
+            d_output_grid, use_nnls_solver
         );
 
         copyFromDevice(output_grid);

@@ -50,11 +50,13 @@ cdef extern from "charge_grid_cuda_handler.h":
             const double* spacing,
             const int64_t* eight_corner_shifts,
             const int64_t* six_corner_shifts,
-            double* output_grid) except +
+            double* output_grid,
+            bool use_nnls_solver) except +
 
 def py_cal_charge_grid_cuda(
     np.ndarray[double, ndim=2, mode="c"] atom_coordinates not None,
     np.ndarray[double, ndim=1, mode="c"] charges not None,
+    str charge_name,
     np.ndarray[double, ndim=1, mode="c"] grid_x not None,
     np.ndarray[double, ndim=1, mode="c"] grid_y not None,
     np.ndarray[double, ndim=1, mode="c"] grid_z not None,
@@ -67,6 +69,10 @@ def py_cal_charge_grid_cuda(
 ):
     cdef int num_atoms = charges.shape[0]
     cdef int grid_size = grid_x.shape[0]
+
+    # Determine whether to use NNLS solver based on charge type
+    # LJr (Lennard-Jones repulsive) and LJa (Lennard-Jones attractive) require non-negative charges
+    cdef bool use_nnls = (charge_name == "LJr" or charge_name == "LJa")
 
     cdef np.ndarray[double, ndim=3, mode="c"] output_grid = np.zeros((grid_size, grid_size, grid_size), dtype=np.float64)
 
@@ -85,7 +91,8 @@ def py_cal_charge_grid_cuda(
             &spacing[0],
             &eight_corner_shifts[0, 0],
             &six_corner_shifts[0, 0],
-            &output_grid[0, 0, 0]
+            &output_grid[0, 0, 0],
+            use_nnls
         )
     except RuntimeError as e:
         raise RuntimeError(f"CUDA error in calculateChargeGrid: {str(e)}")

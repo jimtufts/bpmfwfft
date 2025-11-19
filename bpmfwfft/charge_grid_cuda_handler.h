@@ -27,7 +27,8 @@ public:
         const double* spacing,
         const std::int64_t* eight_corner_shifts,
         const std::int64_t* six_corner_shifts,
-        double* output_grid
+        double* output_grid,
+        bool use_nnls_solver = false
     );
 
 private:
