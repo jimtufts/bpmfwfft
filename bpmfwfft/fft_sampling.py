@@ -31,7 +31,8 @@ class Sampling(object):
                  energy_sample_size_per_ligand,
                  output_nc,
                  start_index,
-                 temperature=300.):
+                 temperature=300.,
+                 use_gpu_fft=False):
         """
         :param rec_prmtop: str, name of receptor prmtop file
         :param lj_sigma_scal_fact: float, used to check consitency when loading receptor and ligand grids
@@ -45,9 +46,11 @@ class Sampling(object):
         :param energy_sample_size_per_ligand: int, number of energies and translational vectors to store for each ligand crd
         :param output_nc: str, name of nc file
         :param temperature: float
+        :param use_gpu_fft: bool, if True use GPU-accelerated FFT correlation (requires CUDA)
         """
         self._energy_sample_size_per_ligand = energy_sample_size_per_ligand
         self._beta = 1. / temperature / KB
+        self._use_gpu_fft = use_gpu_fft
 
         rec_grid = self._create_rec_grid(rec_prmtop, lj_sigma_scal_fact, rec_inpcrd,
                                          bsite_file, grid_nc_file)
@@ -55,7 +58,7 @@ class Sampling(object):
         self._rec_crd = rec_grid.get_crd()
 
         self._lig_grid = self._create_lig_grid(lig_prmtop, lj_sigma_scal_fact,
-                                               lig_inpcrd, rec_grid)
+                                               lig_inpcrd, rec_grid, use_gpu_fft)
 
         self._lig_coord_ensemble = self._load_ligand_coor_ensemble(lig_coord_ensemble)
         self._start_index = start_index
@@ -71,8 +74,22 @@ class Sampling(object):
         return rec_grid
 
     def _create_lig_grid(self, lig_prmtop, lj_sigma_scal_fact,
-                         lig_inpcrd, rec_grid):
+                         lig_inpcrd, rec_grid, use_gpu_fft=False):
         lig_grid = LigGrid(lig_prmtop, lj_sigma_scal_fact, lig_inpcrd, rec_grid)
+
+        # Enable GPU FFT if requested
+        if use_gpu_fft:
+            try:
+                from bpmfwfft.grids_gpu import enable_gpu_fft_for_liggrid
+                receptor_grids = rec_grid.get_grids()
+                success = enable_gpu_fft_for_liggrid(lig_grid, receptor_grids)
+                if success:
+                    print("GPU FFT correlation enabled")
+                else:
+                    print("Warning: GPU FFT initialization failed, using CPU")
+            except ImportError:
+                print("Warning: GPU FFT not available (missing CUDA support), using CPU")
+
         return lig_grid
 
     def _load_ligand_coor_ensemble(self, lig_coord_ensemble):

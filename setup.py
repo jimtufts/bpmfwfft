@@ -82,6 +82,22 @@ class CUDA_build_ext(build_ext):
                 sasa_sources,
                 []
             )
+
+            # Compile FFT correlation CUDA library
+            fft_corr_lib = os.path.join("bpmfwfft", "libfft_correlation_cuda.so")
+            fft_corr_sources = [
+                os.path.join("bpmfwfft", "fft_kernels.cu"),
+                os.path.join("bpmfwfft", "fft_correlation_handler.cpp"),
+                os.path.join("bpmfwfft", "fft_tile_manager.cpp"),
+                os.path.join("bpmfwfft", "fft_plan_manager.cpp")
+            ]
+
+            self._compile_cuda_library(
+                "FFT correlation CUDA library",
+                fft_corr_lib,
+                fft_corr_sources,
+                ['-lcufft']
+            )
         else:
             print("CUDA toolkit not found. Building without GPU support...")
 
@@ -186,6 +202,15 @@ def get_extensions():
                       include_dirs=[np.get_include(), cuda_include_dir, "bpmfwfft"],
                       library_dirs=[cuda_lib_dir, "bpmfwfft"],
                       libraries=['cudart', 'sasa_cuda'],
+                      runtime_library_dirs=["$ORIGIN"],
+                      language="c++")
+        )
+        extensions.append(
+            Extension("bpmfwfft.fft_correlation_wrapper",
+                      sources=["bpmfwfft/fft_correlation_wrapper.pyx"],
+                      include_dirs=[np.get_include(), cuda_include_dir, "bpmfwfft"],
+                      library_dirs=[cuda_lib_dir, "bpmfwfft"],
+                      libraries=['cudart', 'cufft', 'fft_correlation_cuda'],
                       runtime_library_dirs=["$ORIGIN"],
                       language="c++")
         )
