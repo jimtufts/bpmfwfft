@@ -28,6 +28,7 @@ try:
         from bpmfwfft.util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
         from bpmfwfft.sasa_wrapper import calculate_sasa
         from bpmfwfft.charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
+        from bpmfwfft.potential_grid_wrapper import py_cal_potential_grid
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
         from util import c_cal_charge_grid_pp_mp
@@ -37,6 +38,7 @@ try:
         from util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
         from sasa_wrapper import calculate_sasa
         from charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
+        from potential_grid_wrapper import py_cal_potential_grid
 
 except:
     import IO
@@ -48,6 +50,7 @@ except:
     from util import c_sasa, c_crd_to_grid, c_points_to_grid, c_generate_sphere_points, c_asa_frame
     from sasa_wrapper import calculate_sasa
     from charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
+    from potential_grid_wrapper import py_cal_potential_grid
 
 # Gamma taken from amber manual
 GAMMA = 0.005
@@ -68,9 +71,8 @@ def process_potential_grid_function(
         molecule_sasa,
 ):
     """
-    gets called by cal_potential_grid and assigned to a new python process
-    use cython to calculate electrostatic, LJa, LJr, and water grids
-    and save them to nc file
+    Calculate potential grids (electrostatic, LJa, LJr, water, occupancy)
+    using C++ with OpenMP parallelization
     """
     grid_x = np.linspace(
         origin_crd[0],
@@ -90,11 +92,21 @@ def process_potential_grid_function(
     uper_most_corner_crd = origin_crd + (grid_counts - 1.) * grid_spacing
     uper_most_corner = (grid_counts - 1)
 
-    grid = c_cal_potential_grid_pp(name, crd,
-                                   grid_x, grid_y, grid_z,
-                                   origin_crd, uper_most_corner_crd, uper_most_corner,
-                                   grid_spacing, grid_counts, charges, prmtop_ljsigma, prmtop_vdwradii,
-                                   clash_radii, bond_list, atom_list, molecule_sasa)
+    # Convert molecule_sasa to 1D float64 if needed
+    if molecule_sasa.ndim == 2:
+        molecule_sasa_1d = molecule_sasa[0].astype(np.float64)
+    else:
+        molecule_sasa_1d = molecule_sasa.astype(np.float64)
+
+    grid = py_cal_potential_grid(
+        name, crd,
+        grid_x, grid_y, grid_z,
+        origin_crd, uper_most_corner_crd, uper_most_corner,
+        grid_spacing, grid_counts,
+        charges, prmtop_ljsigma, prmtop_vdwradii, clash_radii,
+        molecule_sasa_1d,
+        atom_list
+    )
     return grid
 
 
@@ -216,7 +228,7 @@ class Grid(object):
         self._grid = {}
         self._grid_func_names = ("occupancy", "electrostatic", "LJr", "LJa", "sasa", "water")  # calculate all grids
         # self._grid_func_names = ("occupancy", "LJr", "LJa", "sasa", "water")  # don't calculate electrostatic
-        # self._grid_func_names = ("occupancy", "sasa", "water")  # test new sasa grid
+        # self._grid_func_names = ("occupancy", "sasa", "water")  # SASA-based scoring only
         # self._grid_func_names = ("occupancy", "electrostatic")  # uncomment to calculate electrostatic and occupancy
         # self._grid_func_names = ("occupancy", "LJa")  # uncomment to calculate LJa and occupancy
         # self._grid_func_names = ("occupancy", "LJr")  # uncomment to calculate LJr and occupancy
@@ -349,7 +361,12 @@ class Grid(object):
         atom_mapping = np.arange(dim1, dtype=np.int32)
         atom_selection_mask = np.ones(dim1, dtype=np.int32)
         out = np.zeros((xyz.shape[0], dim1), dtype=np.float32)
-        _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, atom_selection_mask, out)
+        try:
+            # Try newer mdtraj API (6 args)
+            _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, atom_selection_mask, out)
+        except TypeError:
+            # Fall back to older mdtraj API (5 args) - no atom_selection_mask
+            _geometry._sasa(xyz, radii, int(n_sphere_points), atom_mapping, out)
         # out, centered_sphere_points = c_sasa(xyz, radii, int(n_sphere_points))
         # convert values from nm^2 to A^2
         out = out * 100.
@@ -1577,7 +1594,7 @@ class RecGrid(Grid):
         # bond_list = self._get_bond_list()
         bond_list = [] # temporarily disable bond list to match old behavior.
         if platform == 'CPU':
-            task_divisor = 16
+            task_divisor = multiprocessing.cpu_count()  # Use all available cores
             for name in self._grid_func_names:
                 print("calculating receptor %s grid" % name)
                 with concurrent.futures.ProcessPoolExecutor() as executor:

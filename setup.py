@@ -41,7 +41,10 @@ cuda_lib_dir = os.path.join(cuda_toolkit_path, 'lib64')
 class CUDA_build_ext(build_ext):
     def run(self):
         cuda_lib = os.path.join("bpmfwfft", "libcharge_grid_cuda.so")
-        cuda_source = os.path.join("bpmfwfft", "charge_grid_cuda.cu")
+        cuda_sources = [
+            os.path.join("bpmfwfft", "charge_grid_cuda.cu"),
+            os.path.join("bpmfwfft", "nnls_small_cusolver.cu")
+        ]
 
         # Compile CUDA source only if nvcc is available
         nvcc = os.path.join(cuda_toolkit_path, 'bin', 'nvcc')
@@ -53,12 +56,22 @@ class CUDA_build_ext(build_ext):
                 '-Xcompiler', '-fPIC',
                 '-O3',
                 '-arch=sm_60',  # Adjust this based on your GPU architecture
+                '-lcublas',     # Link cuBLAS library
+                '-lcusolver',   # Link cuSOLVER library
                 '-o', cuda_lib,
-                cuda_source
-            ]
+            ] + cuda_sources
 
-            if not os.path.exists(cuda_lib) or os.path.getmtime(cuda_source) > os.path.getmtime(cuda_lib):
-                print("Compiling CUDA library...")
+            # Check if any source file is newer than the library
+            needs_rebuild = not os.path.exists(cuda_lib)
+            if not needs_rebuild:
+                lib_mtime = os.path.getmtime(cuda_lib)
+                for src in cuda_sources:
+                    if os.path.exists(src) and os.path.getmtime(src) > lib_mtime:
+                        needs_rebuild = True
+                        break
+
+            if needs_rebuild:
+                print("Compiling CUDA library with NNLS support...")
                 try:
                     subprocess.check_call(compile_command)
                     # Ensure the CUDA library is copied to the correct location
@@ -98,6 +111,12 @@ def get_extensions():
                   language="c++"),
         Extension("bpmfwfft.charge_grid_wrapper",
                   sources=["bpmfwfft/charge_grid_wrapper.pyx", "bpmfwfft/charge_grid.cpp"],
+                  include_dirs=[np.get_include(), "bpmfwfft", eigen_include],
+                  language="c++"),
+        Extension("bpmfwfft.potential_grid_wrapper",
+                  sources=["bpmfwfft/potential_grid_wrapper.pyx",
+                           "bpmfwfft/potential_grid.cpp",
+                           "bpmfwfft/charge_grid.cpp"],  # Need charge_grid.cpp for helper functions
                   include_dirs=[np.get_include(), "bpmfwfft", eigen_include],
                   language="c++"),
     ]
