@@ -40,52 +40,86 @@ cuda_lib_dir = os.path.join(cuda_toolkit_path, 'lib64')
 
 class CUDA_build_ext(build_ext):
     def run(self):
-        cuda_lib = os.path.join("bpmfwfft", "libcharge_grid_cuda.so")
-        cuda_sources = [
-            os.path.join("bpmfwfft", "charge_grid_cuda.cu"),
-            os.path.join("bpmfwfft", "nnls_cusolver.cu")
-        ]
-
-        # Compile CUDA source only if nvcc is available
         nvcc = os.path.join(cuda_toolkit_path, 'bin', 'nvcc')
 
         if os.path.exists(nvcc):
-            compile_command = [
-                nvcc,
-                '-shared',
-                '-Xcompiler', '-fPIC',
-                '-O3',
-                '-arch=sm_60',  # Adjust this based on your GPU architecture
-                '-lcublas',     # Link cuBLAS library
-                '-lcusolver',   # Link cuSOLVER library
-                '-o', cuda_lib,
-            ] + cuda_sources
+            # Compile charge grid CUDA library
+            charge_grid_lib = os.path.join("bpmfwfft", "libcharge_grid_cuda.so")
+            charge_grid_sources = [
+                os.path.join("bpmfwfft", "charge_grid_cuda.cu"),
+                os.path.join("bpmfwfft", "nnls_cusolver.cu")
+            ]
 
-            # Check if any source file is newer than the library
-            needs_rebuild = not os.path.exists(cuda_lib)
-            if not needs_rebuild:
-                lib_mtime = os.path.getmtime(cuda_lib)
-                for src in cuda_sources:
-                    if os.path.exists(src) and os.path.getmtime(src) > lib_mtime:
-                        needs_rebuild = True
-                        break
+            self._compile_cuda_library(
+                "charge grid CUDA library with NNLS",
+                charge_grid_lib,
+                charge_grid_sources,
+                ['-lcublas', '-lcusolver']
+            )
 
-            if needs_rebuild:
-                print("Compiling CUDA library with NNLS support...")
-                try:
-                    subprocess.check_call(compile_command)
-                    # Ensure the CUDA library is copied to the correct location
-                    build_lib = os.path.abspath(self.build_lib)
-                    target_dir = os.path.join(build_lib, 'bpmfwfft')
-                    os.makedirs(target_dir, exist_ok=True)
-                    self.copy_file(cuda_lib, target_dir)
-                except subprocess.CalledProcessError as e:
-                    print(f"Warning: CUDA compilation failed: {e}")
-                    print("Continuing without CUDA support...")
+            # Compile potential grid CUDA library
+            potential_grid_lib = os.path.join("bpmfwfft", "libpotential_grid_cuda.so")
+            potential_grid_sources = [
+                os.path.join("bpmfwfft", "potential_grid_cuda.cu")
+            ]
+
+            self._compile_cuda_library(
+                "potential grid CUDA library",
+                potential_grid_lib,
+                potential_grid_sources,
+                []
+            )
+
+            # Compile SASA CUDA library
+            sasa_lib = os.path.join("bpmfwfft", "libsasa_cuda.so")
+            sasa_sources = [
+                os.path.join("bpmfwfft", "sasa_cuda.cu")
+            ]
+
+            self._compile_cuda_library(
+                "SASA CUDA library",
+                sasa_lib,
+                sasa_sources,
+                []
+            )
         else:
             print("CUDA toolkit not found. Building without GPU support...")
 
         super().run()
+
+    def _compile_cuda_library(self, name, cuda_lib, cuda_sources, extra_libs):
+        """Helper method to compile a CUDA library"""
+        nvcc = os.path.join(cuda_toolkit_path, 'bin', 'nvcc')
+
+        compile_command = [
+            nvcc,
+            '-shared',
+            '-Xcompiler', '-fPIC',
+            '-O3',
+            '-arch=sm_60',
+            '-o', cuda_lib,
+        ] + extra_libs + cuda_sources
+
+        # Check if rebuild is needed
+        needs_rebuild = not os.path.exists(cuda_lib)
+        if not needs_rebuild:
+            lib_mtime = os.path.getmtime(cuda_lib)
+            for src in cuda_sources:
+                if os.path.exists(src) and os.path.getmtime(src) > lib_mtime:
+                    needs_rebuild = True
+                    break
+
+        if needs_rebuild:
+            print(f"Compiling {name}...")
+            try:
+                subprocess.check_call(compile_command)
+                build_lib = os.path.abspath(self.build_lib)
+                target_dir = os.path.join(build_lib, 'bpmfwfft')
+                os.makedirs(target_dir, exist_ok=True)
+                self.copy_file(cuda_lib, target_dir)
+            except subprocess.CalledProcessError as e:
+                print(f"Warning: {name} compilation failed: {e}")
+                print("Continuing without this CUDA component...")
 
     def build_extension(self, ext):
         # Apply C++ flags only to C++ extensions
@@ -124,7 +158,7 @@ def get_extensions():
     # Only add CUDA extension if CUDA is available
     nvcc = os.path.join(cuda_toolkit_path, 'bin', 'nvcc')
     if os.path.exists(nvcc):
-        print("CUDA detected, adding GPU extension...")
+        print("CUDA detected, adding GPU extensions...")
         extensions.append(
             Extension("bpmfwfft.charge_grid_cuda_wrapper",
                       sources=["bpmfwfft/charge_grid_cuda_wrapper.pyx",
@@ -135,8 +169,28 @@ def get_extensions():
                       runtime_library_dirs=["$ORIGIN"],
                       language="c++")
         )
+        extensions.append(
+            Extension("bpmfwfft.potential_grid_cuda_wrapper",
+                      sources=["bpmfwfft/potential_grid_cuda_wrapper.pyx",
+                               "bpmfwfft/potential_grid_cuda_handler.cpp"],
+                      include_dirs=[np.get_include(), cuda_include_dir, "bpmfwfft"],
+                      library_dirs=[cuda_lib_dir, "bpmfwfft"],
+                      libraries=['cudart', 'potential_grid_cuda'],
+                      runtime_library_dirs=["$ORIGIN"],
+                      language="c++")
+        )
+        extensions.append(
+            Extension("bpmfwfft.sasa_cuda_wrapper",
+                      sources=["bpmfwfft/sasa_cuda_wrapper.pyx",
+                               "bpmfwfft/sasa_cuda_handler.cpp"],
+                      include_dirs=[np.get_include(), cuda_include_dir, "bpmfwfft"],
+                      library_dirs=[cuda_lib_dir, "bpmfwfft"],
+                      libraries=['cudart', 'sasa_cuda'],
+                      runtime_library_dirs=["$ORIGIN"],
+                      language="c++")
+        )
     else:
-        print("CUDA not detected, skipping GPU extension...")
+        print("CUDA not detected, skipping GPU extensions...")
 
     return cythonize(extensions, compiler_directives={'language_level': "3"})
 

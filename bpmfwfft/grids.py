@@ -29,6 +29,12 @@ try:
         from bpmfwfft.sasa_wrapper import calculate_sasa
         from bpmfwfft.charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
         from bpmfwfft.potential_grid_wrapper import py_cal_potential_grid
+        try:
+            from bpmfwfft.potential_grid_cuda_wrapper import py_cal_potential_grid_cuda
+            from bpmfwfft.sasa_cuda_wrapper import calculate_sasa_cuda
+            GPU_AVAILABLE = True
+        except ImportError:
+            GPU_AVAILABLE = False
     except:
         from util import c_is_in_grid, cdistance, c_containing_cube
         from util import c_cal_charge_grid_pp_mp
@@ -39,6 +45,12 @@ try:
         from sasa_wrapper import calculate_sasa
         from charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
         from potential_grid_wrapper import py_cal_potential_grid
+        try:
+            from potential_grid_cuda_wrapper import py_cal_potential_grid_cuda
+            from sasa_cuda_wrapper import calculate_sasa_cuda
+            GPU_AVAILABLE = True
+        except ImportError:
+            GPU_AVAILABLE = False
 
 except:
     import IO
@@ -51,6 +63,12 @@ except:
     from sasa_wrapper import calculate_sasa
     from charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
     from potential_grid_wrapper import py_cal_potential_grid
+    try:
+        from potential_grid_cuda_wrapper import py_cal_potential_grid_cuda
+        from sasa_cuda_wrapper import calculate_sasa_cuda
+        GPU_AVAILABLE = True
+    except ImportError:
+        GPU_AVAILABLE = False
 
 # Gamma taken from amber manual
 GAMMA = 0.005
@@ -1657,6 +1675,78 @@ class RecGrid(Grid):
                     self._write_to_nc(nc_handle, name, grid)
                     self._set_grid_key_value(name, grid)
                     # self._set_grid_key_value(name, None)     # to save memory
+
+        elif platform == 'GPU':
+            if not GPU_AVAILABLE:
+                raise RuntimeError("GPU platform requested but CUDA extensions not available. Please compile with CUDA support or use platform='CPU'.")
+
+            for name in self._grid_func_names:
+                print("calculating receptor %s grid on GPU" % name)
+                if name != "sasa":
+                    # Compute grid coordinates
+                    grid_x = np.linspace(
+                        self._origin_crd[0],
+                        self._origin_crd[0] + ((self._grid["counts"][0] - 1) * self._grid["spacing"][0]),
+                        num=self._grid["counts"][0]
+                    )
+                    grid_y = np.linspace(
+                        self._origin_crd[1],
+                        self._origin_crd[1] + ((self._grid["counts"][1] - 1) * self._grid["spacing"][1]),
+                        num=self._grid["counts"][1]
+                    )
+                    grid_z = np.linspace(
+                        self._origin_crd[2],
+                        self._origin_crd[2] + ((self._grid["counts"][2] - 1) * self._grid["spacing"][2]),
+                        num=self._grid["counts"][2]
+                    )
+
+                    # Convert molecule_sasa to 1D float64 if needed
+                    if self._molecule_sasa.ndim == 2:
+                        molecule_sasa_1d = self._molecule_sasa[0].astype(np.float64)
+                    else:
+                        molecule_sasa_1d = self._molecule_sasa.astype(np.float64)
+
+                    # Call GPU function directly (no multiprocessing needed)
+                    grid = py_cal_potential_grid_cuda(
+                        name,
+                        self._crd,
+                        grid_x,
+                        grid_y,
+                        grid_z,
+                        self._origin_crd,
+                        self._uper_most_corner_crd,
+                        self._uper_most_corner,
+                        self._grid["spacing"],
+                        self._grid["counts"],
+                        self._get_charges(name),
+                        self._prmtop["LJ_SIGMA"],
+                        self._prmtop["VDW_RADII"],
+                        clash_radii,
+                        molecule_sasa_1d,
+                        atom_list
+                    )
+                else:
+                    # SASA grid: use GPU implementation with 10-corner interpolation
+                    radii = np.copy(self._prmtop["VDW_RADII"]) + probe_size
+                    atom_selection_mask = np.ones(self._crd.shape[0], dtype=np.int32)
+
+                    # calculate_sasa_cuda expects shape [n_frames, n_atoms, 3]
+                    grid = calculate_sasa_cuda(
+                        self._crd[np.newaxis, :, :].astype(np.float32),
+                        radii.astype(np.float32),
+                        n_sphere_points,
+                        atom_selection_mask,
+                        self._grid["counts"],
+                        self._spacing[0],
+                        use_ten_corners=True  # Use 10-corner interpolation for accuracy
+                    )
+                    grid = grid[0]  # Extract single frame
+
+                self._write_to_nc(nc_handle, name, grid)
+                self._set_grid_key_value(name, grid)
+
+        else:
+            raise ValueError(f"Unknown platform: {platform}. Must be 'CPU' or 'GPU'.")
 
         return None
 
