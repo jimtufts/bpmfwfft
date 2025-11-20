@@ -32,6 +32,8 @@ parser.add_argument("--out_dir",                       type=str, default="out")
 
 parser.add_argument("--lj_scale",                      type=float, default=1.0)
 parser.add_argument("--walltime",                      type=str, default="24:00:00")
+parser.add_argument("--use_gpu_fft",   action="store_true", default=False,
+                    help="Enable GPU FFT acceleration (requires CUDA)")
 parser.add_argument("--pbs",   action="store_true", default=False)
 parser.add_argument("--slurm",   action="store_true", default=False)
 parser.add_argument("--ccb",   action="store_true", default=False)
@@ -152,7 +154,7 @@ python {this_script}  \
 	    --out_dir {com_dir} \
         --lj_scale {args.lj_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
-        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n'''
+        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} {'--use_gpu_fft' if args.use_gpu_fft else ''} \n'''
 
         fft_sampling_nc_file = os.path.join(com_dir, FFT_SAMPLING_NC)
         if not is_running_pbs(idx, out_dir):
@@ -266,7 +268,7 @@ python {this_script}  \
         --out_dir /scratch/$USER/job_$SLURM_JOB_ID \
         --lj_scale {args.lj_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
-        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n
+        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} {'--use_gpu_fft' if args.use_gpu_fft else ''} \n
 mv "$destination_directory" "$source_file" \n
 echo "File copied to $source_file from $destination_directory" \n'''
 
@@ -389,7 +391,7 @@ python {this_script}  \
         --out_dir /scratch/$USER/job_$SLURM_JOB_ID \
         --lj_scale {args.lj_scale:.6f} \
         --nr_lig_conf {args.nr_lig_conf} \
-        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} \n
+        --energy_sample_size_per_ligand {args.energy_sample_size_per_ligand} {'--use_gpu_fft' if args.use_gpu_fft else ''} \n
 mv "$destination_directory" "$source_file" \n
 echo "File copied to $source_file from $destination_directory" \n'''
 
@@ -450,5 +452,6 @@ else:
              lig_prmtop, lig_inpcrd,
              lig_coor_nc, nr_lig_conf,
              energy_sample_size_per_ligand,
-             output_nc, output_dir)
+             output_nc, output_dir,
+             use_gpu_fft=args.use_gpu_fft)
 

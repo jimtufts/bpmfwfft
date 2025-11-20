@@ -83,6 +83,19 @@ class CUDA_build_ext(build_ext):
                 []
             )
 
+            # Compile solvent grid CUDA library
+            solvent_grid_lib = os.path.join("bpmfwfft", "libsolvent_grid_cuda.so")
+            solvent_grid_sources = [
+                os.path.join("bpmfwfft", "solvent_grid_cuda.cu")
+            ]
+
+            self._compile_cuda_library(
+                "solvent grid CUDA library",
+                solvent_grid_lib,
+                solvent_grid_sources,
+                []
+            )
+
             # Compile FFT correlation CUDA library
             fft_corr_lib = os.path.join("bpmfwfft", "libfft_correlation_cuda.so")
             fft_corr_sources = [
@@ -202,6 +215,16 @@ def get_extensions():
                       include_dirs=[np.get_include(), cuda_include_dir, "bpmfwfft"],
                       library_dirs=[cuda_lib_dir, "bpmfwfft"],
                       libraries=['cudart', 'sasa_cuda'],
+                      runtime_library_dirs=["$ORIGIN"],
+                      language="c++")
+        )
+        extensions.append(
+            Extension("bpmfwfft.solvent_grid_cuda_wrapper",
+                      sources=["bpmfwfft/solvent_grid_cuda_wrapper.pyx",
+                               "bpmfwfft/solvent_grid_cuda_handler.cpp"],
+                      include_dirs=[np.get_include(), cuda_include_dir, "bpmfwfft"],
+                      library_dirs=[cuda_lib_dir, "bpmfwfft"],
+                      libraries=['cudart', 'solvent_grid_cuda'],
                       runtime_library_dirs=["$ORIGIN"],
                       language="c++")
         )

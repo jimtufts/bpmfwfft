@@ -42,7 +42,7 @@ class GPUFFTCorrelationMixin:
 
         # Create handlers for each grid type that will use GPU
         self._gpu_fft_handlers = {}
-        self._gpu_grid_types = ["electrostatic", "LJr", "LJa"]  # Grid types to accelerate
+        self._gpu_grid_types = ["electrostatic", "LJr", "LJa", "sasa", "water"]  # Grid types to accelerate
 
         for grid_name in self._gpu_grid_types:
             if grid_name not in rec_FFTs_dict:
@@ -61,10 +61,10 @@ class GPUFFTCorrelationMixin:
                 # For now, store the handler and we'll precompute in the actual workflow
                 self._gpu_fft_handlers[grid_name] = handler
 
-                print(f"  ✓ GPU FFT handler created for {grid_name}")
+                print(f"  [OK] GPU FFT handler created for {grid_name}")
 
             except Exception as e:
-                print(f"  ✗ Failed to create GPU FFT handler for {grid_name}: {e}")
+                print(f"  [FAIL] Failed to create GPU FFT handler for {grid_name}: {e}")
                 # Fall back to CPU for this grid type
                 if grid_name in self._gpu_fft_handlers:
                     del self._gpu_fft_handlers[grid_name]
@@ -92,7 +92,7 @@ class GPUFFTCorrelationMixin:
 
         for grid_name, handler in self._gpu_fft_handlers.items():
             if grid_name not in receptor_grids_dict:
-                print(f"  ✗ Receptor grid for {grid_name} not found")
+                print(f"  [FAIL] Receptor grid for {grid_name} not found")
                 continue
 
             try:
@@ -107,10 +107,10 @@ class GPUFFTCorrelationMixin:
                     rec_grid = np.ascontiguousarray(rec_grid)
 
                 handler.precompute_receptor_fft(rec_grid)
-                print(f"  ✓ Precomputed receptor FFT for {grid_name}")
+                print(f"  [OK] Precomputed receptor FFT for {grid_name}")
 
             except Exception as e:
-                print(f"  ✗ Failed to precompute receptor FFT for {grid_name}: {e}")
+                print(f"  [FAIL] Failed to precompute receptor FFT for {grid_name}: {e}")
                 # Remove this handler to fall back to CPU
                 if grid_name in self._gpu_fft_handlers:
                     del self._gpu_fft_handlers[grid_name]
@@ -180,6 +180,92 @@ class GPUFFTCorrelationMixin:
         corr_func = np.real(corr_func)
         return corr_func
 
+    def _cal_delta_sasa_func_gpu(self, free_of_clash):
+        """
+        GPU-accelerated version of _cal_delta_sasa_func
+
+        Computes SASA (Solvent Accessible Surface Area) correlation using GPU FFT.
+
+        Parameters
+        ----------
+        free_of_clash : np.ndarray
+            Boolean array indicating clash-free regions
+
+        Returns
+        -------
+        np.ndarray
+            Delta SASA score grid
+        """
+        # Check if GPU is available for sasa and water
+        if not hasattr(self, '_use_gpu_fft') or not self._use_gpu_fft:
+            return self._cal_delta_sasa_func_cpu(free_of_clash)
+
+        if "sasa" not in self._gpu_fft_handlers or "water" not in self._gpu_fft_handlers:
+            return self._cal_delta_sasa_func_cpu(free_of_clash)
+
+        try:
+            # Get handlers
+            sasa_handler = self._gpu_fft_handlers["sasa"]
+            water_handler = self._gpu_fft_handlers["water"]
+
+            # Generate ligand sasa grid
+            sasa_grid = self._cal_charge_grid("sasa")[0]
+            if sasa_grid.dtype != np.float32:
+                sasa_grid = sasa_grid.astype(np.float32)
+            if not sasa_grid.flags['C_CONTIGUOUS']:
+                sasa_grid = np.ascontiguousarray(sasa_grid)
+
+            # Generate ligand water grid
+            water_grid = self._cal_charge_grid("water")
+            water_grid[water_grid > 0.] = 1.
+            if water_grid.dtype != np.float32:
+                water_grid = water_grid.astype(np.float32)
+            if not water_grid.flags['C_CONTIGUOUS']:
+                water_grid = np.ascontiguousarray(water_grid)
+
+            # Compute correlations on GPU
+            # dsasa_score = rec_sasa × lig_water + rec_water × lig_sasa
+            sasa_handler.compute_correlation_energy(water_grid)
+            corr1 = sasa_handler.get_correlation_grid()
+
+            water_handler.compute_correlation_energy(sasa_grid)
+            corr2 = water_handler.get_correlation_grid()
+
+            dsasa_score = corr1 + corr2
+
+            return dsasa_score
+
+        except Exception as e:
+            print(f"GPU SASA correlation failed: {e}")
+            print(f"Falling back to CPU for this pose")
+            return self._cal_delta_sasa_func_cpu(free_of_clash)
+
+    def _cal_delta_sasa_func_cpu(self, free_of_clash):
+        """
+        CPU version of _cal_delta_sasa_func (original implementation)
+
+        This is the original method preserved for fallback.
+        """
+        import pyfftw.interfaces.numpy_fft as fftw
+
+        grid = self._cal_charge_grid("sasa")[0]
+        self._set_grid_key_value("sasa", grid)
+        lsasa_fft = fftw.fftn(self._grid["sasa"])
+        self._set_grid_key_value("sasa", None)  # to save memory
+        del grid
+        grid = self._cal_charge_grid("water")
+        grid[grid > 0.] = 1.
+        self._set_grid_key_value("water", grid)
+        lwater_fft = fftw.fftn(self._grid["water"])
+        self._set_grid_key_value("water", None)
+        del grid
+        lsasa_fft = lsasa_fft.conjugate()
+        lwater_fft = lwater_fft.conjugate()
+        dsasa_score = fftw.ifftn(self._rec_FFTs["sasa"] * lwater_fft).real + fftw.ifftn(
+            self._rec_FFTs["water"] * lsasa_fft).real
+
+        return dsasa_score
+
     def cleanup_gpu_fft(self):
         """Clean up GPU resources"""
         if hasattr(self, '_gpu_fft_handlers'):
@@ -226,11 +312,16 @@ def enable_gpu_fft_for_liggrid(lig_grid_instance, receptor_grids_dict):
 
     # Add mixin methods to instance
     import types
+    import inspect
     for attr_name in dir(GPUFFTCorrelationMixin):
         if not attr_name.startswith('_'):
             continue
+        # Skip special Python attributes
+        if attr_name in ('__class__', '__dict__', '__weakref__', '__module__', '__doc__'):
+            continue
         attr = getattr(GPUFFTCorrelationMixin, attr_name)
-        if callable(attr):
+        # Only bind actual methods (functions), not other callables
+        if inspect.isfunction(attr) or inspect.ismethod(attr):
             setattr(lig_grid_instance, attr_name, types.MethodType(attr, lig_grid_instance))
 
     # Initialize GPU FFT
@@ -250,7 +341,19 @@ def enable_gpu_fft_for_liggrid(lig_grid_instance, receptor_grids_dict):
             lig_grid_instance
         )
 
-        print("✓ GPU FFT correlation enabled for LigGrid")
+        # Monkey-patch the _cal_delta_sasa_func method
+        if hasattr(lig_grid_instance, '_cal_delta_sasa_func'):
+            original_cal_delta_sasa = lig_grid_instance._cal_delta_sasa_func
+            lig_grid_instance._cal_delta_sasa_func_cpu = types.MethodType(
+                GPUFFTCorrelationMixin._cal_delta_sasa_func_cpu,
+                lig_grid_instance
+            )
+            lig_grid_instance._cal_delta_sasa_func = types.MethodType(
+                GPUFFTCorrelationMixin._cal_delta_sasa_func_gpu,
+                lig_grid_instance
+            )
+
+        print("[OK] GPU FFT correlation enabled for LigGrid")
         return True
 
     except Exception as e:

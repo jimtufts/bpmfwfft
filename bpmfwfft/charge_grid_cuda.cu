@@ -433,8 +433,7 @@ extern "C" void cuda_cal_charge_grid(
         int h_info;
         CHECK_CUDA(cudaMemcpy(&h_info, d_info, sizeof(int), cudaMemcpyDeviceToHost));
         if (h_info != 0) {
-            std::cerr << "LU factorization failed for atom: " << h_info << std::endl;
-            // Handle the error appropriately
+            throw std::runtime_error("LU factorization failed for atom: " + std::to_string(h_info));
         }
 
         // Solve the systems using the LU factorization
@@ -446,8 +445,7 @@ extern "C" void cuda_cal_charge_grid(
                             &h_info,
                             num_atoms));
         if (h_info != 0) {
-            std::cerr << "Solving the system failed for atom: " << h_info << std::endl;
-            // Handle the error appropriately
+            throw std::runtime_error("Solving the linear system failed for atom: " + std::to_string(h_info));
         }
     }
 

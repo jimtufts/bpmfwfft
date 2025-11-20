@@ -30,8 +30,10 @@ try:
         from bpmfwfft.charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
         from bpmfwfft.potential_grid_wrapper import py_cal_potential_grid
         try:
+            from bpmfwfft.charge_grid_cuda_wrapper import py_cal_charge_grid_cuda
             from bpmfwfft.potential_grid_cuda_wrapper import py_cal_potential_grid_cuda
             from bpmfwfft.sasa_cuda_wrapper import calculate_sasa_cuda
+            from bpmfwfft.solvent_grid_cuda_wrapper import py_cal_solvent_grid_cuda
             GPU_AVAILABLE = True
         except ImportError:
             GPU_AVAILABLE = False
@@ -46,6 +48,8 @@ try:
         from charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
         from potential_grid_wrapper import py_cal_potential_grid
         try:
+            from charge_grid_cuda_wrapper import py_cal_charge_grid_cuda
+            from solvent_grid_cuda_wrapper import py_cal_solvent_grid_cuda
             from potential_grid_cuda_wrapper import py_cal_potential_grid_cuda
             from sasa_cuda_wrapper import calculate_sasa_cuda
             GPU_AVAILABLE = True
@@ -64,6 +68,7 @@ except:
     from charge_grid_wrapper import py_cal_charge_grid, py_cal_solvent_grid
     from potential_grid_wrapper import py_cal_potential_grid
     try:
+        from charge_grid_cuda_wrapper import py_cal_charge_grid_cuda
         from potential_grid_cuda_wrapper import py_cal_potential_grid_cuda
         from sasa_cuda_wrapper import calculate_sasa_cuda
         GPU_AVAILABLE = True
@@ -72,60 +77,6 @@ except:
 
 # Gamma taken from amber manual
 GAMMA = 0.005
-
-
-def process_potential_grid_function(
-        name,
-        crd,
-        origin_crd,
-        grid_spacing,
-        grid_counts,
-        charges,
-        prmtop_ljsigma,
-        prmtop_vdwradii,
-        clash_radii,
-        bond_list,
-        atom_list,
-        molecule_sasa,
-):
-    """
-    Calculate potential grids (electrostatic, LJa, LJr, water, occupancy)
-    using C++ with OpenMP parallelization
-    """
-    grid_x = np.linspace(
-        origin_crd[0],
-        origin_crd[0] + ((grid_counts[0] - 1) * grid_spacing[0]),
-        num=grid_counts[0]
-    )
-    grid_y = np.linspace(
-        origin_crd[1],
-        origin_crd[1] + ((grid_counts[1] - 1) * grid_spacing[1]),
-        num=grid_counts[1]
-    )
-    grid_z = np.linspace(
-        origin_crd[2],
-        origin_crd[2] + ((grid_counts[2] - 1) * grid_spacing[2]),
-        num=grid_counts[2]
-    )
-    uper_most_corner_crd = origin_crd + (grid_counts - 1.) * grid_spacing
-    uper_most_corner = (grid_counts - 1)
-
-    # Convert molecule_sasa to 1D float64 if needed
-    if molecule_sasa.ndim == 2:
-        molecule_sasa_1d = molecule_sasa[0].astype(np.float64)
-    else:
-        molecule_sasa_1d = molecule_sasa.astype(np.float64)
-
-    grid = py_cal_potential_grid(
-        name, crd,
-        grid_x, grid_y, grid_z,
-        origin_crd, uper_most_corner_crd, uper_most_corner,
-        grid_spacing, grid_counts,
-        charges, prmtop_ljsigma, prmtop_vdwradii, clash_radii,
-        molecule_sasa_1d,
-        atom_list
-    )
-    return grid
 
 
 def process_charge_grid_function(
@@ -665,6 +616,21 @@ class LigGrid(Grid):
                                  radii.astype(np.float32), n_sphere_points, atom_selection_mask, self._grid["counts"], self._spacing[0])
         elif name == "water":
             radii = np.copy(self._prmtop["VDW_RADII"]) + probe_size
+
+            # Try GPU version first if available
+            if GPU_AVAILABLE:
+                try:
+                    grid = py_cal_solvent_grid_cuda(
+                        self._crd.astype(np.float32),
+                        radii.astype(np.float32),
+                        grid_x, grid_y, grid_z
+                    )
+                    print("--- %s calculated on GPU in %s seconds ---" % (name, time.time() - start_time))
+                    return grid[0]
+                except Exception as e:
+                    print(f"GPU calculation failed for {name}, falling back to CPU: {e}")
+
+            # Fall back to CPU version
             grid = py_cal_solvent_grid(self._crd[np.newaxis, :, :], grid_x, grid_y, grid_z, origin_crd,
                                        upper_most_corner_crd, grid_counts, radii)
         elif name == "occupancy":
@@ -675,12 +641,27 @@ class LigGrid(Grid):
                         atom_list.append(i)
                 else:
                     atom_list.append(i)
-            bonds = self._get_bond_list()
-            bonds = np.array(self._get_bond_list()).reshape(-1, self._crd.shape[1])
-            combined_crd = np.concatenate((np.copy(self._crd[atom_list]), np.array(bonds)))
-            combined_radii = np.concatenate((np.copy(clash_radii[atom_list]), np.ones(bonds.shape[0])))
-            grid = py_cal_solvent_grid(self._crd[atom_list][np.newaxis, :, :], self._grid["x"], self._grid["y"], self._grid["z"], origin_crd,
-                                       upper_most_corner_crd, grid_counts, clash_radii[atom_list])
+
+            atom_list = np.array(atom_list)
+            selected_crd = self._crd[atom_list]
+            selected_radii = clash_radii[atom_list]
+
+            # Try GPU version first if available
+            if GPU_AVAILABLE:
+                try:
+                    grid = py_cal_solvent_grid_cuda(
+                        selected_crd.astype(np.float32),
+                        selected_radii.astype(np.float32),
+                        grid_x, grid_y, grid_z
+                    )
+                    print("--- %s calculated on GPU in %s seconds ---" % (name, time.time() - start_time))
+                    return grid
+                except Exception as e:
+                    print(f"GPU calculation failed for {name}, falling back to CPU: {e}")
+
+            # Fall back to CPU version
+            grid = py_cal_solvent_grid(selected_crd[np.newaxis, :, :], self._grid["x"], self._grid["y"], self._grid["z"], origin_crd,
+                                       upper_most_corner_crd, grid_counts, selected_radii)
         else:
             charges = self._get_charges(name)
             assert len(self._crd) > 0, "crd is empty"
@@ -691,6 +672,20 @@ class LigGrid(Grid):
             assert len(upper_most_corner) == 3, "upper_most_corner does not have 3 elements"
             assert len(grid_spacing) == 3, "grid_spacing does not have 3 elements"
 
+            # Try GPU version first if available
+            if GPU_AVAILABLE:
+                try:
+                    grid = py_cal_charge_grid_cuda(
+                            self._crd, charges, name, grid_x, grid_y, grid_z,
+                            origin_crd, upper_most_corner_crd, upper_most_corner,
+                            grid_spacing, self._eight_corner_shifts, self._six_corner_shifts
+                         )
+                    print("--- %s calculated on GPU in %s seconds ---" % (name, time.time() - start_time))
+                    return grid
+                except Exception as e:
+                    print(f"GPU calculation failed for {name}, falling back to CPU: {e}")
+
+            # Fall back to CPU version
             grid = py_cal_charge_grid(
                     self._crd, charges, name, grid_x, grid_y, grid_z,
                     origin_crd, upper_most_corner_crd, upper_most_corner,
@@ -1253,7 +1248,7 @@ class RecGrid(Grid):
                  grid_nc_file,
                  new_calculation=False,
                  spacing=0.25, extra_buffer=3.0,
-                 radii_type="VDW_RADII", exclude_H=True):
+                 radii_type="VDW_RADII", exclude_H=True, platform='CPU'):
         """
         :param prmtop_file_name: str, name of AMBER prmtop file
         :param lj_sigma_scaling_factor: float
@@ -1264,6 +1259,7 @@ class RecGrid(Grid):
         :param new_calculation: bool, if True do the new grid calculation else load data in grid_nc_file.
         :param spacing: float and in angstrom.
         :param extra_buffer: float
+        :param platform: str, 'CPU' or 'GPU' for grid calculation
         """
         Grid.__init__(self)
 
@@ -1292,7 +1288,7 @@ class RecGrid(Grid):
                 self._move_receptor_to_grid_center()
                 self._write_to_nc(nc_handle, "displacement", self._displacement)
 
-            self._cal_potential_grids(nc_handle, radii_type, exclude_H)
+            self._cal_potential_grids(nc_handle, radii_type, exclude_H, platform=platform)
             self._write_to_nc(nc_handle, "trans_crd", self._crd)
             nc_handle.close()
 
@@ -1612,69 +1608,70 @@ class RecGrid(Grid):
         # bond_list = self._get_bond_list()
         bond_list = [] # temporarily disable bond list to match old behavior.
         if platform == 'CPU':
-            task_divisor = multiprocessing.cpu_count()  # Use all available cores
             for name in self._grid_func_names:
                 print("calculating receptor %s grid" % name)
-                with concurrent.futures.ProcessPoolExecutor() as executor:
-                    futures_array = []
-                    if name != "sasa":
-                        for i in range(task_divisor):
-                            counts = np.copy(self._grid["counts"])
-                            counts_x = counts[0] // task_divisor
-                            if i == task_divisor - 1:
-                                counts_x += counts[0] % task_divisor
-                            counts[0] = counts_x
-                            grid_start_x = i * (self._grid["counts"][0] // task_divisor)
-                            origin = np.copy(self._origin_crd)
-                            origin[0] = grid_start_x * self._grid["spacing"][0]
-                            futures_array.append(executor.submit(
-                                process_potential_grid_function,
-                                name,
-                                self._crd,
-                                origin,
-                                self._grid["spacing"],
-                                counts,
-                                self._get_charges(name),
-                                self._prmtop["LJ_SIGMA"],
-                                self._prmtop["VDW_RADII"],
-                                clash_radii,
-                                bond_list,
-                                atom_list,
-                                self._molecule_sasa,
-                            ))
-                        grid_array = []
-                        for i in range(task_divisor):
-                            partial_grid = futures_array[i].result()
-                            grid_array.append(partial_grid)
-                        grid = np.concatenate(tuple(grid_array), axis=0)
-                    else:
-                        for i in range(task_divisor):
-                            natoms_i = self._crd.shape[0]
-                            natoms_slice = natoms_i // task_divisor
-                            if i == task_divisor - 1:
-                                natoms_slice += natoms_i % task_divisor
-                            natoms_i = natoms_slice
-                            atomind = i * (self._crd.shape[0] // task_divisor)
-                            futures_array.append(executor.submit(
-                                process_sasa_grid_function,
-                                self._crd,
-                                self._prmtop["VDW_RADII"],
-                                self._spacing,
-                                probe_size,
-                                n_sphere_points,
-                                natoms_i,
-                                atomind,
-                            ))
-                        point_array = []
-                        for i in range(task_divisor):
-                            partial_points = futures_array[i].result()
-                            point_array.append(partial_points)
-                        points = np.concatenate(tuple(point_array), axis=0)
-                        grid = c_points_to_grid(points, self._spacing, self._grid["counts"])
+                if name != "sasa":
+                    # Compute grid coordinates
+                    grid_x = np.linspace(
+                        self._origin_crd[0],
+                        self._origin_crd[0] + ((self._grid["counts"][0] - 1) * self._grid["spacing"][0]),
+                        num=self._grid["counts"][0]
+                    )
+                    grid_y = np.linspace(
+                        self._origin_crd[1],
+                        self._origin_crd[1] + ((self._grid["counts"][1] - 1) * self._grid["spacing"][1]),
+                        num=self._grid["counts"][1]
+                    )
+                    grid_z = np.linspace(
+                        self._origin_crd[2],
+                        self._origin_crd[2] + ((self._grid["counts"][2] - 1) * self._grid["spacing"][2]),
+                        num=self._grid["counts"][2]
+                    )
 
-                    self._write_to_nc(nc_handle, name, grid)
-                    self._set_grid_key_value(name, grid)
-                    # self._set_grid_key_value(name, None)     # to save memory
+                    # Convert molecule_sasa to 1D float64 if needed
+                    if self._molecule_sasa.ndim == 2:
+                        molecule_sasa_1d = self._molecule_sasa[0].astype(np.float64)
+                    else:
+                        molecule_sasa_1d = self._molecule_sasa.astype(np.float64)
+
+                    # Call CPU function directly (OpenMP handles parallelization)
+                    grid = py_cal_potential_grid(
+                        name,
+                        self._crd,
+                        grid_x,
+                        grid_y,
+                        grid_z,
+                        self._origin_crd,
+                        self._uper_most_corner_crd,
+                        self._uper_most_corner,
+                        self._grid["spacing"],
+                        self._grid["counts"],
+                        self._get_charges(name),
+                        self._prmtop["LJ_SIGMA"],
+                        self._prmtop["VDW_RADII"],
+                        clash_radii,
+                        molecule_sasa_1d,
+                        atom_list
+                    )
+                else:
+                    # SASA grid: use CPU implementation with 10-corner interpolation (built-in)
+                    radii = np.copy(self._prmtop["VDW_RADII"]) + probe_size
+                    atom_selection_mask = np.ones(self._crd.shape[0], dtype=np.int32)
+
+                    # calculate_sasa expects shape [n_frames, n_atoms, 3]
+                    grid = calculate_sasa(
+                        self._crd[np.newaxis, :, :].astype(np.float32),
+                        radii.astype(np.float32),
+                        n_sphere_points,
+                        atom_selection_mask,
+                        self._grid["counts"],
+                        self._spacing[0]
+                    )
+                    grid = grid[0].astype(np.float64)  # Extract single frame and convert to float64
+
+                self._write_to_nc(nc_handle, name, grid)
+                self._set_grid_key_value(name, grid)
+                # self._set_grid_key_value(name, None)     # to save memory
 
         elif platform == 'GPU':
             if not GPU_AVAILABLE:
@@ -1740,7 +1737,7 @@ class RecGrid(Grid):
                         self._spacing[0],
                         use_ten_corners=True  # Use 10-corner interpolation for accuracy
                     )
-                    grid = grid[0]  # Extract single frame
+                    grid = grid[0].astype(np.float64)  # Extract single frame and convert to float64
 
                 self._write_to_nc(nc_handle, name, grid)
                 self._set_grid_key_value(name, grid)

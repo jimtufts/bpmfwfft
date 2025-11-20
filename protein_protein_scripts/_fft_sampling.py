@@ -20,7 +20,8 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
                 lig_prmtop, lig_inpcrd,
                 lig_coor_nc, nr_lig_conf,
                 energy_sample_size_per_ligand,
-                output_nc, output_dir):
+                output_nc, output_dir,
+                use_gpu_fft=False):
     lig_nc_handle = netCDF4.Dataset(lig_coor_nc, "r")
     if os.path.exists(output_nc):
         temp_nc = netCDF4.Dataset(output_nc, "r")
@@ -46,7 +47,8 @@ def sampling(rec_prmtop, lj_sigma_scal_fact,
                             energy_sample_size_per_ligand,
                             output_nc,
                             start_index,
-                            temperature=300.)
+                            temperature=300.,
+                            use_gpu_fft=use_gpu_fft)
 
         sampler.run_sampling()
         if start_index + nr_lig_conf >= total_rotations:
